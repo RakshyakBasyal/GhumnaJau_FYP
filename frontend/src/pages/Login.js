@@ -20,7 +20,6 @@ const Login = () => {
     try {
       const res = await apiLogin({ email, password });
 
-      // Check if it's an admin trying to login here
       if (res.data.role === 'ADMIN') {
         setError('Admin access restricted. Please use the dedicated Admin Login portal.');
         setLoading(false);
@@ -126,7 +125,7 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Optional: Admin Login Link */}
+          {/* Admin Login Link */}
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-600">
               Admin access?{' '}

@@ -1,7 +1,7 @@
 // backend/src/controllers/userController.js
 const User = require("../models/User");
 
-// GET all users (Admin only)
+// GET all users 
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-password");
@@ -12,12 +12,12 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// DELETE user (Admin only)
+// DELETE user y)
 exports.deleteUser = async (req, res) => {
   try {
     const userId = req.params.id;
 
-    // Prevent deleting yourself (optional but recommended)
+    // Prevent deleting yourself 
     if (req.user?.id === userId) {
       return res.status(400).json({ msg: "You can't delete your own admin account" });
     }
@@ -25,7 +25,7 @@ exports.deleteUser = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ msg: "User not found" });
 
-    // Prevent deleting admin users (optional)
+    // Prevent deleting admin users 
     if (user.role === "ADMIN") {
       return res.status(403).json({ msg: "Cannot delete an admin user" });
     }

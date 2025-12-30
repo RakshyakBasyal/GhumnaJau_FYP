@@ -117,7 +117,6 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Popular Destination Section */}
       <section className="py-20 bg-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -128,33 +127,32 @@ const Landing = () => {
               Explore the most loved destinations in Nepal
             </p>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {popular.length === 0 ? (
-              <p className="text-center text-gray-600 col-span-3 py-10">No destinations added yet</p>
+              <p className="text-center text-gray-600 col-span-3 py-10">
+                No destinations added yet
+              </p>
             ) : (
               popular.map((destination) => (
                 <div
                   key={destination._id}
-                  className="relative h-80 rounded-xl overflow-hidden group cursor-pointer shadow-lg hover:shadow-2xl transition"
+                  className="relative h-80 bg-cover bg-center rounded-xl overflow-hidden group cursor-pointer"
                   onClick={() => navigate(`/destinations/${destination._id}`)}
+                  style={{
+                    backgroundImage: destination.images?.[0]
+                      ? `url(http://localhost:5000${destination.images[0]})`
+                      : `url(https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg)`,
+                  }}
                 >
-                  <div className="absolute inset-0">
-                    {destination.images?.[0] ? (
-                      <img
-                        src={`http://localhost:5000${destination.images[0]}`}
-                        alt={destination.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-300 flex items-center justify-center">
-                        <span className="text-gray-500 text-lg">No image</span>
-                      </div>
-                    )}
-                  </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-6 group-hover:from-black/80 transition">
                     <div>
-                      <h3 className="text-white text-2xl font-bold mb-2">{destination.name}</h3>
-                      <p className="text-white/90">{destination.location || 'Nepal'}</p>
+                      <h3 className="text-white text-2xl font-bold mb-2">
+                        {destination.name}
+                      </h3>
+                      <p className="text-white/90">
+                        {destination.shortDescription || "Explore this destination"}
+                      </p>
                     </div>
                   </div>
                 </div>

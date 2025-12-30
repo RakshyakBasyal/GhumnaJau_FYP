@@ -18,11 +18,15 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const destinationRoutes = require('./routes/destinationRoutes'); // <-- Correct
+const adminRoutes = require("./routes/adminRoutes");
+
+
 
 app.use('/images', express.static(path.join(__dirname, '..', 'images')));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/destinations', destinationRoutes);
+app.use("/api/admin", adminRoutes);
 
 
 module.exports = app;

@@ -1,5 +1,3 @@
-
-
 // backend/routes/destinationRoutes.js
 const express = require('express');
 const multer = require('multer');
@@ -18,7 +16,7 @@ const router = express.Router();
 // Multer setup for image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Make sure this folder exists
+    cb(null, 'uploads/'); 
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + '-' + file.originalname);
@@ -27,11 +25,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Public routes (anyone can view)
+// Public routes 
 router.get('/', getAllDestinations);
 router.get('/:id', getDestination);
 
-// Admin-only routes (protected with auth + admin middleware)
+// Admin-only routes 
 router.post('/', auth, admin, upload.array('images', 10), createDestination);
 router.put('/:id', auth, admin, upload.array('images', 10), updateDestination);
 router.delete('/:id', auth, admin, deleteDestination);
