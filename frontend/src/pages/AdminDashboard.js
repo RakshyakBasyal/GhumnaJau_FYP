@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Users, MapPin, Hotel, PlaneTakeoff, BarChart, TrendingUp, TrendingDown } from 'lucide-react';
 import { getAdminStats } from '../services/api';
 import AdminNavbar from '../components/AdminNavbar';
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
+
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalDestinations: 0,
@@ -100,9 +102,20 @@ const AdminDashboard = () => {
       <AdminNavbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome to Ghumna Jau Admin Panel</p>
+        {/* Header + Explore button */}
+        <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-2">Welcome to Ghumna Jau Admin Panel</p>
+          </div>
+
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-600 text-white px-5 py-3 rounded-lg hover:bg-blue-700 transition font-semibold"
+            type="button"
+          >
+            Explore Main Site
+          </button>
         </div>
 
         {loading ? (
@@ -200,3 +213,4 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+

@@ -11,7 +11,7 @@ exports.getAdminStats = async (req, res) => {
   try {
     const now = new Date();
 
-    // choose your period: 7 days (weekly trend)
+    //period: 7 days (weekly trend)
     const periodDays = 7;
 
     const startCurrent = new Date(now);

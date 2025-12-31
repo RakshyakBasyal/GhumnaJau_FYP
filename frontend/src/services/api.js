@@ -41,3 +41,9 @@ export const deleteDestination = (id) => {
 export const getUsers = () => API.get('/users');
 export const deleteUser = (id) => API.delete(`/users/${id}`);
 export const getAdminStats = () => API.get("/admin/stats");
+// delete my own account
+export const deleteMyAccount = () => API.delete("/users/me");
+export const getMe = () => API.get("/users/me");
+export const updateMe = (data) => API.put("/users/me", data);
+
+

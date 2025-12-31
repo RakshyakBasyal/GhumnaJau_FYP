@@ -9,7 +9,6 @@ const destinationSchema = new mongoose.Schema(
     rating: { type: Number, default: 5 },
     bestTimeToVisit: { type: String },
 
-    // Costs (optional)
     averageCost: { type: Number },
     averageCostMin: { type: Number },
     averageCostMax: { type: Number },

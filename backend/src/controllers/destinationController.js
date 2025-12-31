@@ -110,7 +110,7 @@ exports.updateDestination = async (req, res) => {
         destination.averageCostMin = undefined;
         destination.averageCostMax = undefined;
       }
-      // if avg cleared (""), we just leave range as-is unless min/max sent too
+    
     }
 
     if (averageCostMin !== undefined) {

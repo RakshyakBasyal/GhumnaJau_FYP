@@ -28,5 +28,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/destinations', destinationRoutes);
 app.use("/api/admin", adminRoutes);
 
+app.use("/api/users", require("./routes/userRoutes"));
+
 
 module.exports = app;
