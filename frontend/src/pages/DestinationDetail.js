@@ -1,7 +1,8 @@
+// frontend/src/pages/DestinationDetail.js
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { MapPin, DollarSign, Calendar, Plane, Hotel, X } from 'lucide-react';
+import { MapPin, DollarSign, Calendar, Plane, Hotel, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -27,8 +28,8 @@ const DestinationDetail = () => {
   const { id } = useParams();
   const [destination, setDestination] = useState(null);
   const [loading, setLoading] = useState(true);
-
   const [showPhotos, setShowPhotos] = useState(false);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0); // New: for swipe
 
   useEffect(() => {
     const fetchDestination = async () => {
@@ -54,6 +55,15 @@ const DestinationDetail = () => {
 
   const allImages = destination.images || [];
   const previewImages = allImages.slice(0, 3);
+
+  // Swipe functions
+  const nextPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev + 1) % allImages.length);
+  };
+
+  const prevPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -139,7 +149,10 @@ const DestinationDetail = () => {
                   src={`${BASE_URL}${img}`}
                   alt={`${destination.name} ${i + 1}`}
                   className="w-full h-64 object-cover rounded-xl shadow-lg cursor-pointer"
-                  onClick={() => setShowPhotos(true)}
+                  onClick={() => {
+                    setCurrentPhotoIndex(i);
+                    setShowPhotos(true);
+                  }}
                 />
               ))}
             </div>
@@ -147,7 +160,10 @@ const DestinationDetail = () => {
             {allImages.length <= 3 && allImages.length > 1 && (
               <div className="mt-6">
                 <button
-                  onClick={() => setShowPhotos(true)}
+                  onClick={() => {
+                    setCurrentPhotoIndex(0);
+                    setShowPhotos(true);
+                  }}
                   className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
                 >
                   View all photos ({allImages.length})
@@ -177,35 +193,43 @@ const DestinationDetail = () => {
         </div>
       </div>
 
-      {/* View All Photos Modal */}
-      {showPhotos && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="text-xl font-bold text-gray-800">
-                {destination.name} — Photos ({allImages.length})
-              </h3>
-              <button
-                onClick={() => setShowPhotos(false)}
-                className="p-2 rounded-full hover:bg-gray-100 transition"
-                aria-label="Close"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      {/* Full-screen Swipeable Photo Modal */}
+      {showPhotos && allImages.length > 0 && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center">
+          {/* Close button */}
+          <button
+            onClick={() => setShowPhotos(false)}
+            className="absolute top-6 right-6 z-10 bg-white/20 backdrop-blur-sm p-3 rounded-full hover:bg-white/40 transition"
+          >
+            <X className="h-7 w-7 text-white" />
+          </button>
 
-            <div className="p-6 max-h-[75vh] overflow-y-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {allImages.map((img, i) => (
-                  <img
-                    key={i}
-                    src={`${BASE_URL}${img}`}
-                    alt={`${destination.name} photo ${i + 1}`}
-                    className="w-full h-56 object-cover rounded-xl"
-                  />
-                ))}
-              </div>
-            </div>
+          {/* Previous */}
+          <button
+            onClick={prevPhoto}
+            className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition"
+          >
+            <ChevronLeft className="h-8 w-8 text-white" />
+          </button>
+
+          {/* Next */}
+          <button
+            onClick={nextPhoto}
+            className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition"
+          >
+            <ChevronRight className="h-8 w-8 text-white" />
+          </button>
+
+          {/* Current Photo */}
+          <div className="relative max-w-5xl w-full px-4">
+            <img
+              src={`${BASE_URL}${allImages[currentPhotoIndex]}`}
+              alt={`${destination.name} photo ${currentPhotoIndex + 1}`}
+              className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
+            <p className="text-white text-center mt-4 text-lg">
+              {currentPhotoIndex + 1} / {allImages.length}
+            </p>
           </div>
         </div>
       )}

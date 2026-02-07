@@ -1,3 +1,4 @@
+//backend/src/routes/adminRoutes.js
 const router = require("express").Router();
 const { getAdminStats } = require("../controllers/adminController");
 const auth = require("../middleware/auth");

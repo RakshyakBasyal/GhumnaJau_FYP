@@ -1,4 +1,4 @@
-// src/pages/AdminLogin.jsx
+//frontend/src/pages/AdminLogin.js
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../services/api'; // We'll use direct API call

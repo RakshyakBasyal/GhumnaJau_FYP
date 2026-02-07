@@ -1,3 +1,4 @@
+//backend/src/models/Destination.js
 const mongoose = require("mongoose");
 
 const destinationSchema = new mongoose.Schema(

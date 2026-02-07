@@ -1,3 +1,4 @@
+//backend/src/app.js
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
@@ -27,7 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/destinations', destinationRoutes);
 app.use("/api/admin", adminRoutes);
-
+app.use('/api/hotels', require('./routes/hotelRoutes'));
 app.use("/api/users", require("./routes/userRoutes"));
 
 

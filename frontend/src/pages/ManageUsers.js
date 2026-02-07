@@ -1,4 +1,4 @@
-// src/pages/ManageUsers.jsx
+//frontend/src/pages/ManageUsers.js
 import { useEffect, useState } from "react";
 import { Search, Trash2 } from "lucide-react";
 import AdminNavbar from "../components/AdminNavbar";

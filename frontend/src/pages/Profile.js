@@ -1,3 +1,4 @@
+//frontend/src/pages/Profile.js
 import {
   User,
   Mail,

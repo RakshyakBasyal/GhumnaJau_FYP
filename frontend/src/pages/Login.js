@@ -1,4 +1,4 @@
-// src/pages/Login.jsx
+//frontend/src/pages/Login.js
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, Eye, EyeOff, Plane } from 'lucide-react';

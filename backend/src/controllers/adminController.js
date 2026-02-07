@@ -1,3 +1,4 @@
+//backend/src/controllers/adminController.js
 const User = require("../models/User");
 const Destination = require("../models/Destination");
 

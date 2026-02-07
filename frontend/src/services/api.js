@@ -1,3 +1,4 @@
+//frontend/src/services/api.js
 import axios from 'axios';
 
 const API = axios.create({
@@ -45,5 +46,18 @@ export const getAdminStats = () => API.get("/admin/stats");
 export const deleteMyAccount = () => API.delete("/users/me");
 export const getMe = () => API.get("/users/me");
 export const updateMe = (data) => API.put("/users/me", data);
+
+// Hotels
+export const getHotels = () => API.get('/hotels');
+export const getHotel = (id) => API.get(`/hotels/${id}`);
+
+
+export const createHotel = (formData) => API.post('/hotels', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' },
+});
+export const updateHotel = (id, formData) => API.put(`/hotels/${id}`, formData, {
+  headers: { 'Content-Type': 'multipart/form-data' },
+});
+export const deleteHotel = (id) => API.delete(`/hotels/${id}`);
 
 

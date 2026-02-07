@@ -1,3 +1,4 @@
+//backend/src/routes/authRoutes.js
 const express = require('express');
 const { register, login } = require('../controllers/authController');  // ← Must be correct path
 
