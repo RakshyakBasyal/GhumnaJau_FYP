@@ -1,4 +1,4 @@
-//frontend/src/pages/manageDestinations.js
+//frontend/src/pages/ManageDestinations.js
 import { useEffect, useRef, useState } from "react";
 import { Plus, Edit2, Trash2, X } from "lucide-react";
 import AdminNavbar from "../components/AdminNavbar";

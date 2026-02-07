@@ -50,6 +50,7 @@ const AdminNavbar = () => {
               <Hotel className="h-5 w-5" />
               <span>Hotels</span>
             </Link>
+            
             <Link
               to="/admin/flights"
               className="flex items-center space-x-2 hover:text-blue-400 transition"

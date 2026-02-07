@@ -1,4 +1,4 @@
-//frontend/src/App.jsx
+// frontend/src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
@@ -10,8 +10,11 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import ManageUsers from './pages/ManageUsers';
 import ManageDestinations from './pages/ManageDestinations';
+import ManageHotels from './pages/ManageHotels';
 import ProtectedRoute from './components/ProtectedRoute';
 import Profile from './pages/Profile';
+import Hotels from './pages/Hotels';
+import HotelDetail from './pages/HotelDetail';
 
 function App() {
   return (
@@ -48,19 +51,21 @@ function App() {
           }
         />
         <Route
-  path="/admin/destinations"
-  element={
-    <ProtectedRoute adminOnly>
-      <ManageDestinations />
-    </ProtectedRoute>
-  }
-/>
+          path="/admin/hotels"
+          element={
+            <ProtectedRoute adminOnly>
+              <ManageHotels />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* User Pages - With Layout (Navbar + Footer) */}
+        {/* ALL User Pages - With Layout (Navbar + Footer) */}
         <Route element={<Layout />}>
           <Route path="/" element={<Landing />} />
           <Route path="/destinations" element={<Destinations />} />
           <Route path="/destinations/:id" element={<DestinationDetail />} />
+          <Route path="/hotels" element={<Hotels />} />
+          <Route path="/hotels/:id" element={<HotelDetail />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Routes>
