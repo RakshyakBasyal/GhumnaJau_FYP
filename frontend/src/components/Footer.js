@@ -1,3 +1,4 @@
+//frontend/src/components/Footer.js
 import { Link } from 'react-router-dom';
 import { Plane, Mail, Phone, MapPin } from 'lucide-react';
 

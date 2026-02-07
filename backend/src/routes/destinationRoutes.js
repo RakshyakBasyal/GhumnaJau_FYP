@@ -1,4 +1,4 @@
-// backend/routes/destinationRoutes.js
+// backend/src/routes/destinationRoutes.js
 const express = require('express');
 const multer = require('multer');
 const auth = require('../middleware/auth');

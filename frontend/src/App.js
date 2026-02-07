@@ -1,4 +1,4 @@
-// src/App.jsx
+//frontend/src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';

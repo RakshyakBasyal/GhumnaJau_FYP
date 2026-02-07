@@ -1,4 +1,4 @@
-// src/pages/Register.jsx
+//frontend/src/pages/Register.js
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus, Mail, Lock, Eye, EyeOff, Plane, Phone, User as UserIcon } from 'lucide-react';

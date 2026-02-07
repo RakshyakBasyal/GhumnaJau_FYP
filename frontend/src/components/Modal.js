@@ -1,3 +1,4 @@
+//frontend/src/components/Modal.js
 import { useEffect } from 'react';
 
 const Modal = ({ isOpen, onClose, title, children }) => {

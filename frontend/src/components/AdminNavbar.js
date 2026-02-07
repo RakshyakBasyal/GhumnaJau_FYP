@@ -1,4 +1,4 @@
-// src/components/AdminNavbar.jsx
+//frontend/src/components/AdminNavbar.js
 import { Link, useNavigate } from 'react-router-dom';
 import { Plane, LogOut, LayoutDashboard, Users, MapPin, Hotel, PlaneTakeoff } from 'lucide-react';
 

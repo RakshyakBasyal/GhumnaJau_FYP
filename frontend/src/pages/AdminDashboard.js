@@ -1,3 +1,4 @@
+//frontend/src/pages/AdminDashboard.js
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Users, MapPin, Hotel, PlaneTakeoff, BarChart, TrendingUp, TrendingDown } from 'lucide-react';

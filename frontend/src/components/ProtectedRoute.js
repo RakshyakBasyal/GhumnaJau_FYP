@@ -1,4 +1,4 @@
-// src/components/ProtectedRoute.jsx
+//frontend/src/components/ProtectedRoute.js
 import { Navigate, useLocation } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 

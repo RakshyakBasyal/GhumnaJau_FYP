@@ -1,3 +1,4 @@
+//frontend/src/pages/Destinations.js
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getDestinations } from '../services/api';

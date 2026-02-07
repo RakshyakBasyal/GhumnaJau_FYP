@@ -1,3 +1,4 @@
+//backend/src/controllers/destinationController.js
 const Destination = require("../models/Destination");
 
 const toNumberOrUndefined = (v) => {
