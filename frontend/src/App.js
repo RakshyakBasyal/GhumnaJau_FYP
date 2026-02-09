@@ -15,7 +15,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Profile from './pages/Profile';
 import Hotels from './pages/Hotels';
 import HotelDetail from './pages/HotelDetail';
-
+import MyBookings from './pages/MyBookings';
+import AdminBookings from './pages/AdminBookings';   
 function App() {
   return (
     <Router>
@@ -57,7 +58,11 @@ function App() {
               <ManageHotels />
             </ProtectedRoute>
           }
+          
         />
+        <Route path="/admin/bookings" element={<AdminBookings />} />
+
+
 
         {/* ALL User Pages - With Layout (Navbar + Footer) */}
         <Route element={<Layout />}>
@@ -67,9 +72,11 @@ function App() {
           <Route path="/hotels" element={<Hotels />} />
           <Route path="/hotels/:id" element={<HotelDetail />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/my-bookings" element={<MyBookings />} />
         </Route>
       </Routes>
     </Router>
+    
   );
 }
 

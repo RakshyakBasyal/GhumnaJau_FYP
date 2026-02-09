@@ -1,4 +1,4 @@
-//frontend/src/pages/Profile.js
+// frontend/src/pages/Profile.js
 import {
   User,
   Mail,
@@ -8,10 +8,14 @@ import {
   X,
   Calendar,
   Trash2,
+  MapPin,
+  IndianRupee,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteMyAccount, getMe, updateMe } from "../services/api";
+
+const BASE_URL = "http://localhost:5000";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -24,15 +28,19 @@ const Profile = () => {
   });
   const [originalData, setOriginalData] = useState({});
 
-  // ✅ delete modal state
+  // Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  // ✅ optional: loading state for profile fetch
+  // Loading states
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [loadingBookings, setLoadingBookings] = useState(true);
 
-  // ✅ Load profile from DB (not localStorage)
+  // My Bookings
+  const [bookings, setBookings] = useState([]);
+
+  // Load user profile
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -48,7 +56,7 @@ const Profile = () => {
         setUserData(loadedData);
         setOriginalData(loadedData);
 
-        // Keep localStorage in sync (so other pages using it still work)
+        // Sync localStorage
         localStorage.setItem("username", loadedData.fullName);
         localStorage.setItem("userEmail", loadedData.email);
         localStorage.setItem("userPhone", loadedData.phone);
@@ -66,9 +74,37 @@ const Profile = () => {
     loadProfile();
   }, [navigate]);
 
+  // Load user's bookings
+  useEffect(() => {
+    const loadBookings = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const res = await fetch(`${BASE_URL}/api/bookings/my`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to load bookings");
+        }
+
+        const data = await res.json();
+        setBookings(data);
+      } catch (err) {
+        console.error("Bookings load error:", err);
+      } finally {
+        setLoadingBookings(false);
+      }
+    };
+
+    loadBookings();
+  }, []);
+
   const handleEdit = () => setIsEditing(true);
 
-  // ✅ Save to DB
   const handleSave = async () => {
     try {
       const payload = {
@@ -89,7 +125,6 @@ const Profile = () => {
       setOriginalData(updatedData);
       setIsEditing(false);
 
-      // Sync localStorage
       localStorage.setItem("username", updatedData.fullName);
       localStorage.setItem("userPhone", updatedData.phone);
 
@@ -110,13 +145,12 @@ const Profile = () => {
     navigate("/login");
   };
 
-  // ✅ REAL DB delete
   const handleDeleteAccount = async () => {
     if (deleteText.trim().toUpperCase() !== "DELETE") return;
 
     try {
       setDeleting(true);
-      await deleteMyAccount(); // ✅ DELETE /api/users/me
+      await deleteMyAccount();
 
       localStorage.clear();
       alert("Your account has been deleted.");
@@ -149,7 +183,7 @@ const Profile = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl font-bold text-gray-900 mb-8">My Profile</h1>
 
-        {/* Hero Card */}
+        {/* Profile Hero Card */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
           <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-32" />
           <div className="px-8 pb-8">
@@ -181,7 +215,7 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Edit Form */}
+        {/* Edit Form or Info + Bookings */}
         {isEditing ? (
           <div className="bg-white rounded-xl shadow-md p-8 mb-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">
@@ -207,7 +241,7 @@ const Profile = () => {
                     onChange={(e) =>
                       setUserData({ ...userData, fullName: e.target.value })
                     }
-                    className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
               </div>
@@ -225,7 +259,7 @@ const Profile = () => {
                       setUserData({ ...userData, phone: e.target.value })
                     }
                     placeholder="+977 98xxxxxxxx"
-                    className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
               </div>
@@ -266,6 +300,7 @@ const Profile = () => {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-8 mb-8">
+            {/* Account Information */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 Account Information
@@ -283,7 +318,6 @@ const Profile = () => {
                     {userData.email}
                   </p>
                 </div>
-                {/* ✅ Always show phone line, even if empty */}
                 <div>
                   <p className="text-sm text-gray-600">Phone Number</p>
                   <p className="text-lg font-semibold text-gray-900">
@@ -293,19 +327,114 @@ const Profile = () => {
               </div>
             </div>
 
+            {/* My Bookings Preview */}
             <div className="bg-white rounded-xl shadow-md p-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">
-                My Bookings
-              </h3>
-              <div className="text-center py-12">
-                <div className="bg-gray-200 border-2 border-dashed rounded-xl w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                  <Calendar className="h-10 w-10 text-gray-400" />
-                </div>
-                <p className="text-lg text-gray-600">No bookings yet</p>
-                <p className="text-gray-500 mt-2">
-                  Explore destinations and start planning your trip!
-                </p>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">My Bookings</h3>
+                {bookings.length > 0 && (
+                  <button
+                    onClick={() => navigate("/my-bookings")}
+                    className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2"
+                  >
+                    View All →
+                  </button>
+                )}
               </div>
+
+              {loadingBookings ? (
+                <p className="text-center text-gray-600 py-8">Loading bookings...</p>
+              ) : bookings.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="bg-gray-200 border-2 border-dashed rounded-xl w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                    <Calendar className="h-10 w-10 text-gray-400" />
+                  </div>
+                  <p className="text-lg text-gray-600">No bookings yet</p>
+                  <p className="text-gray-500 mt-2">
+                    Explore hotels and start planning your trip!
+                  </p>
+                  <button
+                    onClick={() => navigate("/hotels")}
+                    className="mt-6 bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition"
+                  >
+                    Browse Hotels
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookings.slice(0, 3).map((booking) => (
+                    <div
+                      key={booking._id}
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* Hotel Image */}
+                        <div className="w-20 h-20 flex-shrink-0">
+                          <img
+                            src={
+                              booking.hotel?.images?.[0]
+                                ? `${BASE_URL}${booking.hotel.images[0]}`
+                                : "https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg"
+                            }
+                            alt={booking.hotel?.name || "Hotel"}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        </div>
+
+                        {/* Booking Info */}
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-base mb-1">
+                            {booking.hotel?.name || "Hotel Name"}
+                          </h4>
+                          <p className="text-sm text-gray-600 flex items-center gap-1 mb-2">
+                            <MapPin className="h-4 w-4" />
+                            {booking.hotel?.destination?.name || "Location"}
+                          </p>
+
+                          <div className="text-sm space-y-1">
+                            <p>
+                              <span className="text-gray-500">Dates:</span>{" "}
+                              {new Date(booking.checkIn).toLocaleDateString()} -{" "}
+                              {new Date(booking.checkOut).toLocaleDateString()}
+                            </p>
+                            <p>
+                              <span className="text-gray-500">Room:</span> {booking.roomType}
+                            </p>
+                            <p>
+                              <span className="text-gray-500">Guests:</span> {booking.guests}
+                            </p>
+                          </div>
+
+                          <div className="mt-3 flex justify-between items-center">
+                            <p className="font-semibold text-blue-600">
+                              NPR {booking.totalAmount.toLocaleString()}
+                            </p>
+                            <span
+                              className={`text-xs px-3 py-1 rounded-full ${
+                                booking.status === "confirmed"
+                                  ? "bg-green-100 text-green-800"
+                                  : booking.status === "cancelled"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}
+                            >
+                              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {bookings.length > 3 && (
+                    <button
+                      onClick={() => navigate("/my-bookings")}
+                      className="w-full mt-4 text-blue-600 hover:text-blue-800 font-medium text-center"
+                    >
+                      View all {bookings.length} bookings →
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -335,7 +464,7 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Delete Modal */}
+      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
@@ -357,8 +486,7 @@ const Profile = () => {
 
             <div className="p-6">
               <p className="text-gray-700 mb-4">
-                Type <span className="font-bold">DELETE</span> to confirm. This
-                will remove your account from the database.
+                Type <span className="font-bold">DELETE</span> to confirm. This will permanently remove your account.
               </p>
 
               <input
@@ -386,7 +514,7 @@ const Profile = () => {
                   className="flex-1 bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   type="button"
                 >
-                  {deleting ? "Deleting..." : "Delete"}
+                  {deleting ? "Deleting..." : "Delete Account"}
                 </button>
               </div>
             </div>
