@@ -9,17 +9,20 @@ import {
   BarChart,
   TrendingUp,
   TrendingDown,
-  Calendar,
-  CheckCircle,     // ← ADD THIS
+  CheckCircle,
   XCircle,
+  Calendar,
+  X,
 } from 'lucide-react';
 import { getAdminStats } from '../services/api';
 import AdminNavbar from '../components/AdminNavbar';
+import { useToast } from '../context/ToastContext';
 
 const BASE_URL = "http://localhost:5000";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -33,6 +36,10 @@ const AdminDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingBookings, setLoadingBookings] = useState(true);
+
+  // Confirmation modal states
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null); // { bookingId, newStatus }
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -84,6 +91,52 @@ const AdminDashboard = () => {
     fetchBookings();
   }, []);
 
+  const requestStatusUpdate = (bookingId, newStatus) => {
+    setPendingAction({ bookingId, newStatus });
+    setShowConfirmModal(true);
+  };
+
+  const confirmStatusUpdate = async () => {
+    if (!pendingAction) return;
+
+    const { bookingId, newStatus } = pendingAction;
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.msg || 'Failed to update status');
+      }
+
+      // Update UI instantly
+      setBookings((prev) =>
+        prev.map((b) =>
+          b._id === bookingId ? { ...b, status: newStatus } : b
+        )
+      );
+
+      showToast(`Booking ${newStatus} successfully!`, 'success');
+    } catch (err) {
+      showToast('Failed to update: ' + err.message, 'error');
+    } finally {
+      setShowConfirmModal(false);
+      setPendingAction(null);
+    }
+  };
+
+  const cancelStatusUpdate = () => {
+    setShowConfirmModal(false);
+    setPendingAction(null);
+  };
+
   const trendBadge = (percent) => {
     const isUp = percent >= 0;
     const Icon = isUp ? TrendingUp : TrendingDown;
@@ -118,7 +171,7 @@ const AdminDashboard = () => {
       value: stats.totalHotels,
       icon: Hotel,
       color: 'bg-purple-500',
-      trendPercent: stats.trends.hotelsPercent || 0, // Use real trend if backend provides, else 0
+      trendPercent: 0, // Add hotelsPercent if backend sends it
     },
     {
       title: 'Flights',
@@ -192,106 +245,102 @@ const AdminDashboard = () => {
               ) : bookings.length === 0 ? (
                 <p className="text-center text-gray-600 py-8">No recent bookings</p>
               ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            User
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Hotel
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Dates
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Amount (NPR)
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Action
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {bookings.slice(0, 5).map((booking) => (
-                          <tr key={booking._id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {booking.user?.fullName || 'User'}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {booking.hotel?.name || 'Hotel'}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {new Date(booking.checkIn).toLocaleDateString()} -{' '}
-                                {new Date(booking.checkOut).toLocaleDateString()}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-blue-600 flex items-center">
-                                NPR {booking.totalAmount.toLocaleString()}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                  booking.status === 'confirmed'
-                                    ? 'bg-green-100 text-green-800'
-                                    : booking.status === 'cancelled'
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          User
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Hotel
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Dates
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Amount (NPR)
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {bookings.slice(0, 5).map((booking) => (
+                        <tr key={booking._id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {booking.user?.fullName || 'User'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {booking.hotel?.name || 'Hotel'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {new Date(booking.checkIn).toLocaleDateString()} -{' '}
+                              {new Date(booking.checkOut).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-blue-600 flex items-center">
+                              NPR {booking.totalAmount.toLocaleString()}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${booking.status === 'confirmed'
+                                  ? 'bg-green-100 text-green-800'
+                                  : booking.status === 'cancelled'
                                     ? 'bg-red-100 text-red-800'
                                     : 'bg-yellow-100 text-yellow-800'
                                 }`}
-                              >
-                                {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              {booking.status === 'pending' && (
-                                <div className="flex gap-3">
-                                  <button
-                                    onClick={() => handleUpdateStatus(booking._id, 'confirmed')}
-                                    className="text-green-600 hover:text-green-900"
-                                    title="Confirm"
-                                  >
-                                    <CheckCircle className="h-5 w-5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleUpdateStatus(booking._id, 'cancelled')}
-                                    className="text-red-600 hover:text-red-900"
-                                    title="Cancel"
-                                  >
-                                    <XCircle className="h-5 w-5" />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                            >
+                              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            {booking.status === 'pending' && (
+                              <div className="flex gap-3">
+                                <button
+                                  onClick={() => requestStatusUpdate(booking._id, 'confirmed')}
+                                  className="text-green-600 hover:text-green-900 transition"
+                                  title="Confirm Booking"
+                                >
+                                  <CheckCircle className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => requestStatusUpdate(booking._id, 'cancelled')}
+                                  className="text-red-600 hover:text-red-900 transition"
+                                  title="Cancel Booking"
+                                >
+                                  <XCircle className="h-5 w-5" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
 
-                  {/* View All Bookings Button */}
-                  {bookings.length > 5 && (
-                    <div className="mt-6 text-center">
-                      <Link
-                        to="/admin/bookings"
-                        className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"
-                      >
-                        View All Bookings ({bookings.length})
-                      </Link>
-                    </div>
-                  )}
-                </>
+                 
+                  {/* View All Bookings Button – always visible */}
+                  <div className="mt-6 text-center">
+                    <Link
+                      to="/admin/bookings"
+                      className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm"
+                    >
+                      View All Bookings ({bookings.length})
+                    </Link>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -337,6 +386,57 @@ const AdminDashboard = () => {
           </>
         )}
       </div>
+
+      {/* Custom Confirmation Modal for Confirm/Cancel Booking */}
+      {showConfirmModal && pendingAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform transition-all">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-xl font-bold text-gray-900">
+                {pendingAction.newStatus === 'confirmed' ? 'Confirm Booking' : 'Cancel Booking'}
+              </h3>
+              <button
+                onClick={cancelStatusUpdate}
+                className="p-1 rounded-full hover:bg-gray-100 transition"
+              >
+                <X className="h-6 w-6 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-gray-700 text-base leading-relaxed">
+                Are you sure you want to {pendingAction.newStatus} this booking?
+                {pendingAction.newStatus === 'cancelled' && (
+                  <span className="block mt-2 font-medium text-red-600">
+                    This action cannot be undone.
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={cancelStatusUpdate}
+                className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmStatusUpdate}
+                className={`px-6 py-2.5 rounded-lg text-white font-medium shadow-sm transition ${pendingAction.newStatus === 'confirmed'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                  }`}
+              >
+                {pendingAction.newStatus === 'confirmed' ? 'Confirm' : 'Cancel Booking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

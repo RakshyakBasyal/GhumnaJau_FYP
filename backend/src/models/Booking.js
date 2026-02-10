@@ -1,4 +1,4 @@
-//backend//src//models/Booking.js
+// backend/src/models/Booking.js
 const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
@@ -37,6 +37,16 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'confirmed', 'cancelled'],
     default: 'pending',
+  },
+  // Admin archiving (clears from admin view)
+  isArchived: {
+    type: Boolean,
+    default: false,
+  },
+  // User archiving (hides from user's main list)
+  isUserArchived: {
+    type: Boolean,
+    default: false,
   },
   createdAt: {
     type: Date,
