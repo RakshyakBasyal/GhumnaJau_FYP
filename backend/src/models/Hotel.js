@@ -17,7 +17,7 @@ const hotelSchema = new mongoose.Schema({
   rating: { type: Number, default: 5 },
   amenities: [{ type: String }],
   images: [{ type: String }],
-  roomTypes: [roomTypeSchema],   // ← Array of room types
+  roomTypes: [roomTypeSchema],   
 }, { timestamps: true });
 
 module.exports = mongoose.model('Hotel', hotelSchema);

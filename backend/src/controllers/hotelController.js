@@ -11,7 +11,7 @@ exports.createHotel = async (req, res) => {
       shortDescription,
       rating,
       amenities,
-      roomTypes,   // ← Array of objects
+      roomTypes,   
     } = req.body;
 
     const images = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
@@ -25,7 +25,7 @@ exports.createHotel = async (req, res) => {
       rating: rating || 5,
       amenities: amenities ? amenities.split(',') : [],
       images,
-      roomTypes: roomTypes ? JSON.parse(roomTypes) : [],   // ← Parse array from frontend
+      roomTypes: roomTypes ? JSON.parse(roomTypes) : [],  
     });
 
     await hotel.save();
@@ -49,7 +49,7 @@ exports.updateHotel = async (req, res) => {
       shortDescription,
       rating,
       amenities,
-      roomTypes,   // ← Allow updating room types
+      roomTypes,   
     } = req.body;
 
     if (name) hotel.name = name;
@@ -60,7 +60,7 @@ exports.updateHotel = async (req, res) => {
     if (rating) hotel.rating = rating;
     if (amenities) hotel.amenities = amenities.split(',');
 
-    // Update room types (admin sends full array)
+    
     if (roomTypes) {
       hotel.roomTypes = JSON.parse(roomTypes);
     }

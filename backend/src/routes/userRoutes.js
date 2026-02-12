@@ -13,12 +13,12 @@ const {
   deleteMe,
 } = require("../controllers/userController");
 
-// ✅ Self routes (NORMAL USER) — no admin middleware
+//Self routes (NORMAL USER) — no admin middleware
 router.get("/me", auth, getMe);
 router.put("/me", auth, updateMe);
 router.delete("/me", auth, deleteMe);
 
-// ✅ Admin routes
+//Admin routes
 router.get("/", auth, admin, getAllUsers);
 router.delete("/:id", auth, admin, deleteUser);
 

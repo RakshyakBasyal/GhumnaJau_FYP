@@ -24,7 +24,7 @@ exports.createDestination = async (req, res) => {
 
     const images = req.files ? req.files.map((file) => `/uploads/${file.filename}`) : [];
 
-    // If avgCost is provided, we treat it as single cost and clear range
+    
     const avg = toNumberOrUndefined(averageCost);
     const min = toNumberOrUndefined(averageCostMin);
     const max = toNumberOrUndefined(averageCostMax);
@@ -98,9 +98,7 @@ exports.updateDestination = async (req, res) => {
     const r = toNumberOrUndefined(rating);
     if (r !== undefined) destination.rating = r;
 
-    // Costs logic:
-    // - if averageCost is set => use single cost, clear range
-    // - if min/max are set => use range, clear single cost
+
     const avg = toNumberOrUndefined(averageCost);
     const min = toNumberOrUndefined(averageCostMin);
     const max = toNumberOrUndefined(averageCostMax);

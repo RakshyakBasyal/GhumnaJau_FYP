@@ -4,7 +4,6 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const path = require('path');
 
-
 connectDB();
 
 const app = express();
@@ -20,8 +19,6 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const destinationRoutes = require('./routes/destinationRoutes'); // <-- Correct
 const adminRoutes = require("./routes/adminRoutes");
-
-
 
 app.use('/images', express.static(path.join(__dirname, '..', 'images')));
 app.use('/api/auth', authRoutes);
