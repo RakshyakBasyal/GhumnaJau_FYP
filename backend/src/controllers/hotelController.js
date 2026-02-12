@@ -110,3 +110,17 @@ exports.deleteHotel = async (req, res) => {
     res.status(500).json({ msg: 'Server error' });
   }
 };
+
+// backend/src/controllers/hotelController.js
+exports.getAllHotels = async (req, res) => {
+  try {
+    const { destination } = req.query;
+    const filter = destination ? { destination } : {};
+    const hotels = await Hotel.find(filter)
+      .populate('destination', 'name country')
+      .sort({ rating: -1, name: 1 });
+    res.json(hotels);
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};

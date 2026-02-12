@@ -9,7 +9,7 @@ import {
   deleteDestination,
 } from "../services/api";
 import { useToast } from "../context/ToastContext";
-import ConfirmDialog from "../components/ConfirmDialog"; // ← New import
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const BASE_URL = "http://localhost:5000";
 
@@ -44,6 +44,8 @@ const ManageDestinations = () => {
     averageCost: "",
     averageCostMin: "",
     averageCostMax: "",
+    isAirport: false,
+    nearestAirport: "",
   });
 
   const [files, setFiles] = useState([]);
@@ -71,10 +73,10 @@ const ManageDestinations = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "rating" ? Number(value) : value,
+      [name]: type === "checkbox" ? checked : name === "rating" ? Number(value) : value,
     }));
   };
 
@@ -121,6 +123,8 @@ const ManageDestinations = () => {
     data.append("shortDescription", formData.shortDescription);
     data.append("rating", String(formData.rating));
     data.append("bestTimeToVisit", formData.bestTimeToVisit);
+    data.append("isAirport", formData.isAirport);
+    if (formData.nearestAirport) data.append("nearestAirport", formData.nearestAirport);
 
     const costs = normalizeCostFields();
 
@@ -192,6 +196,8 @@ const ManageDestinations = () => {
       averageCost: dest.averageCost ?? "",
       averageCostMin: dest.averageCostMin ?? "",
       averageCostMax: dest.averageCostMax ?? "",
+      isAirport: dest.isAirport || false,
+      nearestAirport: dest.nearestAirport?._id || dest.nearestAirport || "",
     });
 
     setExistingImages(dest.images || []);
@@ -236,6 +242,8 @@ const ManageDestinations = () => {
       averageCost: "",
       averageCostMin: "",
       averageCostMax: "",
+      isAirport: false,
+      nearestAirport: "",
     });
 
     setCostMode("range");
@@ -244,6 +252,32 @@ const ManageDestinations = () => {
     setImagesToDelete([]);
     setEditingId(null);
     setShowForm(false);
+  };
+
+  const toggleForm = () => {
+    if (showForm) {
+      resetForm();
+    } else {
+      setEditingId(null);
+      setFormData({
+        name: "",
+        country: "",
+        description: "",
+        shortDescription: "",
+        rating: 5,
+        bestTimeToVisit: "",
+        averageCost: "",
+        averageCostMin: "",
+        averageCostMax: "",
+        isAirport: false,
+        nearestAirport: "",
+      });
+      setCostMode("range");
+      setFiles([]);
+      setExistingImages([]);
+      setImagesToDelete([]);
+    }
+    setShowForm(!showForm);
   };
 
   const renderCostPreview = (dest) => {
@@ -287,7 +321,7 @@ const ManageDestinations = () => {
           </div>
 
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={toggleForm}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition flex items-center space-x-2"
             type="button"
           >
@@ -488,6 +522,50 @@ const ManageDestinations = () => {
                         placeholder="e.g., 1500"
                       />
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ─── NEW AIRPORT SECTION ─── */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Airport / Transport Hub Info</h3>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <input
+                    type="checkbox"
+                    name="isAirport"
+                    checked={formData.isAirport}
+                    onChange={handleChange}
+                    className="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <label className="text-base font-medium text-gray-800">
+                    This destination has its own airport
+                  </label>
+                </div>
+
+                {!formData.isAirport && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nearest Airport (for flight connections)
+                    </label>
+                    <select
+                      name="nearestAirport"
+                      value={formData.nearestAirport}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    >
+                      <option value="">Select nearest airport</option>
+                      {destinations
+                        .filter((d) => d.isAirport === true && d._id !== editingId)
+                        .map((dest) => (
+                          <option key={dest._id} value={dest._id}>
+                            {dest.name} ({dest.country})
+                          </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Flights to the selected airport will be shown on this destination's detail page.
+                    </p>
                   </div>
                 )}
               </div>

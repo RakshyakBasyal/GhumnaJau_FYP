@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle, XCircle, Calendar, IndianRupee, MapPin, X, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import AdminNavbar from '../components/AdminNavbar';
 
 const BASE_URL = "http://localhost:5000";
 

@@ -1,8 +1,8 @@
 // frontend/src/pages/DestinationDetail.js
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom'; // ← added Link
 import axios from 'axios';
-import { MapPin, DollarSign, Calendar, Plane, Hotel, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, DollarSign, Calendar, Plane, Hotel, X, ChevronLeft, ChevronRight, Star, IndianRupee } from 'lucide-react';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -26,99 +26,106 @@ const formatCostNPR = (dest) => {
 
 const DestinationDetail = () => {
   const { id } = useParams();
+
   const [destination, setDestination] = useState(null);
+  const [hotels, setHotels] = useState([]);
+  const [flights, setFlights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPhotos, setShowPhotos] = useState(false);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0); // New: for swipe
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
   useEffect(() => {
-    const fetchDestination = async () => {
+    const fetchData = async () => {
       try {
-        const res = await axios.get(`${BASE_URL}/api/destinations/${id}`);
-        setDestination(res.data);
+        // 1. Destination
+        const destRes = await axios.get(`${BASE_URL}/api/destinations/${id}`);
+        setDestination(destRes.data);
+
+        // 2. Hotels in this destination
+        const hotelsRes = await axios.get(`${BASE_URL}/api/hotels?destination=${id}`);
+        setHotels(hotelsRes.data || []);
+
+        // 3. Flights to this destination
+        const flightsRes = await axios.get(`${BASE_URL}/api/flights?destination=${id}&isActive=true`);
+        setFlights(flightsRes.data || []);
+
       } catch (err) {
-        console.error(err);
+        console.error("Error fetching destination data:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchDestination();
+
+    fetchData();
   }, [id]);
 
-  if (loading) return <p className="text-center py-20 text-xl">Loading destination...</p>;
+  if (loading) return <p className="text-center py-20 text-xl">Loading destination details...</p>;
   if (!destination) return <p className="text-center py-20 text-xl text-gray-600">Destination not found</p>;
 
-  const coverImage =
-    destination.images && destination.images[0]
-      ? `${BASE_URL}${destination.images[0]}`
-      : "https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg";
+  const coverImage = destination.images?.[0]
+    ? `${BASE_URL}${destination.images[0]}`
+    : "https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg";
 
   const allImages = destination.images || [];
   const previewImages = allImages.slice(0, 3);
 
-  // Swipe functions
-  const nextPhoto = () => {
-    setCurrentPhotoIndex((prev) => (prev + 1) % allImages.length);
-  };
-
-  const prevPhoto = () => {
-    setCurrentPhotoIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
-  };
+  const nextPhoto = () => setCurrentPhotoIndex((prev) => (prev + 1) % allImages.length);
+  const prevPhoto = () => setCurrentPhotoIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero */}
+      {/* Hero Section */}
       <div
         className="relative h-96 bg-cover bg-center"
         style={{ backgroundImage: `url(${coverImage})` }}
       >
-        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-        <div className="relative z-10 flex flex-col items-center justify-center h-full text-white px-4">
-          <h1 className="text-6xl font-bold mb-4">{destination.name}</h1>
-          <div className="flex items-center gap-2">
+        <div className="absolute inset-0 bg-black bg-opacity-40" />
+        <div className="relative z-10 flex flex-col items-center justify-center h-full text-white px-4 text-center">
+          <h1 className="text-5xl md:text-6xl font-bold mb-4">{destination.name}</h1>
+          <div className="flex items-center gap-3 text-xl">
             <MapPin className="w-6 h-6" />
-            <span className="text-2xl">{destination.country || 'Nepal'}</span>
+            <span>{destination.country || 'Nepal'}</span>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* About */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+        {/* About Section */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-12">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">
             About {destination.name}
           </h2>
-
-          <p className="text-gray-700 text-lg leading-relaxed mb-6">
-            {destination.description || 'No description available yet.'}
+          <p className="text-gray-700 text-lg leading-relaxed mb-8">
+            {destination.description || 'No detailed description available yet.'}
           </p>
 
           <div className="grid md:grid-cols-3 gap-6">
-            <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
-              <Calendar className="w-8 h-8 text-blue-600" />
+            <div className="flex items-center gap-4 p-5 bg-blue-50 rounded-xl">
+              <Calendar className="w-10 h-10 text-blue-600 flex-shrink-0" />
               <div>
-                <p className="text-sm text-gray-600">Best Time to Visit</p>
-                <p className="font-semibold text-gray-800">
+                <p className="text-sm text-gray-600">Best Time</p>
+                <p className="font-semibold text-gray-900 text-lg">
                   {destination.bestTimeToVisit || 'Year-round'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
-              <DollarSign className="w-8 h-8 text-green-600" />
+            <div className="flex items-center gap-4 p-5 bg-green-50 rounded-xl">
+              <DollarSign className="w-10 h-10 text-green-600 flex-shrink-0" />
               <div>
-                <p className="text-sm text-gray-600">Average Cost</p>
-                <p className="font-semibold text-gray-800">
+                <p className="text-sm text-gray-600">Avg Cost</p>
+                <p className="font-semibold text-gray-900 text-lg">
                   {formatCostNPR(destination)}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-lg">
-              <MapPin className="w-8 h-8 text-orange-600" />
+            <div className="flex items-center gap-4 p-5 bg-orange-50 rounded-xl">
+              <MapPin className="w-10 h-10 text-orange-600 flex-shrink-0" />
               <div>
-                <p className="text-sm text-gray-600">Location</p>
-                <p className="font-semibold text-gray-800">
+                <p className="text-sm text-gray-600">Country</p>
+                <p className="font-semibold text-gray-900 text-lg">
                   {destination.country || 'Nepal'}
                 </p>
               </div>
@@ -128,107 +135,207 @@ const DestinationDetail = () => {
 
         {/* Gallery */}
         {allImages.length > 0 && (
-          <div className="mb-12">
+          <div className="mb-16">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold text-gray-800">Gallery</h2>
-
+              <h2 className="text-3xl font-bold text-gray-900">Gallery</h2>
               {allImages.length > 3 && (
                 <button
                   onClick={() => setShowPhotos(true)}
-                  className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
                 >
-                  View all photos ({allImages.length})
+                  View All ({allImages.length})
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {previewImages.map((img, i) => (
-                <img
+                <div
                   key={i}
-                  src={`${BASE_URL}${img}`}
-                  alt={`${destination.name} ${i + 1}`}
-                  className="w-full h-64 object-cover rounded-xl shadow-lg cursor-pointer"
+                  className="group relative overflow-hidden rounded-xl shadow-lg cursor-pointer"
                   onClick={() => {
                     setCurrentPhotoIndex(i);
                     setShowPhotos(true);
                   }}
-                />
+                >
+                  <img
+                    src={`${BASE_URL}${img}`}
+                    alt={`${destination.name} photo ${i + 1}`}
+                    className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white font-medium">Click to enlarge</span>
+                  </div>
+                </div>
               ))}
             </div>
-
-            {allImages.length <= 3 && allImages.length > 1 && (
-              <div className="mt-6">
-                <button
-                  onClick={() => {
-                    setCurrentPhotoIndex(0);
-                    setShowPhotos(true);
-                  }}
-                  className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
-                >
-                  View all photos ({allImages.length})
-                </button>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Hotels & Flights */}
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
+        {/* Hotels Section */}
+        <div className="mb-16">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="bg-blue-100 p-4 rounded-full">
               <Hotel className="w-8 h-8 text-blue-600" />
-              <h2 className="text-2xl font-bold text-gray-800">Hotels</h2>
             </div>
-            <p className="text-gray-600">Hotel listings coming soon...</p>
+            <h2 className="text-3xl font-bold text-gray-900">Hotels in {destination.name}</h2>
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <Plane className="w-8 h-8 text-blue-600" />
-              <h2 className="text-2xl font-bold text-gray-800">Flights</h2>
+          {hotels.length === 0 ? (
+            <div className="bg-white rounded-xl shadow p-10 text-center text-gray-600">
+              No hotels listed for this destination yet.
             </div>
-            <p className="text-gray-600">Flight options coming soon...</p>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {hotels.map(hotel => (
+                <Link
+                  key={hotel._id}
+                  to={`/hotels/${hotel._id}`}
+                  className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition group"
+                >
+                  {hotel.images?.[0] && (
+                    <div className="h-48 overflow-hidden">
+                      <img
+                        src={`${BASE_URL}${hotel.images[0]}`}
+                        alt={hotel.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                  )}
+                  <div className="p-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                      {hotel.name}
+                    </h3>
+                    <div className="flex items-center gap-1 mb-3">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${i < Math.round(hotel.rating || 4) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                        />
+                      ))}
+                      <span className="text-sm text-gray-600 ml-1">({hotel.rating || 4.0})</span>
+                    </div>
+                    <p className="text-gray-600 mb-4 line-clamp-2">
+                      {hotel.shortDescription || hotel.description?.substring(0, 120) || 'No description available'}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600">Starting from</p>
+                        <p className="text-xl font-bold text-blue-700">
+                          NPR {Math.min(...(hotel.roomTypes?.map(rt => rt.pricePerNight) || [0])).toLocaleString() || '—'}
+                        </p>
+                      </div>
+                      <span className="text-blue-600 font-medium group-hover:underline">View Details →</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Flights Section */}
+        <div>
+          <div className="flex items-center gap-4 mb-8">
+            <div className="bg-indigo-100 p-4 rounded-full">
+              <Plane className="w-8 h-8 text-indigo-600" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900">Flights to {destination.name}</h2>
           </div>
+
+          {flights.length === 0 ? (
+            <div className="bg-white rounded-xl shadow p-10 text-center text-gray-600">
+              No active flights available to this destination at the moment.
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {flights.map(flight => (
+                <div
+                  key={flight._id}
+                  className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 hover:shadow-xl transition"
+                >
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">
+                          {flight.airline} {flight.flightNumber}
+                        </h3>
+                        <p className="text-gray-600">
+                          {flight.from} → {flight.to}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                        {flight.class}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3 text-sm mb-6">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Departure</span>
+                        <span className="font-medium">
+                          {new Date(flight.departureDate).toLocaleDateString()} {flight.departureTime}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Duration</span>
+                        <span className="font-medium">{flight.duration}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t pt-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Price</p>
+                        <p className="text-2xl font-bold text-indigo-700">
+                          NPR {Number(flight.price).toLocaleString()}
+                        </p>
+                      </div>
+                      <Link
+                        to={`/flights`} // or dedicated flight booking page if you create one
+                        className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-medium"
+                      >
+                        Book Now
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Full-screen Swipeable Photo Modal */}
+      {/* Full-screen Photo Viewer */}
       {showPhotos && allImages.length > 0 && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center">
-          {/* Close button */}
           <button
             onClick={() => setShowPhotos(false)}
-            className="absolute top-6 right-6 z-10 bg-white/20 backdrop-blur-sm p-3 rounded-full hover:bg-white/40 transition"
+            className="absolute top-6 right-6 z-10 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition"
           >
-            <X className="h-7 w-7 text-white" />
+            <X className="h-8 w-8 text-white" />
           </button>
 
-          {/* Previous */}
           <button
             onClick={prevPhoto}
-            className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition"
+            className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-5 rounded-full hover:bg-white/40 transition"
           >
-            <ChevronLeft className="h-8 w-8 text-white" />
+            <ChevronLeft className="h-10 w-10 text-white" />
           </button>
 
-          {/* Next */}
           <button
             onClick={nextPhoto}
-            className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition"
+            className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-5 rounded-full hover:bg-white/40 transition"
           >
-            <ChevronRight className="h-8 w-8 text-white" />
+            <ChevronRight className="h-10 w-10 text-white" />
           </button>
 
-          {/* Current Photo */}
-          <div className="relative max-w-5xl w-full px-4">
+          <div className="relative max-w-6xl w-full px-6">
             <img
               src={`${BASE_URL}${allImages[currentPhotoIndex]}`}
               alt={`${destination.name} photo ${currentPhotoIndex + 1}`}
-              className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+              className="w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
             />
-            <p className="text-white text-center mt-4 text-lg">
-              {currentPhotoIndex + 1} / {allImages.length}
+            <p className="text-white text-center mt-6 text-lg">
+              {currentPhotoIndex + 1} of {allImages.length}
             </p>
           </div>
         </div>
