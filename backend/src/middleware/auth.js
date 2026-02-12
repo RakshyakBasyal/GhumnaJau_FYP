@@ -5,12 +5,11 @@ module.exports = (req, res, next) => {
   // console.log('Auth middleware called for:', req.method, req.originalUrl);
   // console.log('Headers:', req.headers);
 
-  // Try both common headers
   let token = req.header('Authorization');
   if (token && token.startsWith('Bearer ')) {
     token = token.replace('Bearer ', '');
   } else {
-    token = req.header('x-auth-token'); // fallback for old code
+    token = req.header('x-auth-token'); 
   }
 
   if (!token) {

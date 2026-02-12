@@ -36,7 +36,7 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Get user's own bookings (all bookings, including archived by user/admin)
+// Get user's own bookings 
 router.get('/my', auth, async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.user.id })
@@ -50,7 +50,7 @@ router.get('/my', auth, async (req, res) => {
   }
 });
 
-// Get ALL bookings (admin only) - supports ?includeArchived=true
+// Get ALL bookings (admin only)
 router.get('/', auth, admin, async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === 'true';

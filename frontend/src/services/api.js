@@ -61,3 +61,9 @@ export const updateHotel = (id, formData) => API.put(`/hotels/${id}`, formData, 
 export const deleteHotel = (id) => API.delete(`/hotels/${id}`);
 
 
+export const getFlights = () => API.get('/flights/admin'); // or public if you prefer
+export const createFlight = (data) => API.post('/flights', data);
+export const updateFlight = (id, data) => API.patch(`/flights/${id}`, data);
+export const deleteFlight = (id) => API.delete(`/flights/${id}`);
+
+

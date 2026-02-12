@@ -4,7 +4,6 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const path = require('path');
 
-
 connectDB();
 
 const app = express();
@@ -21,6 +20,7 @@ const userRoutes = require('./routes/userRoutes');
 const destinationRoutes = require('./routes/destinationRoutes'); // <-- Correct
 const adminRoutes = require("./routes/adminRoutes");
 
+const flightRoutes = require('./routes/flights');
 
 
 app.use('/images', express.static(path.join(__dirname, '..', 'images')));
@@ -30,5 +30,7 @@ app.use('/api/destinations', destinationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use('/api/hotels', require('./routes/hotelRoutes'));
 app.use('/api/bookings', require('./routes/bookings'));
+app.use('/api/flights', flightRoutes);
+
 
 module.exports = app;

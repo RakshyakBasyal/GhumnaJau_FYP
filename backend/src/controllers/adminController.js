@@ -1,7 +1,7 @@
 // // backend/src/controllers/adminController.js
 const User = require("../models/User");
 const Destination = require("../models/Destination");
-const Hotel = require("../models/Hotel");   // ← ADD THIS IMPORT
+const Hotel = require("../models/Hotel");   
 
 function calcTrend(current, previous) {
   if (previous === 0 && current === 0) return 0;
@@ -24,49 +24,49 @@ exports.getAdminStats = async (req, res) => {
     const [totalUsers, totalDestinations, totalHotels] = await Promise.all([
       User.countDocuments({}),
       Destination.countDocuments({}),
-      Hotel.countDocuments({}),   // ← ADD THIS LINE
+      Hotel.countDocuments({}),   
     ]);
 
     // Current period counts
     const [newUsersCurrent, newDestinationsCurrent, newHotelsCurrent] = await Promise.all([
       User.countDocuments({ createdAt: { $gte: startCurrent, $lt: now } }),
       Destination.countDocuments({ createdAt: { $gte: startCurrent, $lt: now } }),
-      Hotel.countDocuments({ createdAt: { $gte: startCurrent, $lt: now } }),   // ← ADD THIS
+      Hotel.countDocuments({ createdAt: { $gte: startCurrent, $lt: now } }),   
     ]);
 
     // Previous period counts
     const [newUsersPrev, newDestinationsPrev, newHotelsPrev] = await Promise.all([
       User.countDocuments({ createdAt: { $gte: startPrevious, $lt: startCurrent } }),
       Destination.countDocuments({ createdAt: { $gte: startPrevious, $lt: startCurrent } }),
-      Hotel.countDocuments({ createdAt: { $gte: startPrevious, $lt: startCurrent } }),   // ← ADD THIS
+      Hotel.countDocuments({ createdAt: { $gte: startPrevious, $lt: startCurrent } }), 
     ]);
 
     const usersTrend = calcTrend(newUsersCurrent, newUsersPrev);
     const destinationsTrend = calcTrend(newDestinationsCurrent, newDestinationsPrev);
-    const hotelsTrend = calcTrend(newHotelsCurrent, newHotelsPrev);   // ← ADD THIS
+    const hotelsTrend = calcTrend(newHotelsCurrent, newHotelsPrev);  
 
     return res.json({
       totals: {
         users: totalUsers,
         destinations: totalDestinations,
-        hotels: totalHotels,   // ← ADD THIS
+        hotels: totalHotels,  
         flights: 0,
       },
       periodDays,
       newThisPeriod: {
         users: newUsersCurrent,
         destinations: newDestinationsCurrent,
-        hotels: newHotelsCurrent,   // ← ADD THIS
+        hotels: newHotelsCurrent,   
       },
       newPrevPeriod: {
         users: newUsersPrev,
         destinations: newDestinationsPrev,
-        hotels: newHotelsPrev,   // ← ADD THIS
+        hotels: newHotelsPrev,   
       },
       trends: {
         usersPercent: usersTrend,
         destinationsPercent: destinationsTrend,
-        hotelsPercent: hotelsTrend,   // ← ADD THIS
+        hotelsPercent: hotelsTrend,  
       },
     });
   } catch (err) {

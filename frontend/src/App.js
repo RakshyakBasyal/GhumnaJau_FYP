@@ -18,6 +18,8 @@ import Hotels from './pages/Hotels';
 import HotelDetail from './pages/HotelDetail';
 import MyBookings from './pages/MyBookings';
 import AdminBookings from './pages/AdminBookings';
+import Flights from './pages/Flights';
+import ManageFlights from './pages/ManageFlights';
 
 function App() {
   return (
@@ -63,6 +65,15 @@ function App() {
             }
           />
           <Route path="/admin/bookings" element={<AdminBookings />} />
+          <Route
+            path="/admin/flights"
+            element={
+              <ProtectedRoute adminOnly>
+                <ManageFlights />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/admin/manage-flights" element={<ManageFlights />} />
 
           {/* ALL User Pages - With Layout (Navbar + Footer) */}
           <Route element={<Layout />}>
@@ -73,6 +84,7 @@ function App() {
             <Route path="/hotels/:id" element={<HotelDetail />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/my-bookings" element={<MyBookings />} />
+            <Route path="/flights" element={<Flights />} />
           </Route>
         </Routes>
       </Router>
