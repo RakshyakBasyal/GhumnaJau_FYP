@@ -1,4 +1,4 @@
-//frontend/src/services/api.js
+// frontend/src/services/api.js
 import axios from 'axios';
 
 const API = axios.create({
@@ -13,6 +13,31 @@ API.interceptors.request.use((req) => {
   }
   return req;
 });
+
+// NEW: Response interceptor for automatic logout on invalidated session
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      const msg = error.response.data?.msg || '';
+
+      // Check for our specific invalidation messages
+      if (
+        msg.includes('Session has been invalidated') ||
+        msg.includes('Session invalidated') ||
+        msg.includes('User no longer exists') ||
+        msg.includes('User no longer exists. Please log in again.')
+      ) {
+        // Clear token and redirect to login
+        localStorage.removeItem('token');
+        window.location.href = '/login?sessionExpired=true';
+      }
+    }
+
+    // Let other errors propagate normally
+    return Promise.reject(error);
+  }
+);
 
 // Auth
 export const register = (data) => API.post('/auth/register', data);
@@ -51,7 +76,6 @@ export const updateMe = (data) => API.put("/users/me", data);
 export const getHotels = () => API.get('/hotels');
 export const getHotel = (id) => API.get(`/hotels/${id}`);
 
-
 export const createHotel = (formData) => API.post('/hotels', formData, {
   headers: { 'Content-Type': 'multipart/form-data' },
 });
@@ -60,10 +84,8 @@ export const updateHotel = (id, formData) => API.put(`/hotels/${id}`, formData, 
 });
 export const deleteHotel = (id) => API.delete(`/hotels/${id}`);
 
-
+// Flights
 export const getFlights = () => API.get('/flights/admin'); // or public if you prefer
 export const createFlight = (data) => API.post('/flights', data);
 export const updateFlight = (id, data) => API.patch(`/flights/${id}`, data);
 export const deleteFlight = (id) => API.delete(`/flights/${id}`);
-
-

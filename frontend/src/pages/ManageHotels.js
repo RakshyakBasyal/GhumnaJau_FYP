@@ -1,5 +1,5 @@
 // frontend/src/pages/ManageHotels.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
 import AdminNavbar from '../components/AdminNavbar';
 import {
@@ -42,6 +42,9 @@ const ManageHotels = () => {
   const [deleteId, setDeleteId] = useState(null);
 
   const { showToast } = useToast();
+
+  // Ref to scroll to the form when editing
+  const formRef = useRef(null);
 
   useEffect(() => {
     fetchHotels();
@@ -166,6 +169,13 @@ const ManageHotels = () => {
     setFiles([]);
     setEditingId(hotel._id);
     setShowForm(true);
+
+    // Scroll smoothly to the form after it opens
+    setTimeout(() => {
+      if (formRef.current) {
+        formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100); // small delay to ensure form is rendered
   };
 
   const handleDelete = (id) => {
@@ -235,7 +245,7 @@ const ManageHotels = () => {
         </div>
 
         {showForm && (
-          <div className="bg-white rounded-xl shadow-md p-8 mb-8">
+          <div ref={formRef} className="bg-white rounded-xl shadow-md p-8 mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">
               {editingId ? 'Edit Hotel' : 'Add New Hotel'}
             </h2>
