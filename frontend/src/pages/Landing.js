@@ -1,122 +1,222 @@
-//frontend/src/pages/Landing.js
-import { useEffect, useState } from 'react';
+// frontend/src/pages/Landing.js
+import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getDestinations } from '../services/api';
-import { Search, MapPin, Calendar, DollarSign, Shield, Users, Star, TrendingUp } from 'lucide-react';
+import { Search, MapPin, Calendar, DollarSign, Shield, Users, Star, X } from 'lucide-react';
 
+const BASE_URL = "http://localhost:5000";
 
 const Landing = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [destinations, setDestinations] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const navigate = useNavigate();
+  const searchRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     getDestinations()
-      .then(res => setDestinations(res.data))
+      .then(res => setDestinations(res.data || []))
       .catch(() => setDestinations([]));
   }, []);
 
-  const handleSearch = (e) => {
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      const filtered = destinations
+        .filter(dest => dest.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        .slice(0, 6);
+      setSuggestions(filtered);
+      setShowSuggestions(true);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [searchQuery, destinations]);
+
+  const handleKeyDown = (e) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedIndex >= 0) {
+        handleSelect(suggestions[highlightedIndex]);
+      } else if (suggestions.length > 0) {
+        handleSelect(suggestions[0]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setHighlightedIndex(-1);
+    }
+  };
+
+  const handleSelect = (dest) => {
+    setSearchQuery(dest.name);
+    setShowSuggestions(false);
+    setHighlightedIndex(-1);
+    navigate(`/destinations?search=${encodeURIComponent(dest.name)}`);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setShowSuggestions(false);
+    setHighlightedIndex(-1);
+    if (inputRef.current) inputRef.current.focus();
+  };
+
+  const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/destinations?search=${encodeURIComponent(searchQuery)}`);
     }
   };
 
-  const popular = destinations.slice(0, 6); // Show only 6 
-
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Hero Section */}
-      <section
-        className="relative h-[550px] bg-cover bg-center flex items-center justify-center"
-        style={{
+    <div className="min-h-screen flex flex-col bg-gray-50">
 
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://plus.unsplash.com/premium_photo-1692976236758-817620ab62ba?q=80&w=1476&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')`,
+      {/* Hero Section – subtle fade-in */}
+      <section
+        className="relative h-[600px] bg-cover bg-center flex items-center justify-center animate-fade-in"
+        style={{
+          backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('https://plus.unsplash.com/premium_photo-1692976236758-817620ab62ba?q=80&w=1476&auto=format&fit=crop&ixlib=rb-4.1.0')`,
         }}
       >
-        <div className="text-center text-white px-4 max-w-3xl">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+        <div className="text-center text-white px-4 max-w-4xl z-10">
+          <h1 className="text-4xl md:text-6xl font-bold mb-5 drop-shadow-lg">
             Discover Your Next Adventure
           </h1>
-          <p className="text-lg md:text-xl mb-8">
+          <p className="text-lg md:text-2xl mb-10 drop-shadow-md">
             Explore breathtaking destinations across Nepal with Ghumna Jau
           </p>
-          <form onSubmit={handleSearch} className="max-w-xl mx-auto">
-            <div className="bg-white rounded-full shadow-xl flex items-center p-2 h-15 w-350">
-              <MapPin className="h-5 w-5 text-gray-500 ml-2" />
-              <input
-                type="text"
-                placeholder="Where do you want to go?"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 px-2 py-3 text-gray-800 outline-none"
-              />
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-3 rounded-full hover:bg-blue-700 transition flex items-center space-x-2 mr-2"
-              >
-                <Search className="h-5 w-5" />
-                <span>Search</span>
-              </button>
-            </div>
-          </form>
+
+          {/* Search Box */}
+          <div className="relative max-w-2xl mx-auto" ref={searchRef}>
+            <form onSubmit={handleSearchSubmit}>
+              <div className="relative">
+
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Where do you want to go?"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full pl-12 pr-28 py-4 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-full text-lg text-gray-900 placeholder-gray-500 shadow-lg focus:shadow-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+                />
+
+                {/* Left Icon */}
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-gray-500 pointer-events-none" />
+
+                {/* Clear Button */}
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="absolute right-16 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                )}
+
+                {/* Search Button */}
+                <button
+                  type="submit"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full shadow-md transition"
+                >
+                  <Search className="h-5 w-5" />
+                </button>
+
+              </div>
+            </form>
+
+            {/* Suggestions Dropdown remains untouched */}
+            {showSuggestions && searchQuery && (
+              <div className="absolute z-20 w-full mt-3 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-80">
+                {suggestions.length > 0 ? (
+                  suggestions.map((dest, index) => (
+                    <div
+                      key={dest._id}
+                      onClick={() => handleSelect(dest)}
+                      className={`flex items-center gap-4 px-5 py-3 hover:bg-blue-50 cursor-pointer transition ${
+                        index === highlightedIndex ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                        {dest.images?.[0] ? (
+                          <img
+                            src={`${BASE_URL}${dest.images[0]}`}
+                            alt={dest.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <MapPin className="h-6 w-6 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{dest.name}</p>
+                        <p className="text-sm text-gray-600">{dest.country || 'Nepal'}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-6 text-center text-gray-500">
+                    No destinations found
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </section>
-
-
-      {/* Why Choose Us Section */}
-      <section className="py-14 bg-white">
-        <div className="max-w-6xl mx-auto px-4">
+            {/* Why Choose Us – subtle hover animations */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
               Why Choose Ghumna Jau?
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Your trusted companion for unforgettable travel experiences
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Your trusted companion for unforgettable travel experiences in Nepal
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="text-center p-6 bg-gray-50 rounded-xl hover:shadow-md transition">
-              <div className="bg-blue-600 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="h-7 w-7 text-white" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {[
+              { icon: MapPin, color: 'blue', title: 'Best Destinations', desc: 'Curated selection of Nepal’s most stunning locations' },
+              { icon: Shield, color: 'green', title: 'Safe & Secure', desc: 'Verified hotels, flights, and experiences for peace of mind' },
+              { icon: Users, color: 'purple', title: 'Travel Community', desc: 'Connect with fellow travelers and share stories' },
+              { icon: Star, color: 'orange', title: 'Top Rated', desc: 'Highly rated services trusted by thousands of travelers' },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className="group text-center p-8 bg-gray-50 rounded-2xl hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              >
+                <div className={`bg-${item.color}-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 transition-transform group-hover:scale-110`}>
+                  <item.icon className={`h-8 w-8 text-${item.color}-600`} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
+                  {item.title}
+                </h3>
+                <p className="text-gray-600">
+                  {item.desc}
+                </p>
               </div>
-              <h3 className="text-lg font-semibold mb-2">Best Destinations</h3>
-              <p className="text-gray-600 text-sm">
-                Curated selection of Nepal's most stunning locations
-              </p>
-            </div>
-            <div className="text-center p-6 bg-gray-50 rounded-xl hover:shadow-md transition">
-              <div className="bg-green-600 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Safe & Secure</h3>
-              <p className="text-gray-600 text-sm">
-                Verified hotels, flights, and restaurants for your safety
-              </p>
-            </div>
-            <div className="text-center p-6 bg-gray-50 rounded-xl hover:shadow-md transition">
-              <div className="bg-purple-600 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Travel Community</h3>
-              <p className="text-gray-600 text-sm">
-                Connect with fellow travelers and find travel buddies
-              </p>
-            </div>
-            <div className="text-center p-6 bg-gray-50 rounded-xl hover:shadow-md transition">
-              <div className="bg-orange-600 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Star className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Top Rated</h3>
-              <p className="text-gray-600 text-sm">
-                Highly rated services and experiences by travelers
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
+{/* Popular Destinations – with card animations */}
       <section className="py-20 bg-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -129,45 +229,38 @@ const Landing = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {popular.length === 0 ? (
-              <p className="text-center text-gray-600 col-span-3 py-10">
-                No destinations added yet
-              </p>
-            ) : (
-              popular.map((destination) => (
-                <div
-                  key={destination._id}
-                  className="relative h-80 bg-cover bg-center rounded-xl overflow-hidden group cursor-pointer"
-                  onClick={() => navigate(`/destinations/${destination._id}`)}
-                  style={{
-                    backgroundImage: destination.images?.[0]
-                      ? `url(http://localhost:5000${destination.images[0]})`
-                      : `url(https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg)`,
-                  }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-6 group-hover:from-black/80 transition">
-                    <div>
-                      <h3 className="text-white text-2xl font-bold mb-2">
-                        {destination.name}
-                      </h3>
-                      <p className="text-white/90">
-                        {destination.shortDescription || "Explore this destination"}
-                      </p>
-                    </div>
+            {destinations.slice(0, 6).map((destination) => (
+              <div
+                key={destination._id}
+                className="group relative h-80 bg-cover bg-center rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+                onClick={() => navigate(`/destinations/${destination._id}`)}
+                style={{
+                  backgroundImage: destination.images?.[0]
+                    ? `url(${BASE_URL}${destination.images[0]})`
+                    : `ur[](https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg)`,
+                }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end p-6 transition group-hover:from-black/85">
+                  <div>
+                    <h3 className="text-white text-2xl font-bold mb-2 group-hover:text-blue-300 transition-colors">
+                      {destination.name}
+                    </h3>
+                    <p className="text-white/90 text-sm">
+                      {destination.shortDescription || 'Explore this destination'}
+                    </p>
                   </div>
                 </div>
-              ))
-            )}
+              </div>
+            ))}
           </div>
+
           <div className="text-center mt-12">
             <button
               onClick={() => navigate('/destinations')}
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition inline-flex items-center space-x-2"
+              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition inline-flex items-center space-x-2 shadow-md hover:shadow-lg transform hover:scale-105 duration-300"
             >
               <span>View All Destinations</span>
-              {/* <TrendingUp className="h-5 w-5" /> */}
               <Star className="h-5 w-5" />
-
             </button>
           </div>
         </div>
@@ -178,3 +271,5 @@ const Landing = () => {
 
 export default Landing;
 
+    
+  

@@ -1,29 +1,42 @@
 // backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-module.exports = (req, res, next) => {
-  // console.log('Auth middleware called for:', req.method, req.originalUrl);
-  // console.log('Headers:', req.headers);
-
+module.exports = async (req, res, next) => {
   let token = req.header('Authorization');
   if (token && token.startsWith('Bearer ')) {
     token = token.replace('Bearer ', '');
   } else {
-    token = req.header('x-auth-token'); 
+    token = req.header('x-auth-token');
   }
 
   if (!token) {
-    // console.log('No token found');
     return res.status(401).json({ msg: 'No token, authorization denied' });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // console.log('Token decoded successfully:', decoded);
     req.user = decoded;
+
+    // Check if user still exists and token is not invalidated
+    const user = await User.findById(decoded.id).select('lastLogout role');
+    
+    if (!user) {
+      return res.status(401).json({ 
+        msg: 'User no longer exists. Please log in again.' 
+      });
+    }
+
+    // If user has logged out/deleted after this token was issued
+    if (user.lastLogout && new Date(decoded.iat * 1000) < user.lastLogout) {
+      return res.status(401).json({ 
+        msg: 'Session has been invalidated. Please log in again.' 
+      });
+    }
+
     next();
   } catch (err) {
-    // console.log('Token verification failed:', err.message);
+    console.error('Auth middleware error:', err.message);
     return res.status(401).json({ msg: 'Token is not valid' });
   }
 };

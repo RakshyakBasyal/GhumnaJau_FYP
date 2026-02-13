@@ -17,9 +17,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const destinationRoutes = require('./routes/destinationRoutes'); // <-- Correct
+const destinationRoutes = require('./routes/destinationRoutes'); 
 const adminRoutes = require("./routes/adminRoutes");
-
 const flightRoutes = require('./routes/flights');
 
 

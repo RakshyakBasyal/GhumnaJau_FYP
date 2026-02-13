@@ -1,5 +1,6 @@
-//backend/src/controllers/userController.js
+// backend/src/controllers/userController.js
 const User = require("../models/User");
+const Booking = require("../models/Booking"); // ← added
 
 exports.getMe = async (req, res) => {
   try {
@@ -11,7 +12,6 @@ exports.getMe = async (req, res) => {
     res.status(500).json({ msg: "Server error" });
   }
 };
-
 
 exports.updateMe = async (req, res) => {
   try {
@@ -34,25 +34,31 @@ exports.updateMe = async (req, res) => {
   }
 };
 
-
 exports.deleteMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ msg: "User not found" });
 
-   
     if (user.role === "ADMIN") {
       return res.status(403).json({ msg: "Admin account cannot be deleted here" });
     }
 
+    // Invalidate all sessions (force logout everywhere)
+    user.lastLogout = new Date();
+    await user.save();
+
+    // Anonymize bookings (recommended for audit trail)
+    await Booking.updateMany({ user: req.user.id }, { $set: { user: null } });
+
+    // Delete user
     await User.findByIdAndDelete(req.user.id);
+
     res.json({ msg: "Your account has been deleted" });
   } catch (err) {
     console.error("Delete me error:", err);
     res.status(500).json({ msg: "Server error" });
   }
 };
-
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -63,7 +69,6 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({ msg: "Server error" });
   }
 };
-
 
 exports.deleteUser = async (req, res) => {
   try {
@@ -81,7 +86,16 @@ exports.deleteUser = async (req, res) => {
       return res.status(403).json({ msg: "Cannot delete an admin user" });
     }
 
+    // Invalidate all sessions (force logout)
+    user.lastLogout = new Date();
+    await user.save();
+
+    // Anonymize bookings
+    await Booking.updateMany({ user: userId }, { $set: { user: null } });
+
+    // Delete user
     await User.findByIdAndDelete(userId);
+
     res.json({ msg: "User deleted successfully" });
   } catch (err) {
     console.error("Delete user error:", err);

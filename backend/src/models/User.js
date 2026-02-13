@@ -8,6 +8,10 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   phone: { type: String },
   role: { type: String, enum: ['USER', 'ADMIN'], default: 'USER' },
+  
+  // NEW FIELD: used to invalidate old tokens after logout or deletion
+  lastLogout: { type: Date, default: null },
+  
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {

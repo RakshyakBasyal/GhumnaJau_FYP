@@ -1,7 +1,7 @@
 // frontend/src/pages/Flights.jsx
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plane, Clock, ArrowRight, MapPin, Search, X, ChevronDown,  Loader2  } from 'lucide-react';
+import { Plane, Clock, ArrowRight, MapPin, Search, X, ChevronDown, Loader2 } from 'lucide-react';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -20,87 +20,119 @@ const Flights = () => {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchInitialData = async () => {
       try {
-        // Fetch flights
+        setLoading(true);
+
+        // Fetch destinations (real DB destinations)
+        const destRes = await fetch(`${BASE_URL}/api/destinations`);
+        if (!destRes.ok) throw new Error('Failed to fetch destinations');
+        const destData = await destRes.json();
+        setDestinations(destData);
+
+        // Fetch all flights
         const flightsRes = await fetch(`${BASE_URL}/api/flights`);
         if (!flightsRes.ok) throw new Error('Failed to fetch flights');
         const flightData = await flightsRes.json();
         setFlights(flightData);
-
-        // Extract unique destinations from flights (to)
-        const uniqueDests = [...new Set(flightData.map(f => f.to))];
-        setDestinations(uniqueDests.map(name => ({ name }))); // simple name-only for autocomplete
+        setFilteredFlights(flightData);
       } catch (err) {
-        console.error(err);
+        console.error("Initial fetch error:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchInitialData();
   }, []);
 
-  // Filter & sort
+  // Sorting only (no local filtering - backend handles nearest airport)
   useEffect(() => {
-    let result = flights;
-
-    if (selectedDestination) {
-      result = result.filter(f => f.to === selectedDestination.name);
+    let result = [...flights];
+    if (sortPrice) {
+      result.sort((a, b) =>
+        sortPrice === "low"
+          ? (a.price || 0) - (b.price || 0)
+          : (b.price || 0) - (a.price || 0)
+      );
     }
-
-    if (selectedDestination && sortPrice) {
-      result = [...result].sort((a, b) => {
-        const priceA = a.price || 0;
-        const priceB = b.price || 0;
-        return sortPrice === 'low' ? priceA - priceB : priceB - priceA;
-      });
-    }
-
     setFilteredFlights(result);
-  }, [flights, selectedDestination, sortPrice]);
+  }, [flights, sortPrice]);
 
+  // Strict name match for suggestions
   const suggestions = destinations
-    .filter(dest => dest.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(dest => dest.name.toLowerCase().includes(searchTerm.toLowerCase().trim()))
     .slice(0, 6);
+
+  // Select destination → fetch flights via backend (which handles nearest airport)
+  const handleSelectDestination = async (dest) => {
+    setSelectedDestination(dest);
+    setSearchTerm(dest.name);
+    setShowSuggestions(false);
+    setHighlightedIndex(-1);
+    setSortPrice('');
+
+    try {
+      setLoading(true);
+      const res = await fetch(
+        `${BASE_URL}/api/flights?destination=${dest._id}&isActive=true`
+      );
+      if (!res.ok) throw new Error('Failed to fetch flights');
+      const data = await res.json();
+      setFlights(data);
+      setFilteredFlights(data);
+    } catch (err) {
+      console.error("Destination search error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Clear search → reload all flights
+  const clearSearch = async () => {
+    setSelectedDestination(null);
+    setSearchTerm('');
+    setSortPrice('');
+    setShowSuggestions(false);
+    setHighlightedIndex(-1);
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${BASE_URL}/api/flights`);
+      if (!res.ok) throw new Error('Failed to fetch flights');
+      const data = await res.json();
+      setFlights(data);
+      setFilteredFlights(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+
+    inputRef.current?.focus();
+  };
 
   const handleKeyDown = (e) => {
     if (!showSuggestions || suggestions.length === 0) return;
 
-    if (e.key === 'ArrowDown') {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightedIndex(prev => (prev + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === 'Enter') {
+      setHighlightedIndex(prev =>
+        (prev - 1 + suggestions.length) % suggestions.length
+      );
+    } else if (e.key === "Enter") {
       e.preventDefault();
       if (highlightedIndex >= 0) {
         handleSelectDestination(suggestions[highlightedIndex]);
       } else if (suggestions.length > 0) {
         handleSelectDestination(suggestions[0]);
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setShowSuggestions(false);
-      setHighlightedIndex(-1);
     }
-  };
-
-  const handleSelectDestination = (dest) => {
-    setSelectedDestination(dest);
-    setSearchTerm(dest.name);
-    setShowSuggestions(false);
-    setHighlightedIndex(-1);
-    setSortPrice('');
-  };
-
-  const clearSearch = () => {
-    setSelectedDestination(null);
-    setSearchTerm('');
-    setSortPrice('');
-    setShowSuggestions(false);
-    setHighlightedIndex(-1);
-    if (inputRef.current) inputRef.current.focus();
   };
 
   if (loading) {
@@ -117,7 +149,7 @@ const Flights = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header – minimal like demo */}
+        {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
             Find Your Next Flight
@@ -127,7 +159,7 @@ const Flights = () => {
           </p>
         </div>
 
-        {/* Search + Sort – compact row, same as Hotels */}
+        {/* Search + Sort */}
         <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 mb-12 max-w-4xl mx-auto">
           {/* Search Box */}
           <div className="relative flex-1 w-full md:w-auto" ref={searchRef}>
@@ -158,13 +190,13 @@ const Flights = () => {
               )}
             </div>
 
-            {/* Suggestions */}
+            {/* Suggestions – strict name match only */}
             {showSuggestions && searchTerm && (
               <div className="absolute z-20 w-full mt-3 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-80">
                 {suggestions.length > 0 ? (
                   suggestions.map((dest, index) => (
                     <div
-                      key={dest.name}
+                      key={dest._id}
                       onClick={() => handleSelectDestination(dest)}
                       className={`flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition ${
                         index === highlightedIndex ? 'bg-blue-50' : ''
@@ -187,7 +219,7 @@ const Flights = () => {
             )}
           </div>
 
-          {/* Price Sort – only after destination selected */}
+          {/* Price Sort – only after selection */}
           {selectedDestination && (
             <div className="relative w-full md:w-56">
               <select
@@ -204,18 +236,25 @@ const Flights = () => {
           )}
         </div>
 
-        {/* Results */}
+        {/* Results Header – with "Nearest Flights" when isAirport: false */}
         <div className="mb-8 text-center md:text-left">
           <h2 className="text-3xl font-bold text-gray-900">
-            {selectedDestination
-              ? `Flights to ${selectedDestination.name}`
-              : 'All Flights'}
+            {selectedDestination ? (
+              selectedDestination.isAirport ? (
+                `Flights to ${selectedDestination.name}`
+              ) : (
+                `Nearest Flights to ${selectedDestination.name}`
+              )
+            ) : (
+              'All Flights'
+            )}
           </h2>
           <p className="text-gray-600 mt-2">
             {filteredFlights.length} {filteredFlights.length === 1 ? 'flight' : 'flights'} found
           </p>
         </div>
 
+        {/* Results */}
         {filteredFlights.length === 0 ? (
           <div className="bg-white rounded-2xl shadow p-12 text-center text-gray-600">
             No flights found. Try another destination.

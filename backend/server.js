@@ -1,8 +1,34 @@
-//backend/server.js
+// backend/server.js
 require('dotenv').config();
+const http = require('http');
 const app = require('./src/app');
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+// Create HTTP server
+const server = http.createServer(app);
+
+// Attach Socket.io
+const io = require('socket.io')(server, {
+  cors: {
+    origin: "http://localhost:3000", 
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+// Store io in app so routes can access it
+app.set('io', io);
+
+// Log connections (for debugging)
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+// Start server
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
