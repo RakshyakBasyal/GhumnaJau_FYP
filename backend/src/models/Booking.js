@@ -1,4 +1,4 @@
-// backend/src/models/Booking.js
+// // backend/src/models/Booking.js
 const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
@@ -35,7 +35,7 @@ const bookingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled'],
+    enum: ['pending', 'confirmed', 'cancelled', 'completed'],
     default: 'pending',
   },
   // Admin archiving (clears from admin view)

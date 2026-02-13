@@ -14,6 +14,7 @@ const HotelDetail = () => {
 
   const [hotel, setHotel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showPhotos, setShowPhotos] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -42,6 +43,7 @@ const HotelDetail = () => {
         }
       } catch (err) {
         console.error(err);
+        setError('Failed to load hotel details');
       } finally {
         setLoading(false);
       }
@@ -64,8 +66,6 @@ const HotelDetail = () => {
   const maxCapacity = selectedRoom ? selectedRoom.maxCapacity : 10;
   const totalPrice = roomPrice * nights;
 
-  const guestsWarning = guests > maxCapacity ? `Maximum ${maxCapacity} guests allowed for ${selectedRoomType}` : '';
-
   const handleBookClick = () => {
     if (!isLoggedIn) {
       navigate('/login', { state: { from: `/hotels/${id}` } });
@@ -79,6 +79,21 @@ const HotelDetail = () => {
 
     if (!email || !phone || !checkIn || !checkOut || !selectedRoomType) {
       showToast('Please fill all required fields', 'error');
+      return;
+    }
+
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (checkInDate < today) {
+      showToast('Check-in date must be today or in the future', 'error');
+      return;
+    }
+
+    if (checkOutDate <= checkInDate) {
+      showToast('Check-out date must be after check-in date', 'error');
       return;
     }
 
@@ -117,7 +132,7 @@ const HotelDetail = () => {
         throw new Error(data.message || 'Booking failed');
       }
 
-      showToast('Booking confirmed successfully!', 'success');
+      showToast('Booking request sent! Waiting for admin confirmation.', 'success');
       setShowBookingModal(false);
 
       setCheckIn('');
@@ -217,7 +232,7 @@ const HotelDetail = () => {
           </div>
         </div>
 
-        {/* Gallery – exact same subtle animation as DestinationDetail */}
+        {/* Gallery */}
         {allImages.length > 0 && (
           <div className="mb-12">
             <div className="flex items-center justify-between mb-6">
@@ -282,7 +297,7 @@ const HotelDetail = () => {
         </div>
       </div>
 
-      {/* Full-screen Photo Viewer – exact same subtle fade-in as DestinationDetail */}
+      {/* Full-screen Photo Viewer */}
       {showPhotos && allImages.length > 0 && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center transition-opacity duration-300">
           <button
@@ -319,86 +334,86 @@ const HotelDetail = () => {
         </div>
       )}
 
-      {/* Booking Modal – unchanged */}
+      {/* Booking Modal – original width & style, slightly shorter vertically */}
       {showBookingModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-8 relative">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 relative"> {/* ← width same (max-w-3xl), padding reduced to p-6 */}
             <button
               onClick={() => setShowBookingModal(false)}
-              className="absolute top-5 right-5 text-gray-600 hover:text-gray-900"
+              className="absolute top-4 right-4 text-gray-600 hover:text-gray-900"
             >
               <X className="h-7 w-7" />
             </button>
 
-            <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+            <h2 className="text-3xl font-bold text-gray-900 mb-5 text-center">
               Book {hotel.name}
             </h2>
 
-            <form onSubmit={handleBookingSubmit} className="space-y-6">
+            <form onSubmit={handleBookingSubmit} className="space-y-5"> {/* ← reduced spacing */}
               {/* Dates */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-gray-700 mb-1.5">
                     Check-in Date
                   </label>
                   <input
                     type="date"
                     value={checkIn}
                     onChange={(e) => setCheckIn(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-gray-700 mb-1.5">
                     Check-out Date
                   </label>
                   <input
                     type="date"
                     value={checkOut}
                     onChange={(e) => setCheckOut(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                    min={checkIn || new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
                     required
                   />
                 </div>
               </div>
 
               {/* Guests & Room Type */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-gray-700 mb-1.5">
                     Number of Guests
                   </label>
                   <input
                     type="number"
                     min="1"
+                    max={maxCapacity}
                     value={guests}
-                    onChange={(e) => setGuests(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      setGuests(Math.max(1, Math.min(maxCapacity, val)));
+                    }}
                     onWheel={(e) => e.target.blur()}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
                   />
-                  {guestsWarning && (
-                    <p className="mt-2 text-red-600 text-base flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5" />
-                      {guestsWarning}
-                    </p>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-base font-medium text-gray-700 mb-1.5">
                     Room Type
                   </label>
                   <select
                     value={selectedRoomType}
                     onChange={(e) => setSelectedRoomType(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
                     required
                   >
                     {hotel.roomTypes?.length > 0 ? (
                       hotel.roomTypes.map((room, i) => (
                         <option key={i} value={room.name}>
-                          {room.name} - NPR {room.pricePerNight.toLocaleString()} / night
+                          {room.name} - NPR {room.pricePerNight.toLocaleString()} / night (max {room.maxCapacity})
                         </option>
                       ))
                     ) : (
@@ -409,9 +424,9 @@ const HotelDetail = () => {
               </div>
 
               {/* Email & Phone */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Email
                   </label>
                   <input
@@ -419,13 +434,13 @@ const HotelDetail = () => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="your@email.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-base font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Phone
                   </label>
                   <input
@@ -433,16 +448,16 @@ const HotelDetail = () => {
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="+977 9876543210"
                   />
                 </div>
               </div>
 
               {/* Price Summary */}
-              <div className="bg-gray-50 p-6 rounded-xl">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Price Summary</h3>
-                <div className="space-y-3 text-base text-gray-700">
+              <div className="bg-gray-50 p-5 rounded-xl">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Price Summary</h3>
+                <div className="space-y-2 text-base text-gray-700">
                   <div className="flex justify-between">
                     <span>Nights:</span>
                     <span>{nights}</span>
@@ -459,7 +474,7 @@ const HotelDetail = () => {
                     <span>Price per night:</span>
                     <span>NPR {roomPrice.toLocaleString()}</span>
                   </div>
-                  <div className="border-t border-gray-300 pt-4 mt-4">
+                  <div className="border-t border-gray-300 pt-3 mt-3">
                     <div className="flex justify-between text-xl font-bold text-gray-900">
                       <span>Total Amount:</span>
                       <span className="text-blue-600">NPR {totalPrice.toLocaleString()}</span>
@@ -471,7 +486,7 @@ const HotelDetail = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className={`w-full py-4 text-white rounded-xl text-lg font-bold transition mt-6 flex items-center justify-center gap-2 ${
+                className={`w-full py-3.5 text-white rounded-xl text-lg font-bold transition mt-5 flex items-center justify-center gap-2 ${
                   submitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
@@ -489,7 +504,7 @@ const HotelDetail = () => {
         </div>
       )}
 
-      {/* Custom Confirmation Modal for Booking */}
+      {/* Confirmation Modal – unchanged */}
       {showConfirmBookingModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
