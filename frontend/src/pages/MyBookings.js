@@ -1,6 +1,6 @@
 // frontend/src/pages/MyBookings.jsx
 import { useEffect, useState } from 'react';
-import { Calendar, Users, IndianRupee, MapPin, X, Loader2, Archive, RotateCcw } from 'lucide-react'; // ← added RotateCcw for unarchive
+import { Calendar, Users, IndianRupee, MapPin, X, Loader2, Archive, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 
@@ -19,7 +19,7 @@ const MyBookings = () => {
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
   const [archiving, setArchiving] = useState(false);
 
-  // Unarchive modal (new)
+  // Unarchive modal
   const [showUnarchiveModal, setShowUnarchiveModal] = useState(false);
   const [pendingUnarchiveId, setPendingUnarchiveId] = useState(null);
   const [unarchiving, setUnarchiving] = useState(false);
@@ -60,7 +60,6 @@ const MyBookings = () => {
     }
   };
 
-  // Archive
   const requestArchive = (bookingId) => {
     setPendingArchiveId(bookingId);
     setShowArchiveModal(true);
@@ -95,7 +94,6 @@ const MyBookings = () => {
     }
   };
 
-  // Unarchive (new)
   const requestUnarchive = (bookingId) => {
     setPendingUnarchiveId(bookingId);
     setShowUnarchiveModal(true);
@@ -130,7 +128,6 @@ const MyBookings = () => {
     }
   };
 
-  // Cancel
   const requestCancel = (bookingId) => {
     setPendingCancelId(bookingId);
     setShowCancelModal(true);
@@ -165,9 +162,10 @@ const MyBookings = () => {
     }
   };
 
+ 
   const visibleBookings = showArchived
-    ? bookings
-    : bookings.filter(b => !b.isUserArchived);
+    ? bookings.filter(b => b.isUserArchived === true)     // ONLY archived when checked
+    : bookings.filter(b => b.isUserArchived === false);   // ONLY non-archived when unchecked
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>;
 
@@ -243,7 +241,6 @@ const MyBookings = () => {
                     {booking.hotel?.name || 'Hotel Booking'}
                   </h3>
 
-                  {/* Fixed location display */}
                   <p className="text-gray-600 flex items-center gap-1.5 mb-4">
                     <MapPin className="h-4 w-4" />
                     {booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'}
@@ -375,7 +372,7 @@ const MyBookings = () => {
           </div>
         )}
 
-        {/* Unarchive Confirmation Modal (new) */}
+        {/* Unarchive Confirmation Modal */}
         {showUnarchiveModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
