@@ -117,6 +117,7 @@ const HotelDetail = () => {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
+          type: 'hotel',
           hotelId: hotel._id,
           roomType: selectedRoomType,
           checkIn,

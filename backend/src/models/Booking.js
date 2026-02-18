@@ -1,4 +1,5 @@
-//backend/src/models/Booking.js
+// //backend/src/models/Booking.js
+
 const mongoose = require('mongoose');
 
 const passengerCountSchema = new mongoose.Schema({
@@ -34,10 +35,10 @@ const bookingSchema = new mongoose.Schema({
 
   // Flight-specific (optional)
   flight: { type: mongoose.Schema.Types.ObjectId, ref: 'Flight' },
-  passengersCount: passengerCountSchema,   // { adults, children, infants }
-  contactInfo: contactInfoSchema,          // booker's phone & email
+  passengersCount: passengerCountSchema,
+  contactInfo: contactInfoSchema,
 
-  // Common fields
+  // Common
   totalAmount: {
     type: Number,
     required: true,
@@ -51,7 +52,7 @@ const bookingSchema = new mongoose.Schema({
   },
 
   isUserArchived: { type: Boolean, default: false },
-  isArchived: { type: Boolean, default: false }, // admin archive
+  isArchived: { type: Boolean, default: false },
 
   createdAt: { type: Date, default: Date.now },
 });
