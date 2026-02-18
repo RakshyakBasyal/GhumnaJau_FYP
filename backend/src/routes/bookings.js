@@ -37,7 +37,14 @@ router.post('/', auth, async (req, res) => {
 
     // Populate for full data in frontend
     const populated = await Booking.findById(booking._id)
-      .populate('hotel', 'name images destination country')
+      .populate({
+        path: 'hotel',
+        select: 'name images country',
+        populate: {
+          path: 'destination',
+          select: 'name' // only name needed
+        }
+      })
       .populate('user', 'fullName email');
 
     // Emit live event
@@ -51,19 +58,28 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Get my bookings
+// Get my bookings (FIXED: nested populate for destination name)
 router.get('/my', auth, async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.user.id })
-      .populate('hotel', 'name images destination country')
+      .populate({
+        path: 'hotel',
+        select: 'name images country',
+        populate: {
+          path: 'destination',
+          select: 'name' // this fixes destination.name
+        }
+      })
       .sort({ createdAt: -1 });
+
     res.json(bookings);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Failed to load bookings' });
   }
 });
 
-// Get all bookings (admin)
+// Get all bookings (admin) - also fixed for consistency
 router.get('/', auth, admin, async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === 'true';
@@ -71,16 +87,24 @@ router.get('/', auth, admin, async (req, res) => {
 
     const bookings = await Booking.find(filter)
       .populate('user', 'fullName email')
-      .populate('hotel', 'name images destination country')
+      .populate({
+        path: 'hotel',
+        select: 'name images country',
+        populate: {
+          path: 'destination',
+          select: 'name'
+        }
+      })
       .sort({ createdAt: -1 });
 
     res.json(bookings);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Failed to load bookings' });
   }
 });
 
-// Update status + emit
+// Update status + emit (updated populate)
 router.patch('/:id/status', auth, admin, async (req, res) => {
   try {
     const { status } = req.body;
@@ -100,7 +124,14 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
 
     const updated = await Booking.findById(booking._id)
       .populate('user', 'fullName email')
-      .populate('hotel', 'name images destination country');
+      .populate({
+        path: 'hotel',
+        select: 'name images country',
+        populate: {
+          path: 'destination',
+          select: 'name'
+        }
+      });
 
     const io = req.app.get('io');
     io.emit('bookingUpdated', updated);
@@ -111,7 +142,7 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
   }
 });
 
-// User cancel + emit
+// User cancel + emit (updated populate)
 router.patch('/my/:id/cancel', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -125,7 +156,14 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
     await booking.save();
 
     const updated = await Booking.findById(booking._id)
-      .populate('hotel', 'name images destination country');
+      .populate({
+        path: 'hotel',
+        select: 'name images country',
+        populate: {
+          path: 'destination',
+          select: 'name'
+        }
+      });
 
     const io = req.app.get('io');
     io.emit('bookingUpdated', updated);
@@ -136,7 +174,7 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
   }
 });
 
-// User archive (no emit needed unless you want live update for admin too)
+// User archive (no emit needed)
 router.patch('/my/:id/archive', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);

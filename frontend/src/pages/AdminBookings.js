@@ -311,7 +311,7 @@ const AdminBookings = () => {
                 onChange={() => setShowArchived(!showArchived)}
                 className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
               />
-              <span className="text-gray-700 font-medium">View archived only</span>
+              <span className="text-gray-700 font-medium">View archived bookings</span>
             </label>
 
             {showArchived && selectedIds.length > 0 && (
