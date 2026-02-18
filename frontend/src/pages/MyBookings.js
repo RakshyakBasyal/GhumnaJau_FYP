@@ -1,8 +1,9 @@
 // frontend/src/pages/MyBookings.jsx
 import { useEffect, useState } from 'react';
-import { Calendar, Users, IndianRupee, MapPin, X, Loader2, Archive, RotateCcw } from 'lucide-react'; // ← added RotateCcw for unarchive
+import { Calendar, Users, MapPin, Plane, X, Loader2, Archive, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { io } from 'socket.io-client';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -19,7 +20,7 @@ const MyBookings = () => {
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
   const [archiving, setArchiving] = useState(false);
 
-  // Unarchive modal (new)
+  // Unarchive modal
   const [showUnarchiveModal, setShowUnarchiveModal] = useState(false);
   const [pendingUnarchiveId, setPendingUnarchiveId] = useState(null);
   const [unarchiving, setUnarchiving] = useState(false);
@@ -28,6 +29,53 @@ const MyBookings = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+
+  // Socket.io connection
+  useEffect(() => {
+    const socket = io(BASE_URL, { withCredentials: true });
+
+    socket.on('connect', () => {
+      console.log('User MyBookings socket connected');
+    });
+
+    // Listen for new bookings created by THIS user
+    socket.on('newBooking', (newBooking) => {
+      // Only add if it's the current user's booking
+      const currentUserId = JSON.parse(atob(localStorage.getItem('token').split('.')[1])).id;
+      if (newBooking.user === currentUserId || newBooking.user?._id === currentUserId) {
+        setBookings((prev) => [newBooking, ...prev]);
+        showToast('New booking added!', 'success');
+      }
+    });
+
+    // Listen for booking updates (status change, cancel, archive, etc.)
+    socket.on('bookingUpdated', (updatedBooking) => {
+      setBookings((prev) =>
+        prev.map((b) => (b._id === updatedBooking._id ? updatedBooking : b))
+      );
+
+      const statusMessages = {
+        confirmed: { message: 'Your booking has been confirmed!', type: 'success' },
+        cancelled: { message: 'Your booking was cancelled.', type: 'error' },
+        pending: { message: 'Your booking is now pending.', type: 'info' },
+      };
+
+      const { message, type } = statusMessages[updatedBooking.status] || {
+        message: `Booking updated to ${updatedBooking.status}`,
+        type: 'info',
+      };
+
+      showToast(message, type);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket error in MyBookings:', err);
+      // Optional: showToast('Live updates unavailable. Refresh page.', 'error');
+    });
+
+    // Cleanup on unmount
+    return () => socket.disconnect();
+  }, []);
 
   useEffect(() => {
     fetchBookings();
@@ -54,13 +102,12 @@ const MyBookings = () => {
       setBookings(data);
     } catch (err) {
       setError(err.message);
-      showToast(err.message, 'error');
+      showToast(err.message || 'Failed to load bookings', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Archive
   const requestArchive = (bookingId) => {
     setPendingArchiveId(bookingId);
     setShowArchiveModal(true);
@@ -81,8 +128,8 @@ const MyBookings = () => {
 
       if (!res.ok) throw new Error('Failed to archive');
 
-      setBookings(prev =>
-        prev.map(b => b._id === pendingArchiveId ? { ...b, isUserArchived: true } : b)
+      setBookings((prev) =>
+        prev.map((b) => (b._id === pendingArchiveId ? { ...b, isUserArchived: true } : b))
       );
 
       showToast('Booking archived', 'success');
@@ -95,7 +142,6 @@ const MyBookings = () => {
     }
   };
 
-  // Unarchive (new)
   const requestUnarchive = (bookingId) => {
     setPendingUnarchiveId(bookingId);
     setShowUnarchiveModal(true);
@@ -116,8 +162,8 @@ const MyBookings = () => {
 
       if (!res.ok) throw new Error('Failed to unarchive');
 
-      setBookings(prev =>
-        prev.map(b => b._id === pendingUnarchiveId ? { ...b, isUserArchived: false } : b)
+      setBookings((prev) =>
+        prev.map((b) => (b._id === pendingUnarchiveId ? { ...b, isUserArchived: false } : b))
       );
 
       showToast('Booking unarchived', 'success');
@@ -130,7 +176,6 @@ const MyBookings = () => {
     }
   };
 
-  // Cancel
   const requestCancel = (bookingId) => {
     setPendingCancelId(bookingId);
     setShowCancelModal(true);
@@ -151,8 +196,8 @@ const MyBookings = () => {
 
       if (!res.ok) throw new Error('Failed to cancel');
 
-      setBookings(prev =>
-        prev.map(b => b._id === pendingCancelId ? { ...b, status: 'cancelled' } : b)
+      setBookings((prev) =>
+        prev.map((b) => (b._id === pendingCancelId ? { ...b, status: 'cancelled' } : b))
       );
 
       showToast('Booking cancelled', 'success');
@@ -166,10 +211,28 @@ const MyBookings = () => {
   };
 
   const visibleBookings = showArchived
-    ? bookings
-    : bookings.filter(b => !b.isUserArchived);
+    ? bookings.filter((b) => b.isUserArchived === true)
+    : bookings.filter((b) => b.isUserArchived === false);
 
-  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-10 text-center max-w-md">
+          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Error</h2>
+          <p className="text-gray-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -177,7 +240,7 @@ const MyBookings = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">My Bookings</h1>
-            <p className="text-lg text-gray-600 mt-2">Manage your hotel reservations</p>
+            <p className="text-lg text-gray-600 mt-2">Manage your hotel & flight reservations</p>
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-200">
@@ -200,77 +263,132 @@ const MyBookings = () => {
             <p className="text-gray-600 text-lg mb-8">
               {showArchived
                 ? "You haven't archived any bookings yet."
-                : "Start exploring hotels and make your first reservation today!"}
+                : "Start exploring hotels or flights and make your first reservation today!"}
             </p>
             {!showArchived && (
-              <button
-                onClick={() => navigate('/hotels')}
-                className="bg-blue-600 text-white px-10 py-4 rounded-xl hover:bg-blue-700 transition font-medium text-lg shadow-md"
-              >
-                Browse Hotels
-              </button>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => navigate('/hotels')}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition font-medium text-lg shadow-md"
+                >
+                  Browse Hotels
+                </button>
+                <button
+                  onClick={() => navigate('/flights')}
+                  className="bg-indigo-600 text-white px-8 py-4 rounded-xl hover:bg-indigo-700 transition font-medium text-lg shadow-md"
+                >
+                  Browse Flights
+                </button>
+              </div>
             )}
           </div>
         ) : (
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {visibleBookings.map(booking => (
+            {visibleBookings.map((booking) => (
               <div
                 key={booking._id}
-                className={`bg-white rounded-2xl shadow-lg overflow-hidden border transition-all duration-200 hover:shadow-xl ${
-                  booking.isUserArchived ? 'opacity-75 bg-gray-50' : ''
-                }`}
+                className={`bg-white rounded-2xl shadow-lg overflow-hidden border transition-all duration-200 hover:shadow-xl ${booking.isUserArchived ? 'opacity-75 bg-gray-50' : ''
+                  }`}
               >
                 <div className="relative h-48">
-                  <img
-                    src={booking.hotel?.images?.[0] ? `${BASE_URL}${booking.hotel.images[0]}` : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'}
-                    alt={booking.hotel?.name || 'Hotel'}
-                    className="w-full h-full object-cover"
-                  />
+                  {booking.type === 'flight' ? (
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
+                      <Plane className="h-24 w-24 text-white opacity-30" />
+                    </div>
+                  ) : (
+                    <img
+                      src={
+                        booking.hotel?.images?.[0]
+                          ? `${BASE_URL}${booking.hotel.images[0]}`
+                          : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'
+                      }
+                      alt={booking.hotel?.name || 'Hotel'}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+
                   <div className="absolute top-4 right-4">
-                    <span className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
-                      booking.status === 'confirmed' ? 'bg-green-500 text-white' :
-                      booking.status === 'cancelled' ? 'bg-red-500 text-white' :
-                      booking.status === 'pending' ? 'bg-yellow-500 text-white' :
-                      'bg-gray-500 text-white'
-                    }`}>
-                      {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                    <span
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${booking.status === 'confirmed' ? 'bg-green-500 text-white' :
+                          booking.status === 'cancelled' ? 'bg-red-500 text-white' :
+                            booking.status === 'pending' ? 'bg-yellow-500 text-white' :
+                              'bg-gray-500 text-white'
+                        }`}
+                    >
+                      {`${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)} (${booking.type === 'flight' ? 'Flight' : 'Hotel'
+                        })`}
                     </span>
                   </div>
                 </div>
 
+                {/* Content */}
                 <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">
-                    {booking.hotel?.name || 'Hotel Booking'}
-                  </h3>
+                  {booking.type === 'flight' ? (
+                    <>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">
+                        {booking.flight?.airline || 'Flight Booking'} {booking.flight?.flightNumber || ''}
+                      </h3>
 
-                  {/* Fixed location display */}
-                  <p className="text-gray-600 flex items-center gap-1.5 mb-4">
-                    <MapPin className="h-4 w-4" />
-                    {booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                    <div>
-                      <p className="text-gray-500">Check-in</p>
-                      <p className="font-medium">{new Date(booking.checkIn).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Check-out</p>
-                      <p className="font-medium">{new Date(booking.checkOut).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Guests</p>
-                      <p className="font-medium flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        {booking.guests}
+                      <p className="text-gray-600 flex items-center gap-1.5 mb-4">
+                        <MapPin className="h-4 w-4" />
+                        {booking.flight?.from || '-'} → {booking.flight?.to || '-'}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Room Type</p>
-                      <p className="font-medium">{booking.roomType}</p>
-                    </div>
-                  </div>
 
+                      <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                        <div>
+                          <p className="text-gray-500">Departure</p>
+                          <p className="font-medium">{booking.flight?.departureTime || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Passengers</p>
+                          <p className="font-medium flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            {booking.passengersCount?.adults || 0}A,{' '}
+                            {booking.passengersCount?.children || 0}C
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">
+                        {booking.hotel?.name || 'Hotel Booking'}
+                      </h3>
+
+                      <p className="text-gray-600 flex items-center gap-1.5 mb-4">
+                        <MapPin className="h-4 w-4" />
+                        {booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                        <div>
+                          <p className="text-gray-500">Check-in</p>
+                          <p className="font-medium">
+                            {booking.checkIn ? new Date(booking.checkIn).toLocaleDateString() : '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Check-out</p>
+                          <p className="font-medium">
+                            {booking.checkOut ? new Date(booking.checkOut).toLocaleDateString() : '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Guests</p>
+                          <p className="font-medium flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            {booking.guests || '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Room Type</p>
+                          <p className="font-medium">{booking.roomType || '—'}</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Footer: Amount + Actions */}
                   <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                     <div>
                       <p className="text-sm text-gray-500">Total Amount</p>
@@ -344,9 +462,7 @@ const MyBookings = () => {
               </div>
 
               <div className="p-6">
-                <p className="text-gray-700">
-                  Are you sure you want to archive this booking?
-                </p>
+                <p className="text-gray-700">Are you sure you want to archive this booking?</p>
                 <p className="mt-3 text-sm text-gray-600">
                   It will be hidden from your main list but can be viewed by enabling "Show archived bookings".
                 </p>
@@ -363,9 +479,8 @@ const MyBookings = () => {
                 <button
                   onClick={confirmArchive}
                   disabled={archiving}
-                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${
-                    archiving ? 'bg-gray-500 cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-800'
-                  }`}
+                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${archiving ? 'bg-gray-500 cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-800'
+                    }`}
                 >
                   {archiving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Archive className="h-5 w-5" />}
                   Archive
@@ -375,7 +490,7 @@ const MyBookings = () => {
           </div>
         )}
 
-        {/* Unarchive Confirmation Modal (new) */}
+        {/* Unarchive Confirmation Modal */}
         {showUnarchiveModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
@@ -387,9 +502,7 @@ const MyBookings = () => {
               </div>
 
               <div className="p-6">
-                <p className="text-gray-700">
-                  Do you want to bring this booking back to your main list?
-                </p>
+                <p className="text-gray-700">Do you want to bring this booking back to your main list?</p>
                 <p className="mt-3 text-sm text-gray-600">
                   It will appear in your active bookings again.
                 </p>
@@ -406,9 +519,8 @@ const MyBookings = () => {
                 <button
                   onClick={confirmUnarchive}
                   disabled={unarchiving}
-                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${
-                    unarchiving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
+                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${unarchiving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                 >
                   {unarchiving ? <Loader2 className="h-5 w-5 animate-spin" /> : <RotateCcw className="h-5 w-5" />}
                   Unarchive
@@ -430,12 +542,8 @@ const MyBookings = () => {
               </div>
 
               <div className="p-6">
-                <p className="text-gray-700">
-                  Are you sure you want to cancel this pending booking?
-                </p>
-                <p className="mt-3 text-red-600 font-medium">
-                  This action cannot be undone.
-                </p>
+                <p className="text-gray-700">Are you sure you want to cancel this pending booking?</p>
+                <p className="mt-3 text-red-600 font-medium">This action cannot be undone.</p>
               </div>
 
               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
@@ -449,9 +557,8 @@ const MyBookings = () => {
                 <button
                   onClick={confirmCancel}
                   disabled={cancelling}
-                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${
-                    cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-                  }`}
+                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                    }`}
                 >
                   {cancelling ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5" />}
                   Yes, Cancel

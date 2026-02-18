@@ -12,6 +12,7 @@ import {
   Archive,
   RotateCcw,
   AlertTriangle,
+  Plane,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import AdminNavbar from '../components/AdminNavbar';
@@ -89,13 +90,14 @@ const AdminBookings = () => {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.msg || 'Failed to load bookings');
+        throw new Error(data.message || `Failed to load bookings (${res.status})`);
       }
 
       const data = await res.json();
       setBookings(data);
       setSelectedIds([]);
     } catch (err) {
+      console.error('Bookings fetch error:', err);
       setError(err.message);
       showToast(err.message || 'Failed to load bookings', 'error');
     } finally {
@@ -124,10 +126,13 @@ const AdminBookings = () => {
         body: JSON.stringify({ status: newStatus }),
       });
 
-      if (!res.ok) throw new Error('Failed to update status');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to update status');
+      }
 
-      // Socket will update UI
       showToast(`Booking ${newStatus} requested`, 'success');
+      // Socket will update UI automatically
     } catch (err) {
       showToast('Failed to update: ' + err.message, 'error');
     } finally {
@@ -152,12 +157,15 @@ const AdminBookings = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
 
-      if (!res.ok) throw new Error('Failed to archive');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to archive');
+      }
 
       showToast('Booking archived', 'success');
-      fetchBookings(); // fallback
+      fetchBookings(); // refresh
     } catch (err) {
-      showToast('Failed to archive', 'error');
+      showToast('Failed to archive: ' + err.message, 'error');
     } finally {
       setShowSingleArchiveModal(false);
       setPendingSingleArchiveId(null);
@@ -180,12 +188,15 @@ const AdminBookings = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
 
-      if (!res.ok) throw new Error('Failed to unarchive');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to unarchive');
+      }
 
       showToast('Booking unarchived', 'success');
       fetchBookings();
     } catch (err) {
-      showToast('Failed to unarchive', 'error');
+      showToast('Failed to unarchive: ' + err.message, 'error');
     } finally {
       setShowSingleUnarchiveModal(false);
       setPendingSingleUnarchiveId(null);
@@ -210,7 +221,10 @@ const AdminBookings = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
 
-      if (!res.ok) throw new Error('Failed to archive');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to archive completed bookings');
+      }
 
       const data = await res.json();
       showToast(data.message || `Archived ${data.modifiedCount || count} bookings`, 'success');
@@ -256,7 +270,7 @@ const AdminBookings = () => {
       setSelectedIds([]);
       showToast(`${selectedIds.length} bookings unarchived`, 'success');
     } catch (err) {
-      showToast('Failed to unarchive some bookings', 'error');
+      showToast('Failed to unarchive some bookings: ' + err.message, 'error');
     } finally {
       setShowBulkUnarchiveModal(false);
       setClearing(false);
@@ -300,7 +314,7 @@ const AdminBookings = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">All Bookings</h1>
-            <p className="text-lg text-gray-600 mt-2">Manage all user hotel reservations</p>
+            <p className="text-lg text-gray-600 mt-2">Manage all user hotel & flight reservations</p>
           </div>
 
           <div className="flex flex-wrap gap-4 items-center">
@@ -311,7 +325,7 @@ const AdminBookings = () => {
                 onChange={() => setShowArchived(!showArchived)}
                 className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
               />
-              <span className="text-gray-700 font-medium">View archived only</span>
+              <span className="text-gray-700 font-medium">View archived bookings</span>
             </label>
 
             {showArchived && selectedIds.length > 0 && (
@@ -381,9 +395,9 @@ const AdminBookings = () => {
                       </th>
                     )}
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">User</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Hotel</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Destination</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Dates</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Booking</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Route / Location</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Details</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Amount</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Actions</th>
@@ -402,31 +416,72 @@ const AdminBookings = () => {
                           />
                         </td>
                       )}
-                      <td className="px-6 py-5 whitespace-nowrap">
+
+                      <td className="px-6 py-5">
                         <div className="text-sm font-medium text-gray-900">
                           {booking.user ? booking.user.fullName : 'Deleted User'}
                         </div>
-                        {booking.user && <div className="text-sm text-gray-500">{booking.user.email}</div>}
+                        {booking.user && (
+                          <div className="text-sm text-gray-500 break-all">
+                            {booking.user.email}
+                          </div>
+                        )}
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-900">
-                        {booking.hotel?.name || 'Hotel'}
+
+                      <td className="px-6 py-5">
+                        {booking.type === 'flight' ? (
+                          <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                            {/* <Plane className="h-4 w-4 text-indigo-600" /> */}
+                            {booking.flight?.airline || 'Flight'} {booking.flight?.flightNumber || ''}
+                          </div>
+                        ) : (
+                          <div className="text-sm font-medium text-gray-900">
+                            {booking.hotel?.name || 'Hotel Booking'}
+                          </div>
+                        )}
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 flex items-center gap-1">
-                          <MapPin className="h-4 w-4" />
-                          {booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'}
+
+                      <td className="px-6 py-5">
+                        <div className="text-sm text-gray-900 flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4 flex-shrink-0" />
+                          {booking.type === 'flight' ? (
+                            `${booking.flight?.from || '-'} → ${booking.flight?.to || '-'}`
+                          ) : (
+                            booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'
+                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(booking.checkIn).toLocaleDateString()} - {new Date(booking.checkOut).toLocaleDateString()}
+
+                      <td className="px-6 py-5">
+                        {booking.type === 'flight' ? (
+                          <>
+                            <div className="text-sm text-gray-900">
+                              Departure: {booking.flight?.departureTime || '-'}
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {booking.passengersCount?.adults || 0} Adult
+                              {booking.passengersCount?.adults !== 1 ? 's' : ''},{' '}
+                              {booking.passengersCount?.children || 0} Child
+                              {booking.passengersCount?.children !== 1 ? 'ren' : ''}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {booking.checkIn && booking.checkOut
+                              ? `${new Date(booking.checkIn).toLocaleDateString()} - ${new Date(booking.checkOut).toLocaleDateString()}`
+                              : 'Dates not available'}
+                          </>
+                        )}
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
+
+                      <td className="px-6 py-5">
                         <div className="text-sm font-medium text-blue-600 flex items-center">
                           <IndianRupee className="h-4 w-4 mr-1" />
                           {booking.totalAmount.toLocaleString()}
                         </div>
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap">
+
+                      <td className="px-6 py-5">
                         <span
                           className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
@@ -438,7 +493,8 @@ const AdminBookings = () => {
                           {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                         </span>
                       </td>
-                      <td className="px-6 py-5 whitespace-nowrap text-sm font-medium">
+
+                      <td className="px-6 py-5">
                         <div className="flex gap-4">
                           {booking.status === 'pending' && (
                             <>

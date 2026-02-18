@@ -1,7 +1,7 @@
 // frontend/src/pages/Flights.jsx
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plane, Clock, ArrowRight, MapPin, Search, X, ChevronDown, Loader2 } from 'lucide-react';
+import { Plane, Clock, ArrowRight, MapPin, Search, X, ChevronDown, Loader2, Users, IndianRupee, AlertTriangle } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -15,29 +15,36 @@ const Flights = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+
+  // Embedded booking form state
+  const [openBookingFlightId, setOpenBookingFlightId] = useState(null);
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
+  const [bookerPhone, setBookerPhone] = useState('');
+  const [bookerEmail, setBookerEmail] = useState('');
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+
   const searchRef = useRef(null);
   const inputRef = useRef(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
 
-        // Fetch destinations (real DB destinations)
         const destRes = await fetch(`${BASE_URL}/api/destinations`);
-        if (!destRes.ok) throw new Error('Failed to fetch destinations');
-        const destData = await destRes.json();
-        setDestinations(destData);
+        if (!destRes.ok) throw new Error('Failed destinations');
+        setDestinations(await destRes.json());
 
-        // Fetch all flights
         const flightsRes = await fetch(`${BASE_URL}/api/flights`);
-        if (!flightsRes.ok) throw new Error('Failed to fetch flights');
+        if (!flightsRes.ok) throw new Error('Failed flights');
         const flightData = await flightsRes.json();
         setFlights(flightData);
         setFilteredFlights(flightData);
       } catch (err) {
-        console.error("Initial fetch error:", err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -46,25 +53,20 @@ const Flights = () => {
     fetchInitialData();
   }, []);
 
-  // Sorting only (no local filtering - backend handles nearest airport)
   useEffect(() => {
     let result = [...flights];
     if (sortPrice) {
-      result.sort((a, b) =>
-        sortPrice === "low"
-          ? (a.price || 0) - (b.price || 0)
-          : (b.price || 0) - (a.price || 0)
+      result.sort((a, b) => 
+        sortPrice === "low" ? a.price - b.price : b.price - a.price
       );
     }
     setFilteredFlights(result);
   }, [flights, sortPrice]);
 
-  // Strict name match for suggestions
   const suggestions = destinations
     .filter(dest => dest.name.toLowerCase().includes(searchTerm.toLowerCase().trim()))
     .slice(0, 6);
 
-  // Select destination → fetch flights via backend (which handles nearest airport)
   const handleSelectDestination = async (dest) => {
     setSelectedDestination(dest);
     setSearchTerm(dest.name);
@@ -74,21 +76,18 @@ const Flights = () => {
 
     try {
       setLoading(true);
-      const res = await fetch(
-        `${BASE_URL}/api/flights?destination=${dest._id}&isActive=true`
-      );
-      if (!res.ok) throw new Error('Failed to fetch flights');
+      const res = await fetch(`${BASE_URL}/api/flights?destination=${dest._id}&isActive=true`);
+      if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       setFlights(data);
       setFilteredFlights(data);
     } catch (err) {
-      console.error("Destination search error:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Clear search → reload all flights
   const clearSearch = async () => {
     setSelectedDestination(null);
     setSearchTerm('');
@@ -99,7 +98,7 @@ const Flights = () => {
     try {
       setLoading(true);
       const res = await fetch(`${BASE_URL}/api/flights`);
-      if (!res.ok) throw new Error('Failed to fetch flights');
+      if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       setFlights(data);
       setFilteredFlights(data);
@@ -108,8 +107,6 @@ const Flights = () => {
     } finally {
       setLoading(false);
     }
-
-    inputRef.current?.focus();
   };
 
   const handleKeyDown = (e) => {
@@ -120,28 +117,96 @@ const Flights = () => {
       setHighlightedIndex(prev => (prev + 1) % suggestions.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightedIndex(prev =>
-        (prev - 1 + suggestions.length) % suggestions.length
-      );
+      setHighlightedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (highlightedIndex >= 0) {
-        handleSelectDestination(suggestions[highlightedIndex]);
-      } else if (suggestions.length > 0) {
-        handleSelectDestination(suggestions[0]);
-      }
+      if (highlightedIndex >= 0) handleSelectDestination(suggestions[highlightedIndex]);
+      else if (suggestions.length > 0) handleSelectDestination(suggestions[0]);
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
+    }
+  };
+
+  // ── BOOKING FORM LOGIC ──
+  const openBookingForm = (flightId) => {
+    setOpenBookingFlightId(flightId);
+    setAdults(1);
+    setChildren(0);
+    setBookerPhone('');
+    setBookerEmail('');
+    setBookingError('');
+  };
+
+  const closeBookingForm = () => {
+    setOpenBookingFlightId(null);
+    setBookingError('');
+  };
+
+  const calculateTotal = (flight) => {
+    if (!flight) return 0;
+    // For simplicity: adults pay full price, children pay 50% (you can change this logic)
+    const adultPrice = flight.price * adults;
+    const childPrice = flight.price * children * 0.5;
+    return adultPrice + childPrice;
+  };
+
+  const handleBookFlight = async (flight) => {
+    if (!bookerPhone.trim() || !bookerEmail.trim()) {
+      setBookingError('Please enter your contact details');
+      return;
+    }
+
+    if (adults + children === 0) {
+      setBookingError('At least one passenger required');
+      return;
+    }
+
+    setBookingLoading(true);
+    setBookingError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('Please login to book', 'error');
+        return;
+      }
+
+      const total = calculateTotal(flight);
+
+      const res = await fetch(`${BASE_URL}/api/bookings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: 'flight',
+          flightId: flight._id,
+          passengersCount: { adults, children },
+          contactInfo: { phone: bookerPhone, email: bookerEmail },
+          totalAmount: total,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Booking failed');
+      }
+
+      showToast('Flight booking request sent successfully!', 'success');
+      closeBookingForm();
+    } catch (err) {
+      setBookingError(err.message);
+    } finally {
+      setBookingLoading(false);
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-xl text-gray-700">Loading flights...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="ml-3 text-xl text-gray-700">Loading flights...</p>
       </div>
     );
   }
@@ -161,7 +226,6 @@ const Flights = () => {
 
         {/* Search + Sort */}
         <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 mb-12 max-w-4xl mx-auto">
-          {/* Search Box */}
           <div className="relative flex-1 w-full md:w-auto" ref={searchRef}>
             <div className="relative">
               <input
@@ -190,7 +254,6 @@ const Flights = () => {
               )}
             </div>
 
-            {/* Suggestions – strict name match only */}
             {showSuggestions && searchTerm && (
               <div className="absolute z-20 w-full mt-3 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-80">
                 {suggestions.length > 0 ? (
@@ -219,7 +282,6 @@ const Flights = () => {
             )}
           </div>
 
-          {/* Price Sort – only after selection */}
           {selectedDestination && (
             <div className="relative w-full md:w-56">
               <select
@@ -236,95 +298,210 @@ const Flights = () => {
           )}
         </div>
 
-        {/* Results Header – with "Nearest Flights" when isAirport: false */}
+        {/* Results */}
         <div className="mb-8 text-center md:text-left">
           <h2 className="text-3xl font-bold text-gray-900">
-            {selectedDestination ? (
-              selectedDestination.isAirport ? (
-                `Flights to ${selectedDestination.name}`
-              ) : (
-                `Nearest Flights to ${selectedDestination.name}`
-              )
-            ) : (
-              'All Flights'
-            )}
+            {selectedDestination ? `Flights to ${selectedDestination.name}` : 'All Flights'}
           </h2>
           <p className="text-gray-600 mt-2">
             {filteredFlights.length} {filteredFlights.length === 1 ? 'flight' : 'flights'} found
           </p>
         </div>
 
-        {/* Results */}
         {filteredFlights.length === 0 ? (
           <div className="bg-white rounded-2xl shadow p-12 text-center text-gray-600">
             No flights found. Try another destination.
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-8">
             {filteredFlights.map(flight => (
-              <div
-                key={flight._id}
-                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-all duration-300 border border-gray-100"
-              >
-                <div className="flex flex-col md:flex-row items-center p-6 gap-6">
-                  {/* Airline & Class */}
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="bg-blue-100 p-3 rounded-full">
-                      <Plane className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">
-                        {flight.airline}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {flight.flightNumber} • {flight.class}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Route & Duration */}
-                  <div className="flex items-center gap-6 flex-1 justify-center">
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">From</p>
-                      <p className="font-semibold text-gray-900">{flight.from}</p>
-                      <p className="text-sm text-gray-600">{flight.departureTime}</p>
-                    </div>
-
-                    <div className="flex flex-col items-center">
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <div className="h-px w-12 bg-gray-300" />
-                        <ArrowRight className="h-5 w-5" />
-                        <div className="h-px w-12 bg-gray-300" />
+              <div key={flight._id}>
+                {/* Flight Card */}
+                <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 hover:shadow-lg transition-all duration-300">
+                  <div className="flex flex-col md:flex-row items-center p-6 gap-6">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="bg-blue-100 p-3 rounded-full">
+                        <Plane className="h-6 w-6 text-blue-600" />
                       </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Clock className="h-4 w-4 text-gray-600" />
-                        <span className="text-sm text-gray-600">{flight.duration}</span>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">
+                          {flight.airline}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {flight.flightNumber} • {flight.class}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">To</p>
-                      <p className="font-semibold text-gray-900">{flight.to}</p>
-                      <p className="text-sm text-gray-600">{flight.arrivalTime}</p>
-                    </div>
-                  </div>
+                    <div className="flex items-center gap-6 flex-1 justify-center">
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">From</p>
+                        <p className="font-semibold text-gray-900">{flight.from}</p>
+                        <p className="text-sm text-gray-600">{flight.departureTime}</p>
+                      </div>
 
-                  {/* Price & Book */}
-                  <div className="flex items-center gap-6 md:gap-10">
-                    <div className="text-center md:text-right">
-                      <p className="text-sm text-gray-600">Price</p>
-                      <p className="text-2xl md:text-3xl font-bold text-blue-600">
-                        NPR {Number(flight.price).toLocaleString()}
-                      </p>
+                      <div className="flex flex-col items-center">
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <div className="h-px w-12 bg-gray-300" />
+                          <ArrowRight className="h-5 w-5" />
+                          <div className="h-px w-12 bg-gray-300" />
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Clock className="h-4 w-4 text-gray-600" />
+                          <span className="text-sm text-gray-600">{flight.duration}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">To</p>
+                        <p className="font-semibold text-gray-900">{flight.to}</p>
+                        <p className="text-sm text-gray-600">{flight.arrivalTime}</p>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => navigate(`/flight-booking/${flight._id}`)}
-                      className="bg-blue-600 text-white px-8 py-3 rounded-xl hover:bg-blue-700 transition font-medium whitespace-nowrap"
-                    >
-                      Book Now
-                    </button>
+
+                    <div className="flex items-center gap-6 md:gap-10">
+                      <div className="text-center md:text-right">
+                        <p className="text-sm text-gray-600">Price</p>
+                        <p className="text-2xl md:text-3xl font-bold text-blue-600">
+                          NPR {Number(flight.price).toLocaleString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => openBookingForm(flight._id)}
+                        className="bg-blue-600 text-white px-8 py-3 rounded-xl hover:bg-blue-700 transition font-medium whitespace-nowrap"
+                      >
+                        Book Now
+                      </button>
+                    </div>
                   </div>
                 </div>
+
+                {/* Embedded Booking Form */}
+                {openBookingFlightId === flight._id && (
+                  <div className="mt-6 bg-white rounded-xl shadow-lg p-8 border border-blue-100">
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        Booking: {flight.airline} {flight.flightNumber}
+                      </h2>
+                      <button onClick={closeBookingForm} className="text-gray-500 hover:text-gray-700">
+                        <X className="h-6 w-6" />
+                      </button>
+                    </div>
+
+                    {bookingError && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-3">
+                        <AlertTriangle className="h-5 w-5" />
+                        {bookingError}
+                      </div>
+                    )}
+
+                    {/* Passenger Count */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Adults (12+ years)
+                        </label>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => setAdults(Math.max(1, adults - 1))}
+                            className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center hover:bg-gray-300"
+                          >
+                            -
+                          </button>
+                          <span className="text-xl font-bold w-10 text-center">{adults}</span>
+                          <button
+                            onClick={() => setAdults(adults + 1)}
+                            className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center hover:bg-gray-300"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Children (2-11 years)
+                        </label>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => setChildren(Math.max(0, children - 1))}
+                            className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center hover:bg-gray-300"
+                          >
+                            -
+                          </button>
+                          <span className="text-xl font-bold w-10 text-center">{children}</span>
+                          <button
+                            onClick={() => setChildren(children + 1)}
+                            className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center hover:bg-gray-300"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Booker Contact */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Booker Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={bookerPhone}
+                          onChange={(e) => setBookerPhone(e.target.value)}
+                          placeholder="e.g. 98XXXXXXXX"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Booker Email
+                        </label>
+                        <input
+                          type="email"
+                          value={bookerEmail}
+                          onChange={(e) => setBookerEmail(e.target.value)}
+                          placeholder="your.email@example.com"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Total & Submit */}
+                    <div className="mt-8 pt-6 border-t flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="text-center md:text-left">
+                        <p className="text-xl font-bold text-gray-900">Total Amount</p>
+                        <p className="text-4xl font-bold text-blue-600 mt-1">
+                          NPR {calculateTotal(flight).toLocaleString()}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {adults + children} passenger{adults + children !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleBookFlight(flight)}
+                        disabled={bookingLoading}
+                        className={`px-12 py-4 rounded-xl text-white font-bold text-lg transition-all shadow-md ${
+                          bookingLoading
+                            ? 'bg-blue-400 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                        }`}
+                      >
+                        {bookingLoading ? (
+                          <span className="flex items-center gap-3">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                            Processing...
+                          </span>
+                        ) : 'Proceed to Book'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -335,3 +512,5 @@ const Flights = () => {
 };
 
 export default Flights;
+
+
