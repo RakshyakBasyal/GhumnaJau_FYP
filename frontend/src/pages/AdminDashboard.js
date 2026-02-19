@@ -13,10 +13,12 @@ import {
   XCircle,
   Calendar,
   X,
+  Loader2,
 } from 'lucide-react';
 import { getAdminStats } from '../services/api';
 import AdminNavbar from '../components/AdminNavbar';
 import { useToast } from '../context/ToastContext';
+import io from 'socket.io-client';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -30,7 +32,7 @@ const AdminDashboard = () => {
     totalHotels: 0,
     totalFlights: 0,
     periodDays: 7,
-    trends: { usersPercent: 0, destinationsPercent: 0 },
+    newThisPeriod: { users: 0, destinations: 0, hotels: 0, flights: 0 },
   });
 
   const [bookings, setBookings] = useState([]);
@@ -40,6 +42,45 @@ const AdminDashboard = () => {
   // Confirmation modal states
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // { bookingId, newStatus }
+
+  // Socket.IO – live booking updates
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const socket = io(BASE_URL, {
+      auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    socket.on('connect', () => {
+      console.log('Admin Dashboard Socket connected');
+    });
+
+    socket.on('newBooking', (newBooking) => {
+      console.log('New booking received:', newBooking._id);
+      setBookings((prev) => [newBooking, ...prev]);
+      showToast('New booking request received!', 'success');
+    });
+
+    socket.on('bookingUpdated', (updatedBooking) => {
+      console.log('Booking updated:', updatedBooking._id, updatedBooking.status);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b._id === updatedBooking._id ? updatedBooking : b
+        )
+      );
+      showToast(`Booking updated to ${updatedBooking.status}`, 'info');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message);
+    });
+
+    return () => socket.disconnect();
+  }, [showToast]);
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -53,7 +94,7 @@ const AdminDashboard = () => {
           totalHotels: data.totals.hotels,
           totalFlights: data.totals.flights,
           periodDays: data.periodDays,
-          trends: data.trends,
+          newThisPeriod: data.newThisPeriod || { users: 0, destinations: 0, hotels: 0, flights: 0 },
         });
       } catch (err) {
         console.error('Error fetching admin stats:', err);
@@ -137,18 +178,29 @@ const AdminDashboard = () => {
     setPendingAction(null);
   };
 
-  const trendBadge = (percent) => {
-    const isUp = percent >= 0;
-    const Icon = isUp ? TrendingUp : TrendingDown;
-
-    return (
-      <div className="flex items-center mt-2">
-        <Icon className={`h-4 w-4 mr-1 ${isUp ? 'text-green-500' : 'text-red-500'}`} />
-        <span className={`text-sm ${isUp ? 'text-green-500' : 'text-red-500'}`}>
-          {Math.abs(percent)}% (last {stats.periodDays} days)
-        </span>
-      </div>
-    );
+  // New trend display: absolute change + period (instead of %)
+  const trendDisplay = (change) => {
+    if (change > 0) {
+      return (
+        <div className="flex items-center mt-2 text-sm text-green-600">
+          <TrendingUp className="h-4 w-4 mr-1" />
+          <span>+{change} in {stats.periodDays} days</span>
+        </div>
+      );
+    } else if (change < 0) {
+      return (
+        <div className="flex items-center mt-2 text-sm text-red-600">
+          <TrendingDown className="h-4 w-4 mr-1" />
+          <span>{change} in {stats.periodDays} days</span>
+        </div>
+      );
+    } else {
+      return (
+        <div className="flex items-center mt-2 text-sm text-gray-500">
+          <span>0 in {stats.periodDays} days</span>
+        </div>
+      );
+    }
   };
 
   const statCards = [
@@ -157,29 +209,28 @@ const AdminDashboard = () => {
       value: stats.totalUsers,
       icon: Users,
       color: 'bg-blue-500',
-      trendPercent: stats.trends.usersPercent,
+      change: stats.newThisPeriod?.users || 0,
     },
     {
       title: 'Destinations',
       value: stats.totalDestinations,
       icon: MapPin,
       color: 'bg-green-500',
-      trendPercent: stats.trends.destinationsPercent,
+      change: stats.newThisPeriod?.destinations || 0,
     },
     {
       title: 'Hotels',
       value: stats.totalHotels,
       icon: Hotel,
       color: 'bg-purple-500',
-      trendPercent: 0, // Add hotelsPercent if backend sends it
+      change: stats.newThisPeriod?.hotels || 0,
     },
     {
       title: 'Flights',
       value: stats.totalFlights,
       icon: PlaneTakeoff,
       color: 'bg-orange-500',
-      trendPercent: 0,
-      comingSoon: true,
+      change: stats.newThisPeriod?.flights || 0,
     },
   ];
 
@@ -219,11 +270,7 @@ const AdminDashboard = () => {
                       <p className="text-3xl font-bold text-gray-900">
                         {stat.value}
                       </p>
-                      {stat.comingSoon ? (
-                        <p className="text-sm text-gray-400 mt-2">Coming soon</p>
-                      ) : (
-                        trendBadge(stat.trendPercent)
-                      )}
+                      {trendDisplay(stat.change)}
                     </div>
                     <div className={`${stat.color} p-4 rounded-full`}>
                       <stat.icon className="h-8 w-8 text-white" />
@@ -295,12 +342,13 @@ const AdminDashboard = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span
-                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${booking.status === 'confirmed'
+                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                booking.status === 'confirmed'
                                   ? 'bg-green-100 text-green-800'
                                   : booking.status === 'cancelled'
                                     ? 'bg-red-100 text-red-800'
                                     : 'bg-yellow-100 text-yellow-800'
-                                }`}
+                              }`}
                             >
                               {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                             </span>
@@ -330,8 +378,7 @@ const AdminDashboard = () => {
                     </tbody>
                   </table>
 
-                 
-                  {/* View All Bookings Button – always visible */}
+                  {/* View All Bookings Button */}
                   <div className="mt-6 text-center">
                     <Link
                       to="/admin/bookings"
@@ -387,11 +434,10 @@ const AdminDashboard = () => {
         )}
       </div>
 
-      {/* Custom Confirmation Modal for Confirm/Cancel Booking */}
+      {/* Custom Confirmation Modal */}
       {showConfirmModal && pendingAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform transition-all">
-            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h3 className="text-xl font-bold text-gray-900">
                 {pendingAction.newStatus === 'confirmed' ? 'Confirm Booking' : 'Cancel Booking'}
@@ -404,7 +450,6 @@ const AdminDashboard = () => {
               </button>
             </div>
 
-            {/* Body */}
             <div className="px-6 py-5">
               <p className="text-gray-700 text-base leading-relaxed">
                 Are you sure you want to {pendingAction.newStatus} this booking?
@@ -416,7 +461,6 @@ const AdminDashboard = () => {
               </p>
             </div>
 
-            {/* Footer */}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={cancelStatusUpdate}
@@ -426,10 +470,11 @@ const AdminDashboard = () => {
               </button>
               <button
                 onClick={confirmStatusUpdate}
-                className={`px-6 py-2.5 rounded-lg text-white font-medium shadow-sm transition ${pendingAction.newStatus === 'confirmed'
+                className={`px-6 py-2.5 rounded-lg text-white font-medium shadow-sm transition ${
+                  pendingAction.newStatus === 'confirmed'
                     ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-red-600 hover:bg-red-700'
-                  }`}
+                }`}
               >
                 {pendingAction.newStatus === 'confirmed' ? 'Confirm' : 'Cancel Booking'}
               </button>

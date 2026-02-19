@@ -17,9 +17,8 @@ import {
   Upload,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { useToast } from "../context/ToastContext";
-import { getMe } from "../services/api"; // assuming you have this for fetching user
+import io from "socket.io-client";
 
 const BASE_URL = "http://localhost:5000";
 
@@ -38,6 +37,9 @@ const Profile = () => {
   const [avatarFile, setAvatarFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
+  // Full-screen avatar viewer
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+
   // Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteText, setDeleteText] = useState("");
@@ -49,12 +51,74 @@ const Profile = () => {
 
   const [loading, setLoading] = useState(true);
 
+  // Socket.IO – live booking updates
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const socket = io(BASE_URL, {
+      auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    socket.on("connect", () => {
+      console.log("Socket connected in Profile");
+    });
+
+    socket.on("bookingUpdated", (updatedBooking) => {
+      console.log("Live booking update:", updatedBooking);
+
+      setBookings((prev) =>
+        prev.map((b) => (b._id === updatedBooking._id ? updatedBooking : b))
+      );
+
+      if (updatedBooking.status === "confirmed") {
+        showToast("Your booking has been confirmed!", "success");
+      } else if (updatedBooking.status === "cancelled") {
+        showToast("Your booking has been cancelled.", "error");
+      } else {
+        showToast(`Booking updated to ${updatedBooking.status}`, "info");
+      }
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err.message);
+      // NEW: If socket auth fails (401 from auth middleware), logout
+      if (err.message.includes("xhr poll error") || err.message.includes("401")) {
+        localStorage.clear();
+        navigate("/login");
+        showToast("Session expired. Please login again.", "error");
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [showToast, navigate]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load user
-        const userRes = await getMe();
-        const user = userRes.data;
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error("No token found");
+
+        const userRes = await fetch(`${BASE_URL}/api/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!userRes.ok) {
+          if (userRes.status === 401) {
+            localStorage.clear();
+            navigate("/login");
+            showToast("Session expired. Please login again.", "error");
+            return;
+          }
+          throw new Error("Failed to load user");
+        }
+
+        const user = await userRes.json();
 
         setUserData({
           fullName: user.fullName || "User",
@@ -64,24 +128,25 @@ const Profile = () => {
         });
         setAvatarPreview(user.avatar ? `${BASE_URL}${user.avatar}` : null);
 
-        // Load bookings
-        const token = localStorage.getItem("token");
-        if (token) {
-          const res = await fetch(`${BASE_URL}/api/bookings/my`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setBookings(data);
+        const bookingsRes = await fetch(`${BASE_URL}/api/bookings/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!bookingsRes.ok) {
+          if (bookingsRes.status === 401) {
+            localStorage.clear();
+            navigate("/login");
+            showToast("Session expired. Please login again.", "error");
+            return;
           }
+          throw new Error("Failed to load bookings");
         }
+
+        const bookingsData = await bookingsRes.json();
+        setBookings(bookingsData);
       } catch (err) {
-        console.error(err);
+        console.error("Profile load error:", err);
         showToast("Failed to load profile", "error");
-        if (err?.response?.status === 401) {
-          localStorage.clear();
-          navigate("/login");
-        }
       } finally {
         setLoading(false);
         setLoadingBookings(false);
@@ -107,13 +172,20 @@ const Profile = () => {
       formData.append("phone", userData.phone);
       if (avatarFile) formData.append("avatar", avatarFile);
 
+      const token = localStorage.getItem("token");
       const res = await fetch(`${BASE_URL}/api/users/profile`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.clear();
+          navigate("/login");
+          showToast("Session expired. Please login again.", "error");
+          return;
+        }
         const errData = await res.json();
         throw new Error(errData.msg || "Failed to update profile");
       }
@@ -132,6 +204,7 @@ const Profile = () => {
 
       showToast("Profile updated successfully!", "success");
     } catch (err) {
+      console.error("Save error:", err);
       showToast(err.message || "Update failed", "error");
     } finally {
       setUploading(false);
@@ -142,6 +215,48 @@ const Profile = () => {
     setIsEditing(false);
     setAvatarFile(null);
     setAvatarPreview(userData.avatar ? `${BASE_URL}${userData.avatar}` : null);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteText.trim().toUpperCase() !== "DELETE") {
+      showToast("Please type DELETE to confirm", "error");
+      return;
+    }
+
+    setDeleting(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BASE_URL}/api/users/me`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.clear();
+          navigate("/login");
+          showToast("Session expired. Please login again.", "error");
+          return;
+        }
+        throw new Error(data.msg || "Failed to delete account");
+      }
+
+      showToast("Account deleted successfully", "success");
+      localStorage.clear();
+      navigate("/login");
+    } catch (err) {
+      console.error("Delete account error:", err);
+      showToast(err.message || "Failed to delete account", "error");
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+      setDeleteText("");
+    }
   };
 
   const handleLogout = () => {
@@ -161,44 +276,34 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <motion.h1
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-3xl sm:text-4xl font-bold text-gray-900 mb-8 text-center"
-        >
+        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-10 text-center">
           My Profile
-        </motion.h1>
+        </h1>
 
-        {/* Main Profile Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-          className="bg-white rounded-2xl shadow-lg overflow-hidden mb-10"
-        >
-          <div className="p-6 sm:p-8">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
-              {/* Profile Picture + Upload */}
+        {/* Profile Card */}
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-12 transition-all duration-300 hover:shadow-xl">
+          <div className="p-6 sm:p-10">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
+              {/* Avatar */}
               <div className="relative group">
-                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white shadow-xl bg-gradient-to-br from-blue-50 to-indigo-50">
+                <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-white shadow-xl bg-gradient-to-br from-blue-50 to-indigo-50 transition-transform duration-300 group-hover:scale-105">
                   {avatarPreview ? (
                     <img
                       src={avatarPreview}
                       alt="Profile"
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => avatarPreview && setShowAvatarModal(true)}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <User className="h-14 w-14 sm:h-16 sm:w-16 text-blue-500 opacity-80" />
+                      <User className="h-16 w-16 sm:h-20 sm:w-20 text-blue-500 opacity-80" />
                     </div>
                   )}
                 </div>
 
                 {isEditing && (
-                  <label className="absolute bottom-1 right-1 bg-indigo-600 text-white p-3 rounded-full cursor-pointer hover:bg-indigo-700 shadow-lg transition transform hover:scale-110">
-                    <Upload className="h-5 w-5" />
+                  <label className="absolute -bottom-2 -right-2 bg-indigo-600 text-white p-4 rounded-full cursor-pointer hover:bg-indigo-700 shadow-lg transition-transform hover:scale-110">
+                    <Upload className="h-6 w-6" />
                     <input
                       type="file"
                       accept="image/*"
@@ -209,76 +314,83 @@ const Profile = () => {
                 )}
               </div>
 
-              {/* User Info */}
+              {/* Info */}
               <div className="flex-1 text-center sm:text-left">
                 {isEditing ? (
                   <input
                     type="text"
                     value={userData.fullName}
                     onChange={(e) => setUserData({ ...userData, fullName: e.target.value })}
-                    className="text-3xl font-bold text-gray-900 border-b-2 border-blue-400 focus:outline-none focus:border-blue-600 bg-transparent w-full mb-2"
+                    className="text-4xl font-bold text-gray-900 border-b-2 border-blue-400 focus:outline-none focus:border-blue-600 bg-transparent w-full mb-3"
                   />
                 ) : (
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-4xl font-bold text-gray-900 mb-3">
                     {userData.fullName}
                   </h2>
                 )}
 
-                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-gray-700 mt-2">
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-5 w-5 text-indigo-600" />
+                <div className="flex flex-col gap-3 text-gray-700 text-lg">
+                  <div className="flex items-center justify-center sm:justify-start gap-3">
+                    <Mail className="h-6 w-6 text-indigo-600" />
                     <span>{userData.email}</span>
                   </div>
-                  {userData.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-5 w-5 text-green-600" />
-                      <span>{userData.phone}</span>
+                  {isEditing ? (
+                    <div className="flex items-center justify-center sm:justify-start gap-3">
+                      <Phone className="h-6 w-6 text-green-600" />
+                      <input
+                        type="tel"
+                        value={userData.phone}
+                        onChange={(e) => setUserData({ ...userData, phone: e.target.value })}
+                        placeholder="+977 98XXXXXXXX"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-lg"
+                      />
                     </div>
+                  ) : (
+                    userData.phone && (
+                      <div className="flex items-center justify-center sm:justify-start gap-3">
+                        <Phone className="h-6 w-6 text-green-600" />
+                        <span>{userData.phone}</span>
+                      </div>
+                    )
                   )}
                 </div>
               </div>
 
-              {/* Edit / Save Buttons */}
-              <div className="flex gap-4 mt-6 sm:mt-0">
+              {/* Buttons */}
+              <div className="flex gap-4 mt-6 sm:mt-0 flex-wrap justify-center sm:justify-start">
                 {isEditing ? (
                   <>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                    <button
                       onClick={handleSave}
                       disabled={uploading}
-                      className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-emerald-700 transition shadow-md flex items-center gap-2 disabled:opacity-50"
+                      className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-8 py-4 rounded-xl hover:from-green-700 hover:to-emerald-700 transition shadow-md flex items-center gap-2 disabled:opacity-50"
                     >
                       {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
                       Save
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                    </button>
+                    <button
                       onClick={handleCancel}
-                      className="bg-gray-200 text-gray-800 px-6 py-3 rounded-xl hover:bg-gray-300 transition flex items-center gap-2"
+                      className="bg-gray-200 text-gray-800 px-8 py-4 rounded-xl hover:bg-gray-300 transition flex items-center gap-2"
                     >
                       <X className="h-5 w-5" />
                       Cancel
-                    </motion.button>
+                    </button>
                   </>
                 ) : (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                  <button
                     onClick={() => setIsEditing(true)}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition shadow-md flex items-center gap-2"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition shadow-md flex items-center gap-2"
                   >
                     <Edit2 className="h-5 w-5" />
                     Edit Profile
-                  </motion.button>
+                  </button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Recent Bookings Preview */}
-          <div className="p-6 sm:p-8 border-t">
+          {/* Recent Bookings */}
+          <div className="p-6 sm:p-10 border-t">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
                 <Calendar className="h-6 w-6 text-blue-600" />
@@ -305,15 +417,11 @@ const Profile = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {bookings.slice(0, 6).map((booking, index) => (
-                  <motion.div
+                  <div
                     key={booking._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1, duration: 0.5 }}
-                    whileHover={{ y: -5, scale: 1.02 }}
-                    className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
+                    className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
                   >
-                    <div className="p-4">
+                    <div className="p-5">
                       {booking.type === "flight" ? (
                         <div className="flex items-center gap-3 mb-3">
                           <div className="bg-indigo-100 p-2 rounded-lg">
@@ -367,45 +475,59 @@ const Profile = () => {
                         </span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
 
-        {/* Quick Actions */}
+        {/* Actions */}
         <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={handleLogout}
             className="bg-red-600 text-white px-8 py-4 rounded-xl hover:bg-red-700 transition shadow-md flex items-center justify-center gap-2"
           >
             <LogOut className="h-5 w-5" />
             Logout
-          </motion.button>
+          </button>
 
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={() => setShowDeleteModal(true)}
             className="bg-gray-800 text-white px-8 py-4 rounded-xl hover:bg-gray-900 transition shadow-md flex items-center justify-center gap-2"
           >
             <Trash2 className="h-5 w-5" />
             Delete Account
-          </motion.button>
+          </button>
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Full-screen Avatar Viewer */}
+      {showAvatarModal && avatarPreview && (
+        <div
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowAvatarModal(false)}
+        >
+          <div className="relative max-w-4xl w-full max-h-[90vh]">
+            <button
+              className="absolute top-4 right-4 text-white bg-gray-800 p-3 rounded-full hover:bg-gray-700 transition"
+              onClick={() => setShowAvatarModal(false)}
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <img
+              src={avatarPreview}
+              alt="Profile Full View"
+              className="w-full h-auto max-h-[90vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
-          >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
             <h3 className="text-2xl font-bold text-red-800 mb-4">Delete Account?</h3>
             <p className="text-gray-700 mb-6">
               This action is permanent. Type <strong className="text-red-600">DELETE</strong> to confirm.
@@ -436,7 +558,7 @@ const Profile = () => {
                 {deleting ? "Deleting..." : "Delete"}
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
     </div>
