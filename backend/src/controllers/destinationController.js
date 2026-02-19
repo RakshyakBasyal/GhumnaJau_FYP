@@ -1,5 +1,4 @@
 // backend/src/controllers/destinationController.js
-
 const Destination = require("../models/Destination");
 
 const toNumberOrUndefined = (v) => {
@@ -13,9 +12,7 @@ const toBoolean = (v) => {
   return v === true || v === "true";
 };
 
-
 // CREATE DESTINATION
-
 exports.createDestination = async (req, res) => {
   try {
     const {
@@ -32,8 +29,9 @@ exports.createDestination = async (req, res) => {
       nearestAirport,
     } = req.body;
 
+    // FIXED: Save with correct subfolder path
     const images = req.files
-      ? req.files.map((file) => `/uploads/${file.filename}`)
+      ? req.files.map((file) => `/uploads/destinations/${file.filename}`)
       : [];
 
     const avg = toNumberOrUndefined(averageCost);
@@ -49,13 +47,10 @@ exports.createDestination = async (req, res) => {
       shortDescription,
       rating: toNumberOrUndefined(rating) ?? 5,
       bestTimeToVisit,
-
       averageCost: avg,
       averageCostMin: avg !== undefined ? undefined : min,
       averageCostMax: avg !== undefined ? undefined : max,
-
       images,
-
       isAirport: isAirportBool,
       nearestAirport: isAirportBool ? null : nearestAirport || null,
     });
@@ -68,42 +63,7 @@ exports.createDestination = async (req, res) => {
   }
 };
 
-
-//  GET ALL DESTINATIONS
-
-exports.getAllDestinations = async (req, res) => {
-  try {
-    const destinations = await Destination.find({})
-      .populate("nearestAirport", "name country")
-      .sort({ createdAt: -1 });
-
-    res.json(destinations);
-  } catch (err) {
-    console.error("Get all error:", err);
-    res.status(500).json({ msg: "Server error" });
-  }
-};
-
-  //  GET SINGLE DESTINATION
-
-exports.getDestination = async (req, res) => {
-  try {
-    const destination = await Destination.findById(req.params.id)
-      .populate("nearestAirport", "name country");
-
-    if (!destination)
-      return res.status(404).json({ msg: "Destination not found" });
-
-    res.json(destination);
-  } catch (err) {
-    console.error("Get one error:", err);
-    res.status(500).json({ msg: "Server error" });
-  }
-};
-
-
 // UPDATE DESTINATION
-
 exports.updateDestination = async (req, res) => {
   try {
     const {
@@ -168,10 +128,10 @@ exports.updateDestination = async (req, res) => {
         : nearestAirport || null;
     }
 
-    // Add new uploaded images
+    // FIXED: New images saved with /uploads/destinations/
     if (req.files && req.files.length > 0) {
       const newImages = req.files.map(
-        (file) => `/uploads/${file.filename}`
+        (file) => `/uploads/destinations/${file.filename}`
       );
       destination.images = [
         ...(destination.images || []),
@@ -201,7 +161,34 @@ exports.updateDestination = async (req, res) => {
   }
 };
 
-// DELETE DESTINATION
+// GET ALL & GET SINGLE & DELETE remain unchanged
+exports.getAllDestinations = async (req, res) => {
+  try {
+    const destinations = await Destination.find({})
+      .populate("nearestAirport", "name country")
+      .sort({ createdAt: -1 });
+
+    res.json(destinations);
+  } catch (err) {
+    console.error("Get all error:", err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
+exports.getDestination = async (req, res) => {
+  try {
+    const destination = await Destination.findById(req.params.id)
+      .populate("nearestAirport", "name country");
+
+    if (!destination)
+      return res.status(404).json({ msg: "Destination not found" });
+
+    res.json(destination);
+  } catch (err) {
+    console.error("Get one error:", err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
 
 exports.deleteDestination = async (req, res) => {
   try {

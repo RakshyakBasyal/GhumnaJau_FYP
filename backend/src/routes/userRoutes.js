@@ -1,24 +1,32 @@
-//backend/src/routes/userRoutes.js
+// backend/src/routes/userRoutes.js
 const express = require("express");
 const router = express.Router();
 
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
+const { uploadAvatar } = require("../middleware/upload"); // Centralized uploader
 
 const {
   getAllUsers,
   deleteUser,
   getMe,
-  updateMe,
   deleteMe,
+  updateMe,
 } = require("../controllers/userController");
 
-//Self routes (NORMAL USER) — no admin middleware
+// PATCH /api/users/profile - update name/phone + avatar
+router.patch(
+  "/profile",
+  auth,
+  uploadAvatar.single("avatar"), // Handles file upload → req.file available
+  updateMe                       // Calls controller with full req.body + req.file support
+);
+
+// Self routes
 router.get("/me", auth, getMe);
-router.put("/me", auth, updateMe);
 router.delete("/me", auth, deleteMe);
 
-//Admin routes
+// Admin routes
 router.get("/", auth, admin, getAllUsers);
 router.delete("/:id", auth, admin, deleteUser);
 

@@ -9,7 +9,13 @@ const userSchema = new mongoose.Schema({
   phone: { type: String },
   role: { type: String, enum: ['USER', 'ADMIN'], default: 'USER' },
   
-  // NEW FIELD: used to invalidate old tokens after logout or deletion
+  // NEW FIELD: profile picture (stored as relative path)
+  avatar: {
+    type: String,
+    default: '', // empty = no picture → frontend shows default icon
+  },
+
+  // already present — good for token invalidation
   lastLogout: { type: Date, default: null },
   
 }, { timestamps: true });

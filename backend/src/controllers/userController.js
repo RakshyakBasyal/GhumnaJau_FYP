@@ -1,9 +1,10 @@
 // backend/src/controllers/userController.js
 const User = require("../models/User");
-const Booking = require("../models/Booking"); // ← added
+const Booking = require("../models/Booking");
 
 exports.getMe = async (req, res) => {
   try {
+    // Returns full user including new 'avatar' field (once model is updated)
     const user = await User.findById(req.user.id).select("-password");
     if (!user) return res.status(404).json({ msg: "User not found" });
     res.json(user);
@@ -17,20 +18,27 @@ exports.updateMe = async (req, res) => {
   try {
     const { fullName, phone } = req.body;
 
+    const updates = {
+      ...(fullName !== undefined ? { fullName } : {}),
+      ...(phone !== undefined ? { phone } : {}),
+    };
+
+    // Handle avatar if uploaded
+    if (req.file) {
+      updates.avatar = `/uploads/avatars/${req.file.filename}`;
+    }
+
     const updated = await User.findByIdAndUpdate(
       req.user.id,
-      {
-        ...(fullName !== undefined ? { fullName } : {}),
-        ...(phone !== undefined ? { phone } : {}),
-      },
-      { new: true }
+      updates,
+      { new: true, runValidators: true }
     ).select("-password");
 
     if (!updated) return res.status(404).json({ msg: "User not found" });
     res.json(updated);
   } catch (err) {
     console.error("Update me error:", err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(400).json({ msg: err.message || "Failed to update profile" });
   }
 };
 
@@ -47,7 +55,7 @@ exports.deleteMe = async (req, res) => {
     user.lastLogout = new Date();
     await user.save();
 
-    // Anonymize bookings (recommended for audit trail)
+    // Anonymize bookings (good for audit trail)
     await Booking.updateMany({ user: req.user.id }, { $set: { user: null } });
 
     // Delete user
@@ -86,7 +94,7 @@ exports.deleteUser = async (req, res) => {
       return res.status(403).json({ msg: "Cannot delete an admin user" });
     }
 
-    // Invalidate all sessions (force logout)
+    // Invalidate all sessions
     user.lastLogout = new Date();
     await user.save();
 

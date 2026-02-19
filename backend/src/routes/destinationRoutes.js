@@ -1,6 +1,6 @@
-// backend/src/routes/destinationRoutes.js
+// // backend/src/routes/destinationRoutes.js
 const express = require('express');
-const multer = require('multer');
+const { uploadDestination } = require('../middleware/upload'); // ← NEW IMPORT
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const {
@@ -13,25 +13,13 @@ const {
 
 const router = express.Router();
 
-// Multer setup for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/'); 
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-
-const upload = multer({ storage });
-
-// Public routes 
+// Public routes
 router.get('/', getAllDestinations);
 router.get('/:id', getDestination);
 
-// Admin-only routes 
-router.post('/', auth, admin, upload.array('images', 10), createDestination);
-router.put('/:id', auth, admin, upload.array('images', 10), updateDestination);
+// Admin routes – use uploadDestination
+router.post('/', auth, admin, uploadDestination.array('images', 10), createDestination);
+router.put('/:id', auth, admin, uploadDestination.array('images', 10), updateDestination);
 router.delete('/:id', auth, admin, deleteDestination);
 
 module.exports = router;

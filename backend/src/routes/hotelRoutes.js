@@ -1,6 +1,6 @@
-//backend/src/routes/hotelRoutes.js
+// backend/src/routes/hotelRoutes.js
 const express = require('express');
-const multer = require('multer');
+const { uploadHotel } = require('../middleware/upload'); // ← Import the hotel-specific uploader
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const {
@@ -13,20 +13,14 @@ const {
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
-});
-
-const upload = multer({ storage });
-
-// Public
+// Public routes - anyone can view hotels
 router.get('/', getAllHotels);
 router.get('/:id', getHotel);
 
-// Admin
-router.post('/', auth, admin, upload.array('images', 10), createHotel);
-router.put('/:id', auth, admin, upload.array('images', 10), updateHotel);
+// Admin-only routes - require authentication + admin role
+// Use uploadHotel.array('images', 10) for both create and update
+router.post('/', auth, admin, uploadHotel.array('images', 10), createHotel);
+router.put('/:id', auth, admin, uploadHotel.array('images', 10), updateHotel);
 router.delete('/:id', auth, admin, deleteHotel);
 
 module.exports = router;

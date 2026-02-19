@@ -1,4 +1,4 @@
-//backend/src/controllers/hotelController.js
+// backend/src/controllers/hotelController.js
 const Hotel = require('../models/Hotel');
 
 exports.createHotel = async (req, res) => {
@@ -14,7 +14,10 @@ exports.createHotel = async (req, res) => {
       roomTypes,   
     } = req.body;
 
-    const images = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+    // FIXED: Save images with /uploads/hotels/ prefix
+    const images = req.files 
+      ? req.files.map(file => `/uploads/hotels/${file.filename}`) 
+      : [];
 
     const hotel = new Hotel({
       name,
@@ -60,13 +63,13 @@ exports.updateHotel = async (req, res) => {
     if (rating) hotel.rating = rating;
     if (amenities) hotel.amenities = amenities.split(',');
 
-    
     if (roomTypes) {
       hotel.roomTypes = JSON.parse(roomTypes);
     }
 
+    // FIXED: New images now saved in /uploads/hotels/
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(file => `/uploads/${file.filename}`);
+      const newImages = req.files.map(file => `/uploads/hotels/${file.filename}`);
       hotel.images = [...hotel.images, ...newImages];
     }
 
@@ -85,7 +88,11 @@ exports.updateHotel = async (req, res) => {
 
 exports.getAllHotels = async (req, res) => {
   try {
-    const hotels = await Hotel.find().populate('destination', 'name');
+    const { destination } = req.query;
+    const filter = destination ? { destination } : {};
+    const hotels = await Hotel.find(filter)
+      .populate('destination', 'name country')
+      .sort({ rating: -1, name: 1 });
     res.json(hotels);
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
@@ -106,20 +113,6 @@ exports.deleteHotel = async (req, res) => {
   try {
     await Hotel.findByIdAndDelete(req.params.id);
     res.json({ msg: 'Hotel deleted' });
-  } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-};
-
-// backend/src/controllers/hotelController.js
-exports.getAllHotels = async (req, res) => {
-  try {
-    const { destination } = req.query;
-    const filter = destination ? { destination } : {};
-    const hotels = await Hotel.find(filter)
-      .populate('destination', 'name country')
-      .sort({ rating: -1, name: 1 });
-    res.json(hotels);
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }
