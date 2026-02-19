@@ -55,6 +55,21 @@ const bookingSchema = new mongoose.Schema({
   isArchived: { type: Boolean, default: false },
 
   createdAt: { type: Date, default: Date.now },
+
+
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending'
+  },
+  transactionId: {
+    type: String,
+  },
+  paidAt: {
+    type: Date,
+  },
+
 });
+
 
 module.exports = mongoose.model('Booking', bookingSchema);
