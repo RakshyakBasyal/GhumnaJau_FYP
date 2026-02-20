@@ -8,7 +8,7 @@ const {
   handleStripeFailureRedirect,
 } = require('../controllers/paymentController');
 
-// Create Stripe Checkout session (called after booking creation)
+// Create Stripe Checkout session (after booking creation)
 router.post('/stripe/checkout', auth, createStripeCheckoutSession);
 
 // Public redirect endpoints (Stripe calls these after payment)

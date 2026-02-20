@@ -23,7 +23,6 @@ exports.createStripeCheckoutSession = async (req, res) => {
       return res.status(400).json({ msg: 'Payment already processed or not pending' });
     }
 
-    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -56,7 +55,7 @@ exports.createStripeCheckoutSession = async (req, res) => {
   }
 };
 
-// Handle success redirect from Stripe
+// Handle success redirect from Stripe (Option A: only update paymentStatus)
 exports.handleStripeSuccessRedirect = async (req, res) => {
   try {
     const { bookingId, session_id } = req.query;
@@ -65,7 +64,6 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
       return res.redirect(`${FRONTEND_URL}/payment/result?status=failed`);
     }
 
-    // Retrieve session to verify payment
     const session = await stripe.checkout.sessions.retrieve(session_id);
 
     if (session.payment_status === 'paid') {
@@ -74,7 +72,8 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
         booking.paymentStatus = 'completed';
         booking.transactionId = session.payment_intent;
         booking.paidAt = new Date();
-        booking.status = 'confirmed';
+        // IMPORTANT: Do NOT change status to 'confirmed' here
+        // Let admin do it manually in AdminBookings
         await booking.save();
       }
       return res.redirect(`${FRONTEND_URL}/payment/result?status=success&bookingId=${bookingId}`);
@@ -87,7 +86,7 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
   }
 };
 
-// Handle cancel/failure redirect from Stripe
+// Handle cancel/failure redirect
 exports.handleStripeFailureRedirect = (req, res) => {
   const { bookingId } = req.query;
   res.redirect(`${FRONTEND_URL}/payment/result?status=failed&bookingId=${bookingId || ''}`);

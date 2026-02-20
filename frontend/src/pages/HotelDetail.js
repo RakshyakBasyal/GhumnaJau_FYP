@@ -138,7 +138,8 @@ const HotelDetail = () => {
       const bookingData = await bookingResponse.json();
       const bookingId = bookingData.booking._id; // adjust if your response structure is different
 
-      showToast('Booking created — redirecting to secure payment...', 'info');
+      // Show GREEN/info toast for redirect (not red)
+      showToast('Booking created — redirecting to secure payment...', 'success');
 
       // Step 2: Initiate Stripe Checkout
       const paymentResponse = await fetch(`${BASE_URL}/api/payments/stripe/checkout`, {
@@ -550,7 +551,7 @@ const HotelDetail = () => {
                 Dates: {new Date(checkIn).toLocaleDateString()} - {new Date(checkOut).toLocaleDateString()}
               </p>
               <p className="mt-4 text-red-600 font-medium text-sm">
-                You will be redirected to Stripe for secure payment.
+                You will be redirected to Stripe for secure payment. Booking will be pending until admin confirms.
               </p>
             </div>
 

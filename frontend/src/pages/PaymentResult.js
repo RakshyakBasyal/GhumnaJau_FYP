@@ -1,6 +1,7 @@
 // frontend/src/pages/PaymentResult.jsx
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertOctagon, ArrowRight, RotateCcw } from 'lucide-react';
+import { useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
 
 const PaymentResult = () => {
@@ -13,6 +14,15 @@ const PaymentResult = () => {
 
   const isSuccess = status === 'success';
 
+  // Show toast only once on mount
+  useEffect(() => {
+    if (isSuccess) {
+      showToast('Payment completed successfully!', 'success');
+    } else {
+      showToast('Payment was cancelled or failed.', 'error');
+    }
+  }, [isSuccess, showToast]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className={`w-full max-w-lg p-10 rounded-2xl shadow-2xl text-center border ${
@@ -23,7 +33,9 @@ const PaymentResult = () => {
             <CheckCircle className="h-24 w-24 text-green-600 mx-auto mb-6 animate-bounce" />
             <h1 className="text-4xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
             <p className="text-lg text-gray-700 mb-6">
-              Your booking has been confirmed.
+              Your payment has been processed successfully.
+              <br />
+              <strong>Your booking is now paid and awaiting admin confirmation.</strong>
             </p>
             {bookingId && (
               <p className="text-sm text-gray-500 mb-8">
@@ -40,9 +52,11 @@ const PaymentResult = () => {
         ) : (
           <>
             <AlertOctagon className="h-24 w-24 text-red-600 mx-auto mb-6" />
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Payment Failed</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">Payment Cancelled / Failed</h1>
             <p className="text-lg text-gray-700 mb-6">
-              Payment could not be completed. Please try again.
+              Payment could not be completed or was cancelled.
+              <br />
+              Your booking is still pending.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
