@@ -2,7 +2,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getHotel } from '../services/api';
-import { MapPin, DollarSign, Star, X, ChevronLeft, ChevronRight, Calendar, Users, AlertTriangle, Loader2 } from 'lucide-react';
+import {
+  MapPin, DollarSign, Star, X, ChevronLeft, ChevronRight, Calendar, Users,
+  AlertTriangle, Loader2
+} from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
 const BASE_URL = "http://localhost:5000";
@@ -27,7 +30,7 @@ const HotelDetail = () => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
 
-  // Booking submission states
+  // Submission states
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmBookingModal, setShowConfirmBookingModal] = useState(false);
 
@@ -51,12 +54,11 @@ const HotelDetail = () => {
     fetchHotel();
   }, [id]);
 
-  // Lowest price for "Starting from"
+  // Price calculations
   const startingPrice = hotel?.roomTypes?.length > 0
     ? Math.min(...hotel.roomTypes.map(r => r.pricePerNight))
     : hotel?.pricePerNight || 0;
 
-  // Nights & total price
   const nights = checkIn && checkOut
     ? Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)))
     : 1;
@@ -110,7 +112,8 @@ const HotelDetail = () => {
     setShowConfirmBookingModal(false);
 
     try {
-      const response = await fetch(`${BASE_URL}/api/bookings`, {
+      // Step 1: Create pending booking
+      const bookingResponse = await fetch(`${BASE_URL}/api/bookings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,24 +130,42 @@ const HotelDetail = () => {
         }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Booking failed');
+      if (!bookingResponse.ok) {
+        const errData = await bookingResponse.json();
+        throw new Error(errData.message || 'Failed to create booking');
       }
 
-      showToast('Booking request sent! Waiting for admin confirmation.', 'success');
-      setShowBookingModal(false);
+      const bookingData = await bookingResponse.json();
+      const bookingId = bookingData.booking._id; // adjust if your response structure is different
 
-      setCheckIn('');
-      setCheckOut('');
-      setGuests(1);
-      setSelectedRoomType(hotel?.roomTypes?.[0]?.name || '');
-      setEmail('');
-      setPhone('');
+      showToast('Booking created — redirecting to secure payment...', 'info');
+
+      // Step 2: Initiate Stripe Checkout
+      const paymentResponse = await fetch(`${BASE_URL}/api/payments/stripe/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          bookingId,
+          amount: totalPrice,
+        }),
+      });
+
+      if (!paymentResponse.ok) {
+        const errData = await paymentResponse.json();
+        throw new Error(errData.msg || 'Failed to start payment');
+      }
+
+      const { checkoutUrl } = await paymentResponse.json();
+
+      // Step 3: Redirect to Stripe Checkout
+      window.location.href = checkoutUrl;
+
     } catch (err) {
-      console.error('Booking error:', err);
-      showToast('Failed to book: ' + err.message, 'error');
+      console.error('Booking + Stripe Payment error:', err);
+      showToast(err.message || 'Something went wrong. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -190,7 +211,7 @@ const HotelDetail = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* Info Cards */}
+        {/* About */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
           <h2 className="text-3xl font-bold text-gray-800 mb-4">
             About {hotel.name}
@@ -287,7 +308,7 @@ const HotelDetail = () => {
           </div>
         )}
 
-        {/* Book This Hotel Button */}
+        {/* Book Button */}
         <div className="text-center">
           <button
             onClick={handleBookClick}
@@ -335,10 +356,10 @@ const HotelDetail = () => {
         </div>
       )}
 
-      {/* Booking Modal – original width & style, slightly shorter vertically */}
+      {/* Booking Modal */}
       {showBookingModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 relative"> {/* ← width same (max-w-3xl), padding reduced to p-6 */}
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => setShowBookingModal(false)}
               className="absolute top-4 right-4 text-gray-600 hover:text-gray-900"
@@ -350,7 +371,7 @@ const HotelDetail = () => {
               Book {hotel.name}
             </h2>
 
-            <form onSubmit={handleBookingSubmit} className="space-y-5"> {/* ← reduced spacing */}
+            <form onSubmit={handleBookingSubmit} className="space-y-5">
               {/* Dates */}
               <div className="grid md:grid-cols-2 gap-5">
                 <div>
@@ -505,7 +526,7 @@ const HotelDetail = () => {
         </div>
       )}
 
-      {/* Confirmation Modal – unchanged */}
+      {/* Confirmation Modal */}
       {showConfirmBookingModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
@@ -529,7 +550,7 @@ const HotelDetail = () => {
                 Dates: {new Date(checkIn).toLocaleDateString()} - {new Date(checkOut).toLocaleDateString()}
               </p>
               <p className="mt-4 text-red-600 font-medium text-sm">
-                This will create a booking request. Pending bookings require admin confirmation.
+                You will be redirected to Stripe for secure payment.
               </p>
             </div>
 
@@ -550,10 +571,10 @@ const HotelDetail = () => {
                 {submitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Booking...
+                    Processing...
                   </>
                 ) : (
-                  'Confirm Booking'
+                  'Proceed to Payment'
                 )}
               </button>
             </div>
