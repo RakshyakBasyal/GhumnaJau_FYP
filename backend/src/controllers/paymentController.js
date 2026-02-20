@@ -1,11 +1,10 @@
-// backend/src/controllers/paymentController.js
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-// Initiate eSewa payment
-exports.initiateESewaPayment = async (req, res) => {
+// Create Stripe Checkout Session
+exports.createStripeCheckoutSession = async (req, res) => {
   try {
     const { bookingId, amount } = req.body;
 
@@ -24,82 +23,72 @@ exports.initiateESewaPayment = async (req, res) => {
       return res.status(400).json({ msg: 'Payment already processed or not pending' });
     }
 
-    const params = {
-      amt: amount,
-      pdc: 0,
-      psc: 0,
-      txAmt: 0,
-      tAmt: amount,
-      pid: `BK-${bookingId}-${Date.now()}`,
-      scd: 'EPAYTEST',
-      su: `${BASE_URL}/api/payments/esewa/success`,
-      fu: `${BASE_URL}/api/payments/esewa/failure`,
-    };
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'npr',
+            product_data: {
+              name: `Hotel Booking - ${bookingId}`,
+              description: 'Travel booking payment via Ghumna Jau',
+            },
+            unit_amount: Math.round(amount * 100), // paisa
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${FRONTEND_URL}/payment/result?status=success&bookingId=${bookingId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${FRONTEND_URL}/payment/result?status=cancelled&bookingId=${bookingId}`,
+      metadata: { bookingId: bookingId.toString() },
+    });
 
     res.json({
       success: true,
-      paymentUrl: 'https://uat.esewa.com.np/epay/main',
-      params,
+      checkoutUrl: session.url,
+      sessionId: session.id,
     });
   } catch (err) {
-    console.error('Initiate eSewa error:', err.message);
-    res.status(500).json({ msg: 'Server error while initiating payment' });
+    console.error('Stripe checkout error:', err.message);
+    res.status(500).json({ msg: 'Failed to create Stripe checkout session' });
   }
 };
 
-// eSewa success callback
-exports.eSewaSuccessCallback = async (req, res) => {
+// Handle success redirect from Stripe
+exports.handleStripeSuccessRedirect = async (req, res) => {
   try {
-    const { amt, pid, refId } = req.body;
+    const { bookingId, session_id } = req.query;
 
-    if (!pid || !refId) {
-      return res.redirect(`${FRONTEND_URL}/payment/failed`);
+    if (!bookingId || !session_id) {
+      return res.redirect(`${FRONTEND_URL}/payment/result?status=failed`);
     }
 
-    // Extract bookingId from pid format: BK-bookingId-timestamp
-    const parts = pid.split('-');
-    if (parts.length < 3 || parts[0] !== 'BK') {
-      return res.redirect(`${FRONTEND_URL}/payment/failed`);
-    }
+    // Retrieve session to verify payment
+    const session = await stripe.checkout.sessions.retrieve(session_id);
 
-    const bookingId = parts[1];
-
-    // Verify transaction with eSewa
-    const formData = new URLSearchParams();
-    formData.append('amt', amt);
-    formData.append('rid', refId);
-    formData.append('pid', pid);
-    formData.append('scd', 'EPAYTEST');
-
-    const verification = await fetch('https://uat.esewa.com.np/epay/transrec', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString(),
-    });
-
-    const responseText = await verification.text();
-
-    if (responseText.includes('Success')) {
+    if (session.payment_status === 'paid') {
       const booking = await Booking.findById(bookingId);
       if (booking) {
         booking.paymentStatus = 'completed';
-        booking.transactionId = refId;
+        booking.transactionId = session.payment_intent;
         booking.paidAt = new Date();
         booking.status = 'confirmed';
         await booking.save();
       }
-
-      return res.redirect(`${FRONTEND_URL}/payment/success?bookingId=${bookingId}`);
+      return res.redirect(`${FRONTEND_URL}/payment/result?status=success&bookingId=${bookingId}`);
     }
 
-    res.redirect(`${FRONTEND_URL}/payment/failed`);
+    res.redirect(`${FRONTEND_URL}/payment/result?status=failed&bookingId=${bookingId}`);
   } catch (err) {
-    console.error('eSewa success error:', err.message);
-    res.redirect(`${FRONTEND_URL}/payment/failed`);
+    console.error('Stripe success redirect error:', err.message);
+    res.redirect(`${FRONTEND_URL}/payment/result?status=failed`);
   }
 };
 
-// eSewa failure callback
-exports.eSewaFailureCallback = (req, res) => {
-  res.redirect(`${FRONTEND_URL}/payment/failed`);
+// Handle cancel/failure redirect from Stripe
+exports.handleStripeFailureRedirect = (req, res) => {
+  const { bookingId } = req.query;
+  res.redirect(`${FRONTEND_URL}/payment/result?status=failed&bookingId=${bookingId || ''}`);
 };

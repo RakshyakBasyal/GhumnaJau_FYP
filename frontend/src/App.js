@@ -1,6 +1,6 @@
 // frontend/src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ToastProvider } from './context/ToastContext'; // ← Make sure path is correct
+import { ToastProvider } from './context/ToastContext'; 
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -20,6 +20,11 @@ import MyBookings from './pages/MyBookings';
 import AdminBookings from './pages/AdminBookings';
 import Flights from './pages/Flights';
 import ManageFlights from './pages/ManageFlights';
+
+import PaymentResult from './pages/PaymentResult';
+
+
+   
 
 function App() {
   return (
@@ -85,6 +90,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/flights" element={<Flights />} />
+            <Route path="/payment/result" element={<PaymentResult />} />
           </Route>
         </Routes>
       </Router>

@@ -1,19 +1,18 @@
-// backend/src/routes/paymentRoutes.js
 const express = require('express');
 const router = express.Router();
-
 const auth = require('../middleware/auth');
+
 const {
-  initiateESewaPayment,
-  eSewaSuccessCallback,
-  eSewaFailureCallback,
+  createStripeCheckoutSession,
+  handleStripeSuccessRedirect,
+  handleStripeFailureRedirect,
 } = require('../controllers/paymentController');
 
-// User must be authenticated to start payment
-router.post('/esewa/initiate', auth, initiateESewaPayment);
+// Create Stripe Checkout session (called after booking creation)
+router.post('/stripe/checkout', auth, createStripeCheckoutSession);
 
-// eSewa callbacks — public (no auth needed)
-router.post('/esewa/success', eSewaSuccessCallback);
-router.post('/esewa/failure', eSewaFailureCallback);
+// Public redirect endpoints (Stripe calls these after payment)
+router.get('/stripe/success', handleStripeSuccessRedirect);
+router.get('/stripe/cancel', handleStripeFailureRedirect);
 
 module.exports = router;
