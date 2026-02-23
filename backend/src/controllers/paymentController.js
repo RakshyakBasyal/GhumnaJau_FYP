@@ -1,3 +1,4 @@
+// //backend/src/controllers/paymentController.js
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
 const Flight = require('../models/Flight');
@@ -35,7 +36,7 @@ exports.createStripeCheckoutSession = async (req, res) => {
               name: `Booking - ${bookingId}`,
               description: `Payment for ${booking.type} booking on Ghumna Jau`,
             },
-            unit_amount: Math.round(amount * 100), // NPR to paisa
+            unit_amount: Math.round(amount * 100),
           },
           quantity: 1,
         },
@@ -137,7 +138,12 @@ exports.refundBookingPayment = async (req, res) => {
       }
     }
 
-    req.app.get('io')?.emit('bookingRefunded', booking);
+    // ✅ FIX: populate user + hotel/flight so admin table updates correctly
+    const populated = await Booking.findById(booking._id)
+      .populate('user', 'fullName email')
+      .populate(booking.type === 'hotel' ? 'hotel' : 'flight');
+
+    req.app.get('io')?.emit('bookingRefunded', populated);
 
     res.json({
       success: true,

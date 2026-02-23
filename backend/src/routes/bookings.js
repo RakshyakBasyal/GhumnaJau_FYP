@@ -1,4 +1,3 @@
-// backend/src/routes/bookings.js
 const express = require('express');
 const router = express.Router();
 const Booking = require('../models/Booking');
@@ -72,9 +71,9 @@ router.post('/', auth, async (req, res) => {
       if (!flight) return res.status(404).json({ message: 'Flight not found' });
       if (!flight.isActive) return res.status(400).json({ message: 'Flight is not active' });
 
-      const totalPassengers = 
-        (passengersCount.adults || 0) + 
-        (passengersCount.children || 0) + 
+      const totalPassengers =
+        (passengersCount.adults || 0) +
+        (passengersCount.children || 0) +
         (passengersCount.infants || 0);
 
       if (flight.availableSeats < totalPassengers) {
@@ -143,6 +142,32 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
     }
 
     booking.status = status;
+
+    // ✅ If admin cancels a paid booking, process refund automatically
+    if (status === 'cancelled' && booking.paymentStatus === 'completed' && booking.transactionId) {
+      try {
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        await stripe.refunds.create({ payment_intent: booking.transactionId });
+        booking.paymentStatus = 'refunded';
+
+        // Restore flight seats if applicable
+        if (booking.type === 'flight' && booking.flight && booking.passengersCount) {
+          const flight = await Flight.findById(booking.flight);
+          if (flight) {
+            const totalPax =
+              (booking.passengersCount.adults || 0) +
+              (booking.passengersCount.children || 0) +
+              (booking.passengersCount.infants || 0);
+            flight.availableSeats += totalPax;
+            await flight.save();
+          }
+        }
+      } catch (refundErr) {
+        console.error('Refund failed during admin cancel:', refundErr.message);
+        // Still cancel the booking even if refund fails
+      }
+    }
+
     await booking.save();
 
     const updated = await Booking.findById(booking._id)
@@ -158,8 +183,7 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
   }
 });
 
-// User cancel pending booking
-// User cancel booking (now allows pending OR confirmed/paid bookings)
+// User cancel booking (allows pending OR confirmed/paid bookings)
 router.patch('/my/:id/cancel', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -169,7 +193,6 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not your booking' });
     }
 
-    // Allow cancel on pending OR confirmed (paid) bookings
     if (!['pending', 'confirmed'].includes(booking.status)) {
       return res.status(400).json({ message: 'Booking cannot be cancelled in current status' });
     }
@@ -191,8 +214,10 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
     }
 
     const updated = await Booking.findById(booking._id)
+      .populate('user', 'fullName email')
       .populate(booking.type === 'hotel' ? 'hotel' : 'flight');
 
+    req.app.get('io')?.emit('bookingCancelled', updated);
     req.app.get('io')?.emit('bookingUpdated', updated);
 
     res.json({ message: 'Booking cancelled successfully', booking: updated });
@@ -201,6 +226,7 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
     res.status(500).json({ message: 'Failed to cancel booking' });
   }
 });
+
 // User archive booking
 router.patch('/my/:id/archive', auth, async (req, res) => {
   try {

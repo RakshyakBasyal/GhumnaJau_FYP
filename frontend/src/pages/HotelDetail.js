@@ -545,12 +545,12 @@ const HotelDetail = () => {
               <p className="text-gray-700 text-base">
                 Are you sure you want to confirm this booking for <strong>{hotel.name}</strong>?
               </p>
-              <p className="mt-3 text-sm text-gray-600">
-                Total: <span className="font-bold text-blue-600">NPR {totalPrice.toLocaleString()}</span>
+              <p className="mt-4 text-sm text-gray-700">
+                Total: <span className="font-bold text-blue-700">NPR {totalPrice.toLocaleString()}</span>
                 <br />
                 Dates: {new Date(checkIn).toLocaleDateString()} - {new Date(checkOut).toLocaleDateString()}
               </p>
-              <p className="mt-4 text-red-600 font-medium text-sm">
+              <p className="mt-4 text-grey-600 font-medium text-sm">
                 You will be redirected to Stripe for secure payment. Booking will be pending until admin confirms.
               </p>
             </div>
