@@ -1,5 +1,4 @@
-// //backend/src/models/Booking.js
-
+// // //backend/src/models/Booking.js
 const mongoose = require('mongoose');
 
 const passengerCountSchema = new mongoose.Schema({
@@ -56,10 +55,9 @@ const bookingSchema = new mongoose.Schema({
 
   createdAt: { type: Date, default: Date.now },
 
-
   paymentStatus: {
     type: String,
-    enum: ['pending', 'completed', 'failed'],
+    enum: ['pending', 'completed', 'failed', 'refunded'], // Added 'refunded'
     default: 'pending'
   },
   transactionId: {
@@ -68,8 +66,6 @@ const bookingSchema = new mongoose.Schema({
   paidAt: {
     type: Date,
   },
-
 });
-
 
 module.exports = mongoose.model('Booking', bookingSchema);

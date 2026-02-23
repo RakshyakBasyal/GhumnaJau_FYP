@@ -6,7 +6,7 @@ const Flight = require('../models/Flight');
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 
-// ── ADMIN: GET ALL BOOKINGS (this was the missing route causing 404) ──
+// Get all bookings (admin)
 router.get('/', auth, admin, async (req, res) => {
   try {
     const includeArchived = req.query.includeArchived === 'true';
@@ -28,12 +28,12 @@ router.get('/', auth, admin, async (req, res) => {
 
     res.json(bookings);
   } catch (err) {
-    console.error('Admin get all bookings error:', err);
-    res.status(500).json({ message: 'Failed to load all bookings' });
+    console.error('Admin get bookings error:', err);
+    res.status(500).json({ message: 'Failed to load bookings' });
   }
 });
 
-// ── CREATE BOOKING (supports both hotel and flight) ──
+// Create booking
 router.post('/', auth, async (req, res) => {
   try {
     const { type, hotelId, flightId, totalAmount, passengersCount, contactInfo, ...rest } = req.body;
@@ -54,16 +54,16 @@ router.post('/', auth, async (req, res) => {
     };
 
     if (type === 'hotel') {
-      if (!hotelId) return res.status(400).json({ message: 'hotelId required for hotel booking' });
+      if (!hotelId) return res.status(400).json({ message: 'hotelId required' });
       bookingData.hotel = hotelId;
     }
 
     if (type === 'flight') {
-      if (!flightId) return res.status(400).json({ message: 'flightId required for flight booking' });
+      if (!flightId) return res.status(400).json({ message: 'flightId required' });
       bookingData.flight = flightId;
 
       if (!passengersCount || !passengersCount.adults) {
-        return res.status(400).json({ message: 'passengersCount.adults required for flight booking' });
+        return res.status(400).json({ message: 'passengersCount.adults required' });
       }
       bookingData.passengersCount = passengersCount;
       bookingData.contactInfo = contactInfo || {};
@@ -78,7 +78,7 @@ router.post('/', auth, async (req, res) => {
         (passengersCount.infants || 0);
 
       if (flight.availableSeats < totalPassengers) {
-        return res.status(400).json({ message: 'Not enough seats available' });
+        return res.status(400).json({ message: 'Not enough seats' });
       }
 
       flight.availableSeats -= totalPassengers;
@@ -95,16 +95,16 @@ router.post('/', auth, async (req, res) => {
     req.app.get('io')?.emit('newBooking', populated);
 
     res.status(201).json({
-      message: `${type} booking created successfully`,
+      message: `${type} booking created`,
       booking: populated,
     });
   } catch (err) {
     console.error('Booking creation error:', err);
-    res.status(500).json({ message: err.message || 'Server error while creating booking' });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// ── GET MY BOOKINGS (user's own bookings) ──
+// Get my bookings (user)
 router.get('/my', auth, async (req, res) => {
   try {
     const bookings = await Booking.find({ user: req.user.id })
@@ -127,12 +127,12 @@ router.get('/my', auth, async (req, res) => {
   }
 });
 
-// ── UPDATE STATUS (admin only) ──
+// Update status (admin)
 router.patch('/:id/status', auth, admin, async (req, res) => {
   try {
     const { status } = req.body;
     if (!['confirmed', 'cancelled'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status value' });
+      return res.status(400).json({ message: 'Invalid status' });
     }
 
     const booking = await Booking.findById(req.params.id);
@@ -154,18 +154,18 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
     res.json({ message: `Booking updated to ${status}`, booking: updated });
   } catch (err) {
     console.error('Update status error:', err);
-    res.status(500).json({ message: 'Failed to update booking status' });
+    res.status(500).json({ message: 'Failed to update status' });
   }
 });
 
-// ── USER CANCEL PENDING BOOKING ──
+// User cancel pending booking
 router.patch('/my/:id/cancel', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
     if (booking.user.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'This is not your booking' });
+      return res.status(403).json({ message: 'Not your booking' });
     }
 
     if (booking.status !== 'pending') {
@@ -175,14 +175,10 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
     booking.status = 'cancelled';
     await booking.save();
 
-    // Restore flight seats if it was a flight booking
     if (booking.type === 'flight' && booking.flight && booking.passengersCount) {
       const flight = await Flight.findById(booking.flight);
       if (flight) {
-        const totalPax = 
-          (booking.passengersCount.adults || 0) +
-          (booking.passengersCount.children || 0) +
-          (booking.passengersCount.infants || 0);
+        const totalPax = (booking.passengersCount.adults || 0) + (booking.passengersCount.children || 0) + (booking.passengersCount.infants || 0);
         flight.availableSeats += totalPax;
         await flight.save();
       }
@@ -193,14 +189,14 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
 
     req.app.get('io')?.emit('bookingUpdated', updated);
 
-    res.json({ message: 'Booking cancelled successfully', booking: updated });
+    res.json({ message: 'Booking cancelled', booking: updated });
   } catch (err) {
     console.error('Cancel booking error:', err);
-    res.status(500).json({ message: 'Failed to cancel booking' });
+    res.status(500).json({ message: 'Failed to cancel' });
   }
 });
 
-// ── USER ARCHIVE BOOKING ──
+// User archive booking
 router.patch('/my/:id/archive', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -211,24 +207,24 @@ router.patch('/my/:id/archive', auth, async (req, res) => {
     }
 
     if (booking.isUserArchived) {
-      return res.status(400).json({ message: 'Booking already archived' });
+      return res.status(400).json({ message: 'Already archived' });
     }
 
     if (!['confirmed', 'cancelled'].includes(booking.status)) {
-      return res.status(400).json({ message: 'Only confirmed or cancelled bookings can be archived' });
+      return res.status(400).json({ message: 'Only confirmed or cancelled can be archived' });
     }
 
     booking.isUserArchived = true;
     await booking.save();
 
-    res.json({ message: 'Booking archived successfully', booking });
+    res.json({ message: 'Booking archived', booking });
   } catch (err) {
     console.error('Archive error:', err);
-    res.status(500).json({ message: 'Failed to archive booking' });
+    res.status(500).json({ message: 'Failed to archive' });
   }
 });
 
-// ── USER UNARCHIVE BOOKING ──
+// User unarchive booking
 router.patch('/my/:id/unarchive', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -239,20 +235,20 @@ router.patch('/my/:id/unarchive', auth, async (req, res) => {
     }
 
     if (!booking.isUserArchived) {
-      return res.status(400).json({ message: 'Booking is not archived' });
+      return res.status(400).json({ message: 'Not archived' });
     }
 
     booking.isUserArchived = false;
     await booking.save();
 
-    res.json({ message: 'Booking unarchived successfully', booking });
+    res.json({ message: 'Booking unarchived', booking });
   } catch (err) {
     console.error('Unarchive error:', err);
-    res.status(500).json({ message: 'Failed to unarchive booking' });
+    res.status(500).json({ message: 'Failed to unarchive' });
   }
 });
 
-// ── ADMIN: BULK ARCHIVE COMPLETED BOOKINGS ──
+// Admin bulk archive completed
 router.patch('/clear-completed', auth, admin, async (req, res) => {
   try {
     const result = await Booking.updateMany(
@@ -260,52 +256,50 @@ router.patch('/clear-completed', auth, admin, async (req, res) => {
       { $set: { isArchived: true } }
     );
 
-    res.json({ 
-      message: `Successfully archived ${result.modifiedCount} completed booking(s)` 
-    });
+    res.json({ message: `Archived ${result.modifiedCount} bookings` });
   } catch (err) {
     console.error('Bulk archive error:', err);
-    res.status(500).json({ message: 'Failed to archive completed bookings' });
+    res.status(500).json({ message: 'Failed to archive' });
   }
 });
 
-// ── ADMIN: SINGLE ARCHIVE ──
+// Admin single archive
 router.patch('/:id/archive', auth, admin, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
     if (booking.isArchived) {
-      return res.status(400).json({ message: 'Booking already archived' });
+      return res.status(400).json({ message: 'Already archived' });
     }
 
     booking.isArchived = true;
     await booking.save();
 
-    res.json({ message: 'Booking archived by admin', booking });
+    res.json({ message: 'Archived', booking });
   } catch (err) {
     console.error('Admin archive error:', err);
-    res.status(500).json({ message: 'Failed to archive booking' });
+    res.status(500).json({ message: 'Failed to archive' });
   }
 });
 
-// ── ADMIN: SINGLE UNARCHIVE ──
+// Admin single unarchive
 router.patch('/:id/unarchive', auth, admin, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
     if (!booking.isArchived) {
-      return res.status(400).json({ message: 'Booking is not archived' });
+      return res.status(400).json({ message: 'Not archived' });
     }
 
     booking.isArchived = false;
     await booking.save();
 
-    res.json({ message: 'Booking unarchived by admin', booking });
+    res.json({ message: 'Unarchived', booking });
   } catch (err) {
     console.error('Admin unarchive error:', err);
-    res.status(500).json({ message: 'Failed to unarchive booking' });
+    res.status(500).json({ message: 'Failed to unarchive' });
   }
 });
 
