@@ -1,5 +1,5 @@
-// frontend/src/pages/AdminBookings.jsx
-import { useEffect, useState } from 'react';
+// // // frontend/src/pages/AdminBookings.jsx
+import { useEffect, useState, useCallback } from 'react';
 import {
   CheckCircle,
   XCircle,
@@ -28,10 +28,8 @@ const AdminBookings = () => {
   const [updating, setUpdating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  // Bulk selection
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // Modals
   const [showClearModal, setShowClearModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [pendingStatusAction, setPendingStatusAction] = useState(null);
@@ -45,39 +43,8 @@ const AdminBookings = () => {
 
   const { showToast } = useToast();
 
-  // Socket.io live updates
-  useEffect(() => {
-    const socket = io(BASE_URL, { withCredentials: true });
-
-    socket.on('connect', () => {
-      console.log('Admin socket connected');
-    });
-
-    socket.on('newBooking', (newBooking) => {
-      setBookings((prev) => [newBooking, ...prev]);
-      showToast('New booking received!', 'success');
-    });
-
-    socket.on('bookingUpdated', (updatedBooking) => {
-      setBookings((prev) =>
-        prev.map((b) => (b._id === updatedBooking._id ? updatedBooking : b))
-      );
-      showToast(`Booking updated to ${updatedBooking.status}`, 'info');
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error('Socket error:', err);
-      showToast('Live updates disconnected. Refresh page.', 'error');
-    });
-
-    return () => socket.disconnect();
-  }, []);
-
-  useEffect(() => {
-    fetchBookings();
-  }, [showArchived]);
-
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Not logged in');
@@ -94,7 +61,7 @@ const AdminBookings = () => {
       }
 
       const data = await res.json();
-      setBookings(data);
+      setBookings(data || []);
       setSelectedIds([]);
     } catch (err) {
       console.error('Bookings fetch error:', err);
@@ -103,44 +70,101 @@ const AdminBookings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showArchived, showToast]);
+
+  // ✅ Socket connects ONCE — empty dependency array prevents reconnect loop
+  useEffect(() => {
+    const socket = io(BASE_URL, { withCredentials: true });
+
+    socket.on('connect', () => {
+      console.log('AdminBookings socket connected');
+    });
+
+    socket.on('newBooking', (newBooking) => {
+      setBookings(prev => [newBooking, ...prev]);
+      showToast('New booking received!', 'success');
+    });
+
+    socket.on('bookingUpdated', (updated) => {
+      console.log('bookingUpdated received:', updated._id, updated.status);
+      setBookings(prev =>
+        prev.map(b => b._id === updated._id ? { ...b, ...updated } : b)
+      );
+      showToast(`Booking updated to ${updated.status}`, 'info');
+    });
+
+    // ✅ Handles unpaid booking cancellations
+    socket.on('bookingCancelled', (cancelled) => {
+      console.log('bookingCancelled received:', cancelled._id);
+      setBookings(prev =>
+        prev.map(b => b._id === cancelled._id ? { ...b, ...cancelled } : b)
+      );
+      showToast('A booking was cancelled by user', 'warning');
+    });
+
+    // ✅ Handles paid booking refund + cancellation
+    socket.on('bookingRefunded', (refunded) => {
+      console.log('bookingRefunded received:', refunded._id);
+      setBookings(prev =>
+        prev.map(b => b._id === refunded._id ? { ...b, ...refunded } : b)
+      );
+      showToast('A booking was cancelled by user and refunded', 'warning');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message);
+      showToast('Live updates disconnected – refresh page', 'error');
+    });
+
+    return () => socket.disconnect();
+  }, []); // ✅ Empty array — socket connects once only
+
+  // Fetch on mount and when archive toggle changes
+  useEffect(() => {
+    fetchBookings();
+  }, [fetchBookings, showArchived]);
 
   const requestStatusUpdate = (bookingId, newStatus) => {
     setPendingStatusAction({ bookingId, newStatus });
     setShowStatusModal(true);
   };
 
-  const confirmStatusUpdate = async () => {
-    if (!pendingStatusAction) return;
+const confirmStatusUpdate = async () => {
+  if (!pendingStatusAction) return;
 
-    const { bookingId, newStatus } = pendingStatusAction;
-    setUpdating(true);
+  const { bookingId, newStatus } = pendingStatusAction;
+  setUpdating(true);
 
-    try {
-      const res = await fetch(`${BASE_URL}/api/bookings/${bookingId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
+  try {
+    const res = await fetch(`${BASE_URL}/api/bookings/${bookingId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+      body: JSON.stringify({ status: newStatus }),
+    });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Failed to update status');
-      }
-
-      showToast(`Booking ${newStatus} requested`, 'success');
-      // Socket will update UI automatically
-    } catch (err) {
-      showToast('Failed to update: ' + err.message, 'error');
-    } finally {
-      setShowStatusModal(false);
-      setPendingStatusAction(null);
-      setUpdating(false);
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to update status');
     }
-  };
+
+    // ✅ Clear success message like AdminDashboard
+    showToast(
+      newStatus === 'confirmed'
+        ? 'Booking confirmed successfully!'
+        : 'Booking cancelled successfully!',
+      'success'
+    );
+  } catch (err) {
+    showToast('Failed to update: ' + err.message, 'error');
+  } finally {
+    setShowStatusModal(false);
+    setPendingStatusAction(null);
+    setUpdating(false);
+  }
+};
 
   const requestSingleArchive = (bookingId) => {
     setPendingSingleArchiveId(bookingId);
@@ -163,7 +187,7 @@ const AdminBookings = () => {
       }
 
       showToast('Booking archived', 'success');
-      fetchBookings(); // refresh
+      fetchBookings();
     } catch (err) {
       showToast('Failed to archive: ' + err.message, 'error');
     } finally {
@@ -227,7 +251,7 @@ const AdminBookings = () => {
       }
 
       const data = await res.json();
-      showToast(data.message || `Archived ${data.modifiedCount || count} bookings`, 'success');
+      showToast(data.message || 'Bookings archived', 'success');
       fetchBookings();
     } catch (err) {
       showToast('Failed to archive: ' + err.message, 'error');
@@ -431,7 +455,6 @@ const AdminBookings = () => {
                       <td className="px-6 py-5">
                         {booking.type === 'flight' ? (
                           <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                            {/* <Plane className="h-4 w-4 text-indigo-600" /> */}
                             {booking.flight?.airline || 'Flight'} {booking.flight?.flightNumber || ''}
                           </div>
                         ) : (
@@ -491,6 +514,7 @@ const AdminBookings = () => {
                           }`}
                         >
                           {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                          {booking.paymentStatus === 'refunded' && ' (Refunded)'}
                         </span>
                       </td>
 
@@ -561,7 +585,6 @@ const AdminBookings = () => {
                 <X className="h-6 w-6 text-gray-600" />
               </button>
             </div>
-
             <div className="p-6">
               <p className="text-gray-700">
                 Are you sure you want to {pendingStatusAction.newStatus === 'confirmed' ? 'confirm' : 'reject'} this booking?
@@ -573,10 +596,10 @@ const AdminBookings = () => {
                 </p>
               )}
             </div>
-
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
                 onClick={() => setShowStatusModal(false)}
+                disabled={updating}
                 className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
               >
                 Cancel
@@ -610,7 +633,6 @@ const AdminBookings = () => {
                 <X className="h-6 w-6 text-gray-600" />
               </button>
             </div>
-
             <div className="p-6">
               <p className="text-gray-700">
                 This will archive all <strong>confirmed</strong> and <strong>cancelled</strong> bookings.
@@ -620,10 +642,10 @@ const AdminBookings = () => {
                 Pending bookings will remain visible.
               </p>
             </div>
-
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
                 onClick={() => setShowClearModal(false)}
+                disabled={clearing}
                 className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
               >
                 Cancel
@@ -656,7 +678,6 @@ const AdminBookings = () => {
                 <X className="h-6 w-6 text-gray-600" />
               </button>
             </div>
-
             <div className="p-6">
               <p className="text-gray-700">
                 Are you sure you want to unarchive {selectedIds.length} selected booking(s)?
@@ -665,10 +686,10 @@ const AdminBookings = () => {
                 They will appear in the active bookings list again.
               </p>
             </div>
-
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
                 onClick={() => setShowBulkUnarchiveModal(false)}
+                disabled={clearing}
                 className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
               >
                 Cancel
@@ -694,24 +715,18 @@ const AdminBookings = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-5 border-b">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Archive className="h-6 w-6 text-red-600" />
                 Archive Booking
               </h3>
               <button onClick={() => setShowSingleArchiveModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
                 <X className="h-6 w-6 text-gray-600" />
               </button>
             </div>
-
             <div className="p-6">
-              <p className="text-gray-700">
-                Are you sure you want to archive this booking?
-              </p>
+              <p className="text-gray-700">Are you sure you want to archive this booking?</p>
               <p className="mt-3 text-red-600 font-medium flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
                 It will be hidden from the active list.
               </p>
             </div>
-
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
                 onClick={() => setShowSingleArchiveModal(false)}
@@ -748,16 +763,12 @@ const AdminBookings = () => {
                 <X className="h-6 w-6 text-gray-600" />
               </button>
             </div>
-
             <div className="p-6">
-              <p className="text-gray-700">
-                Are you sure you want to unarchive this booking?
-              </p>
+              <p className="text-gray-700">Are you sure you want to unarchive this booking?</p>
               <p className="mt-3 text-sm text-gray-600">
                 It will appear in the active bookings list again.
               </p>
             </div>
-
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
                 onClick={() => setShowSingleUnarchiveModal(false)}

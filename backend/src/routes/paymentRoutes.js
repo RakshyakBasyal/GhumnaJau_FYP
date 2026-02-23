@@ -1,3 +1,4 @@
+//backend/src/routes/paymentRoutes.js
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
@@ -6,13 +7,12 @@ const {
   createStripeCheckoutSession,
   handleStripeSuccessRedirect,
   handleStripeFailureRedirect,
+  refundBookingPayment,
 } = require('../controllers/paymentController');
 
-// Create Stripe Checkout session (called after booking creation)
 router.post('/stripe/checkout', auth, createStripeCheckoutSession);
-
-// Public redirect endpoints (Stripe calls these after payment)
 router.get('/stripe/success', handleStripeSuccessRedirect);
 router.get('/stripe/cancel', handleStripeFailureRedirect);
+router.post('/stripe/refund/:bookingId', auth, refundBookingPayment);
 
 module.exports = router;

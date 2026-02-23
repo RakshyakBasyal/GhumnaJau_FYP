@@ -1,7 +1,10 @@
+// //backend/src/controllers/paymentController.js
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
+const Flight = require('../models/Flight');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
 
 // Create Stripe Checkout Session
 exports.createStripeCheckoutSession = async (req, res) => {
@@ -23,7 +26,6 @@ exports.createStripeCheckoutSession = async (req, res) => {
       return res.status(400).json({ msg: 'Payment already processed or not pending' });
     }
 
-    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -31,17 +33,17 @@ exports.createStripeCheckoutSession = async (req, res) => {
           price_data: {
             currency: 'npr',
             product_data: {
-              name: `Hotel Booking - ${bookingId}`,
-              description: 'Travel booking payment via Ghumna Jau',
+              name: `Booking - ${bookingId}`,
+              description: `Payment for ${booking.type} booking on Ghumna Jau`,
             },
-            unit_amount: Math.round(amount * 100), // paisa
+            unit_amount: Math.round(amount * 100),
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
-      success_url: `${FRONTEND_URL}/payment/result?status=success&bookingId=${bookingId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${FRONTEND_URL}/payment/result?status=cancelled&bookingId=${bookingId}`,
+      success_url: `${BACKEND_URL}/api/payments/stripe/success?bookingId=${bookingId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${BACKEND_URL}/api/payments/stripe/cancel?bookingId=${bookingId}`,
       metadata: { bookingId: bookingId.toString() },
     });
 
@@ -52,11 +54,11 @@ exports.createStripeCheckoutSession = async (req, res) => {
     });
   } catch (err) {
     console.error('Stripe checkout error:', err.message);
-    res.status(500).json({ msg: 'Failed to create Stripe checkout session' });
+    res.status(500).json({ msg: 'Failed to create checkout session', error: err.message });
   }
 };
 
-// Handle success redirect from Stripe
+// Handle successful payment redirect
 exports.handleStripeSuccessRedirect = async (req, res) => {
   try {
     const { bookingId, session_id } = req.query;
@@ -65,7 +67,6 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
       return res.redirect(`${FRONTEND_URL}/payment/result?status=failed`);
     }
 
-    // Retrieve session to verify payment
     const session = await stripe.checkout.sessions.retrieve(session_id);
 
     if (session.payment_status === 'paid') {
@@ -74,7 +75,6 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
         booking.paymentStatus = 'completed';
         booking.transactionId = session.payment_intent;
         booking.paidAt = new Date();
-        booking.status = 'confirmed';
         await booking.save();
       }
       return res.redirect(`${FRONTEND_URL}/payment/result?status=success&bookingId=${bookingId}`);
@@ -82,13 +82,77 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
 
     res.redirect(`${FRONTEND_URL}/payment/result?status=failed&bookingId=${bookingId}`);
   } catch (err) {
-    console.error('Stripe success redirect error:', err.message);
+    console.error('Success redirect error:', err.message);
     res.redirect(`${FRONTEND_URL}/payment/result?status=failed`);
   }
 };
 
-// Handle cancel/failure redirect from Stripe
+// Handle cancelled/failed payment redirect
 exports.handleStripeFailureRedirect = (req, res) => {
   const { bookingId } = req.query;
   res.redirect(`${FRONTEND_URL}/payment/result?status=failed&bookingId=${bookingId || ''}`);
+};
+
+// Process refund (called automatically when cancelling paid booking)
+exports.refundBookingPayment = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ msg: 'Booking not found' });
+
+    if (booking.user.toString() !== req.user.id) {
+      return res.status(403).json({ msg: 'Unauthorized: Not your booking' });
+    }
+
+    if (booking.paymentStatus !== 'completed') {
+      return res.status(400).json({ msg: 'Only completed payments can be refunded' });
+    }
+
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ msg: 'Booking already cancelled' });
+    }
+
+    if (!booking.transactionId) {
+      return res.status(400).json({ msg: 'No transaction ID found' });
+    }
+
+    const refund = await stripe.refunds.create({
+      payment_intent: booking.transactionId,
+    });
+
+    booking.paymentStatus = 'refunded';
+    booking.status = 'cancelled';
+    await booking.save();
+
+    // Restore seats if flight booking
+    if (booking.type === 'flight' && booking.flight && booking.passengersCount) {
+      const flight = await Flight.findById(booking.flight);
+      if (flight) {
+        const totalPax =
+          (booking.passengersCount.adults || 0) +
+          (booking.passengersCount.children || 0) +
+          (booking.passengersCount.infants || 0);
+        flight.availableSeats += totalPax;
+        await flight.save();
+      }
+    }
+
+    // ✅ FIX: populate user + hotel/flight so admin table updates correctly
+    const populated = await Booking.findById(booking._id)
+      .populate('user', 'fullName email')
+      .populate(booking.type === 'hotel' ? 'hotel' : 'flight');
+
+    req.app.get('io')?.emit('bookingRefunded', populated);
+
+    res.json({
+      success: true,
+      message: 'Refund processed and booking cancelled',
+      amountRefunded: booking.totalAmount,
+      refundId: refund.id,
+    });
+  } catch (err) {
+    console.error('Refund error:', err.message);
+    res.status(500).json({ msg: 'Refund failed', error: err.message });
+  }
 };

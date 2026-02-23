@@ -1,4 +1,4 @@
-// frontend/src/pages/AdminDashboard.js
+// // frontend/src/pages/AdminDashboard.js
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -39,11 +39,10 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [loadingBookings, setLoadingBookings] = useState(true);
 
-  // Confirmation modal states
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null); // { bookingId, newStatus }
+  const [pendingAction, setPendingAction] = useState(null);
 
-  // Socket.IO – live booking updates
+  // ✅ Socket connects ONCE — empty dependency array prevents reconnect loop
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -61,18 +60,34 @@ const AdminDashboard = () => {
 
     socket.on('newBooking', (newBooking) => {
       console.log('New booking received:', newBooking._id);
-      setBookings((prev) => [newBooking, ...prev]);
+      setBookings(prev => [newBooking, ...prev]);
       showToast('New booking request received!', 'success');
     });
 
     socket.on('bookingUpdated', (updatedBooking) => {
       console.log('Booking updated:', updatedBooking._id, updatedBooking.status);
-      setBookings((prev) =>
-        prev.map((b) =>
-          b._id === updatedBooking._id ? updatedBooking : b
-        )
+      setBookings(prev =>
+        prev.map(b => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b)
       );
       showToast(`Booking updated to ${updatedBooking.status}`, 'info');
+    });
+
+    // ✅ Handles unpaid booking cancellations by user
+    socket.on('bookingCancelled', (cancelled) => {
+      console.log('Booking cancelled:', cancelled._id);
+      setBookings(prev =>
+        prev.map(b => b._id === cancelled._id ? { ...b, ...cancelled } : b)
+      );
+      showToast('A booking was cancelled by user', 'warning');
+    });
+
+    // ✅ Handles paid booking refund + cancellation by user
+    socket.on('bookingRefunded', (refunded) => {
+      console.log('Booking refunded:', refunded._id);
+      setBookings(prev =>
+        prev.map(b => b._id === refunded._id ? { ...b, ...refunded } : b)
+      );
+      showToast('A booking was refunded and cancelled by user', 'warning');
     });
 
     socket.on('connect_error', (err) => {
@@ -80,7 +95,7 @@ const AdminDashboard = () => {
     });
 
     return () => socket.disconnect();
-  }, [showToast]);
+  }, []); // ✅ Empty array — socket connects once only
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -109,9 +124,7 @@ const AdminDashboard = () => {
         if (!token) throw new Error('Not logged in');
 
         const res = await fetch(`${BASE_URL}/api/bookings`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) {
@@ -157,11 +170,8 @@ const AdminDashboard = () => {
         throw new Error(data.msg || 'Failed to update status');
       }
 
-      // Update UI instantly
-      setBookings((prev) =>
-        prev.map((b) =>
-          b._id === bookingId ? { ...b, status: newStatus } : b
-        )
+      setBookings(prev =>
+        prev.map(b => b._id === bookingId ? { ...b, status: newStatus } : b)
       );
 
       showToast(`Booking ${newStatus} successfully!`, 'success');
@@ -178,7 +188,6 @@ const AdminDashboard = () => {
     setPendingAction(null);
   };
 
-  // New trend display: absolute change + period (instead of %)
   const trendDisplay = (change) => {
     if (change > 0) {
       return (
@@ -267,9 +276,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 mb-1">{stat.title}</p>
-                      <p className="text-3xl font-bold text-gray-900">
-                        {stat.value}
-                      </p>
+                      <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
                       {trendDisplay(stat.change)}
                     </div>
                     <div className={`${stat.color} p-4 rounded-full`}>
@@ -280,7 +287,7 @@ const AdminDashboard = () => {
               ))}
             </div>
 
-            {/* Recent Bookings – Latest 5 */}
+            {/* Recent Bookings */}
             <div className="bg-white rounded-xl shadow-md p-6 mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
                 <Calendar className="h-6 w-6 mr-2 text-blue-600" />
@@ -326,17 +333,18 @@ const AdminDashboard = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
-                              {booking.hotel?.name || 'Hotel'}
+                              {booking.hotel?.name || booking.flight?.airline || 'Booking'}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
-                              {new Date(booking.checkIn).toLocaleDateString()} -{' '}
-                              {new Date(booking.checkOut).toLocaleDateString()}
+                              {booking.checkIn && booking.checkOut
+                                ? `${new Date(booking.checkIn).toLocaleDateString()} - ${new Date(booking.checkOut).toLocaleDateString()}`
+                                : booking.flight?.departureTime || '—'}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-blue-600 flex items-center">
+                            <div className="text-sm font-medium text-blue-600">
                               NPR {booking.totalAmount.toLocaleString()}
                             </div>
                           </td>
@@ -346,11 +354,12 @@ const AdminDashboard = () => {
                                 booking.status === 'confirmed'
                                   ? 'bg-green-100 text-green-800'
                                   : booking.status === 'cancelled'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-yellow-100 text-yellow-800'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
                               }`}
                             >
                               {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                              {booking.paymentStatus === 'refunded' && ' (Refunded)'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -378,7 +387,6 @@ const AdminDashboard = () => {
                     </tbody>
                   </table>
 
-                  {/* View All Bookings Button */}
                   <div className="mt-6 text-center">
                     <Link
                       to="/admin/bookings"
@@ -434,10 +442,10 @@ const AdminDashboard = () => {
         )}
       </div>
 
-      {/* Custom Confirmation Modal */}
+      {/* Confirmation Modal */}
       {showConfirmModal && pendingAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden transform transition-all">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h3 className="text-xl font-bold text-gray-900">
                 {pendingAction.newStatus === 'confirmed' ? 'Confirm Booking' : 'Cancel Booking'}
