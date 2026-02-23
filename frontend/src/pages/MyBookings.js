@@ -1,582 +1,16 @@
-// // frontend/src/pages/MyBookings.jsx
-// import { useEffect, useState } from 'react';
-// import { Calendar, Users, MapPin, Plane, X, Loader2, Archive, RotateCcw } from 'lucide-react';
-// import { useNavigate } from 'react-router-dom';
-// import { useToast } from '../context/ToastContext';
-// import { io } from 'socket.io-client';
-
-// const BASE_URL = "http://localhost:5000";
-
-// const MyBookings = () => {
-//   const [bookings, setBookings] = useState([]);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState(null);
-//   const [showArchived, setShowArchived] = useState(false);
-//   const navigate = useNavigate();
-//   const { showToast } = useToast();
-
-//   // Archive modal
-//   const [showArchiveModal, setShowArchiveModal] = useState(false);
-//   const [pendingArchiveId, setPendingArchiveId] = useState(null);
-//   const [archiving, setArchiving] = useState(false);
-
-//   // Unarchive modal
-//   const [showUnarchiveModal, setShowUnarchiveModal] = useState(false);
-//   const [pendingUnarchiveId, setPendingUnarchiveId] = useState(null);
-//   const [unarchiving, setUnarchiving] = useState(false);
-
-//   // Cancel modal
-//   const [showCancelModal, setShowCancelModal] = useState(false);
-//   const [pendingCancelId, setPendingCancelId] = useState(null);
-//   const [cancelling, setCancelling] = useState(false);
-
-//   // Socket.io connection
-//   useEffect(() => {
-//     const socket = io(BASE_URL, { withCredentials: true });
-
-//     socket.on('connect', () => {
-//       console.log('User MyBookings socket connected');
-//     });
-
-//     // Listen for new bookings created by THIS user
-//     socket.on('newBooking', (newBooking) => {
-//       // Only add if it's the current user's booking
-//       const currentUserId = JSON.parse(atob(localStorage.getItem('token').split('.')[1])).id;
-//       if (newBooking.user === currentUserId || newBooking.user?._id === currentUserId) {
-//         setBookings((prev) => [newBooking, ...prev]);
-//         showToast('New booking added!', 'success');
-//       }
-//     });
-
-//     // Listen for booking updates (status change, cancel, archive, etc.)
-//     socket.on('bookingUpdated', (updatedBooking) => {
-//       setBookings((prev) =>
-//         prev.map((b) => (b._id === updatedBooking._id ? updatedBooking : b))
-//       );
-
-//       const statusMessages = {
-//         confirmed: { message: 'Your booking has been confirmed!', type: 'success' },
-//         cancelled: { message: 'Your booking was cancelled.', type: 'error' },
-//         pending: { message: 'Your booking is now pending.', type: 'info' },
-//       };
-
-//       const { message, type } = statusMessages[updatedBooking.status] || {
-//         message: `Booking updated to ${updatedBooking.status}`,
-//         type: 'info',
-//       };
-
-//       showToast(message, type);
-//     });
-
-//     socket.on('connect_error', (err) => {
-//       console.error('Socket error in MyBookings:', err);
-//       // Optional: showToast('Live updates unavailable. Refresh page.', 'error');
-//     });
-
-//     // Cleanup on unmount
-//     return () => socket.disconnect();
-//   }, []);
-
-//   useEffect(() => {
-//     fetchBookings();
-//   }, [showArchived]);
-
-//   const fetchBookings = async () => {
-//     try {
-//       const token = localStorage.getItem('token');
-//       if (!token) {
-//         navigate('/login');
-//         return;
-//       }
-
-//       const res = await fetch(`${BASE_URL}/api/bookings/my`, {
-//         headers: { Authorization: `Bearer ${token}` },
-//       });
-
-//       if (!res.ok) {
-//         const data = await res.json();
-//         throw new Error(data.message || 'Failed to load bookings');
-//       }
-
-//       const data = await res.json();
-//       setBookings(data);
-//     } catch (err) {
-//       setError(err.message);
-//       showToast(err.message || 'Failed to load bookings', 'error');
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const requestArchive = (bookingId) => {
-//     setPendingArchiveId(bookingId);
-//     setShowArchiveModal(true);
-//   };
-
-//   const confirmArchive = async () => {
-//     if (!pendingArchiveId) return;
-//     setArchiving(true);
-
-//     try {
-//       const res = await fetch(`${BASE_URL}/api/bookings/my/${pendingArchiveId}/archive`, {
-//         method: 'PATCH',
-//         headers: {
-//           'Content-Type': 'application/json',
-//           Authorization: `Bearer ${localStorage.getItem('token')}`,
-//         },
-//       });
-
-//       if (!res.ok) throw new Error('Failed to archive');
-
-//       setBookings((prev) =>
-//         prev.map((b) => (b._id === pendingArchiveId ? { ...b, isUserArchived: true } : b))
-//       );
-
-//       showToast('Booking archived', 'success');
-//     } catch (err) {
-//       showToast('Failed to archive', 'error');
-//     } finally {
-//       setShowArchiveModal(false);
-//       setPendingArchiveId(null);
-//       setArchiving(false);
-//     }
-//   };
-
-//   const requestUnarchive = (bookingId) => {
-//     setPendingUnarchiveId(bookingId);
-//     setShowUnarchiveModal(true);
-//   };
-
-//   const confirmUnarchive = async () => {
-//     if (!pendingUnarchiveId) return;
-//     setUnarchiving(true);
-
-//     try {
-//       const res = await fetch(`${BASE_URL}/api/bookings/my/${pendingUnarchiveId}/unarchive`, {
-//         method: 'PATCH',
-//         headers: {
-//           'Content-Type': 'application/json',
-//           Authorization: `Bearer ${localStorage.getItem('token')}`,
-//         },
-//       });
-
-//       if (!res.ok) throw new Error('Failed to unarchive');
-
-//       setBookings((prev) =>
-//         prev.map((b) => (b._id === pendingUnarchiveId ? { ...b, isUserArchived: false } : b))
-//       );
-
-//       showToast('Booking unarchived', 'success');
-//     } catch (err) {
-//       showToast('Failed to unarchive', 'error');
-//     } finally {
-//       setShowUnarchiveModal(false);
-//       setPendingUnarchiveId(null);
-//       setUnarchiving(false);
-//     }
-//   };
-
-//   const requestCancel = (bookingId) => {
-//     setPendingCancelId(bookingId);
-//     setShowCancelModal(true);
-//   };
-
-//   const confirmCancel = async () => {
-//     if (!pendingCancelId) return;
-//     setCancelling(true);
-
-//     try {
-//       const res = await fetch(`${BASE_URL}/api/bookings/my/${pendingCancelId}/cancel`, {
-//         method: 'PATCH',
-//         headers: {
-//           'Content-Type': 'application/json',
-//           Authorization: `Bearer ${localStorage.getItem('token')}`,
-//         },
-//       });
-
-//       if (!res.ok) throw new Error('Failed to cancel');
-
-//       setBookings((prev) =>
-//         prev.map((b) => (b._id === pendingCancelId ? { ...b, status: 'cancelled' } : b))
-//       );
-
-//       showToast('Booking cancelled', 'success');
-//     } catch (err) {
-//       showToast('Failed to cancel', 'error');
-//     } finally {
-//       setShowCancelModal(false);
-//       setPendingCancelId(null);
-//       setCancelling(false);
-//     }
-//   };
-
-//   const visibleBookings = showArchived
-//     ? bookings.filter((b) => b.isUserArchived === true)
-//     : bookings.filter((b) => b.isUserArchived === false);
-
-//   if (loading) {
-//     return (
-//       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-//         <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-//       </div>
-//     );
-//   }
-
-//   if (error) {
-//     return (
-//       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-//         <div className="bg-white rounded-2xl shadow-xl p-10 text-center max-w-md">
-//           <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-6" />
-//           <h2 className="text-2xl font-bold text-gray-900 mb-4">Error</h2>
-//           <p className="text-gray-600">{error}</p>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="min-h-screen bg-gray-50 py-12">
-//       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-//         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
-//           <div>
-//             <h1 className="text-4xl font-bold text-gray-900">My Bookings</h1>
-//             <p className="text-lg text-gray-600 mt-2">Manage your hotel & flight reservations</p>
-//           </div>
-
-//           <label className="flex items-center gap-3 cursor-pointer bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-200">
-//             <input
-//               type="checkbox"
-//               checked={showArchived}
-//               onChange={() => setShowArchived(!showArchived)}
-//               className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-//             />
-//             <span className="text-gray-700 font-medium">Show archived bookings</span>
-//           </label>
-//         </div>
-
-//         {visibleBookings.length === 0 ? (
-//           <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
-//             <Calendar className="h-20 w-20 text-gray-300 mx-auto mb-8" />
-//             <h3 className="text-2xl font-semibold text-gray-800 mb-4">
-//               {showArchived ? "No archived bookings" : "No bookings yet"}
-//             </h3>
-//             <p className="text-gray-600 text-lg mb-8">
-//               {showArchived
-//                 ? "You haven't archived any bookings yet."
-//                 : "Start exploring hotels or flights and make your first reservation today!"}
-//             </p>
-//             {!showArchived && (
-//               <div className="flex gap-4 justify-center">
-//                 <button
-//                   onClick={() => navigate('/hotels')}
-//                   className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition font-medium text-lg shadow-md"
-//                 >
-//                   Browse Hotels
-//                 </button>
-//                 <button
-//                   onClick={() => navigate('/flights')}
-//                   className="bg-indigo-600 text-white px-8 py-4 rounded-xl hover:bg-indigo-700 transition font-medium text-lg shadow-md"
-//                 >
-//                   Browse Flights
-//                 </button>
-//               </div>
-//             )}
-//           </div>
-//         ) : (
-//           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-//             {visibleBookings.map((booking) => (
-//               <div
-//                 key={booking._id}
-//                 className={`bg-white rounded-2xl shadow-lg overflow-hidden border transition-all duration-200 hover:shadow-xl ${booking.isUserArchived ? 'opacity-75 bg-gray-50' : ''
-//                   }`}
-//               >
-//                 <div className="relative h-48">
-//                   {booking.type === 'flight' ? (
-//                     <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
-//                       <Plane className="h-24 w-24 text-white opacity-30" />
-//                     </div>
-//                   ) : (
-//                     <img
-//                       src={
-//                         booking.hotel?.images?.[0]
-//                           ? `${BASE_URL}${booking.hotel.images[0]}`
-//                           : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'
-//                       }
-//                       alt={booking.hotel?.name || 'Hotel'}
-//                       className="w-full h-full object-cover"
-//                     />
-//                   )}
-
-//                   <div className="absolute top-4 right-4">
-//                     <span
-//                       className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${booking.status === 'confirmed' ? 'bg-green-500 text-white' :
-//                           booking.status === 'cancelled' ? 'bg-red-500 text-white' :
-//                             booking.status === 'pending' ? 'bg-yellow-500 text-white' :
-//                               'bg-gray-500 text-white'
-//                         }`}
-//                     >
-//                       {`${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)} (${booking.type === 'flight' ? 'Flight' : 'Hotel'
-//                         })`}
-//                     </span>
-//                   </div>
-//                 </div>
-
-//                 {/* Content */}
-//                 <div className="p-6">
-//                   {booking.type === 'flight' ? (
-//                     <>
-//                       <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">
-//                         {booking.flight?.airline || 'Flight Booking'} {booking.flight?.flightNumber || ''}
-//                       </h3>
-
-//                       <p className="text-gray-600 flex items-center gap-1.5 mb-4">
-//                         <MapPin className="h-4 w-4" />
-//                         {booking.flight?.from || '-'} → {booking.flight?.to || '-'}
-//                       </p>
-
-//                       <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-//                         <div>
-//                           <p className="text-gray-500">Departure</p>
-//                           <p className="font-medium">{booking.flight?.departureTime || '-'}</p>
-//                         </div>
-//                         <div>
-//                           <p className="text-gray-500">Passengers</p>
-//                           <p className="font-medium flex items-center gap-1">
-//                             <Users className="h-4 w-4" />
-//                             {booking.passengersCount?.adults || 0}A,{' '}
-//                             {booking.passengersCount?.children || 0}C
-//                           </p>
-//                         </div>
-//                       </div>
-//                     </>
-//                   ) : (
-//                     <>
-//                       <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">
-//                         {booking.hotel?.name || 'Hotel Booking'}
-//                       </h3>
-
-//                       <p className="text-gray-600 flex items-center gap-1.5 mb-4">
-//                         <MapPin className="h-4 w-4" />
-//                         {booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'}
-//                       </p>
-
-//                       <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-//                         <div>
-//                           <p className="text-gray-500">Check-in</p>
-//                           <p className="font-medium">
-//                             {booking.checkIn ? new Date(booking.checkIn).toLocaleDateString() : '—'}
-//                           </p>
-//                         </div>
-//                         <div>
-//                           <p className="text-gray-500">Check-out</p>
-//                           <p className="font-medium">
-//                             {booking.checkOut ? new Date(booking.checkOut).toLocaleDateString() : '—'}
-//                           </p>
-//                         </div>
-//                         <div>
-//                           <p className="text-gray-500">Guests</p>
-//                           <p className="font-medium flex items-center gap-1">
-//                             <Users className="h-4 w-4" />
-//                             {booking.guests || '—'}
-//                           </p>
-//                         </div>
-//                         <div>
-//                           <p className="text-gray-500">Room Type</p>
-//                           <p className="font-medium">{booking.roomType || '—'}</p>
-//                         </div>
-//                       </div>
-//                     </>
-//                   )}
-
-//                   {/* Footer: Amount + Actions */}
-//                   <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-//                     <div>
-//                       <p className="text-sm text-gray-500">Total Amount</p>
-//                       <p className="text-xl font-bold text-blue-600">
-//                         NPR {booking.totalAmount.toLocaleString()}
-//                       </p>
-//                     </div>
-
-//                     <div className="flex gap-3">
-//                       {booking.status === 'pending' && (
-//                         <button
-//                           onClick={() => requestCancel(booking._id)}
-//                           disabled={cancelling}
-//                           className="flex items-center gap-2 px-5 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-50 transition"
-//                         >
-//                           {cancelling && pendingCancelId === booking._id ? (
-//                             <Loader2 className="h-4 w-4 animate-spin" />
-//                           ) : (
-//                             <X className="h-4 w-4" />
-//                           )}
-//                           Cancel
-//                         </button>
-//                       )}
-
-//                       {booking.isUserArchived ? (
-//                         <button
-//                           onClick={() => requestUnarchive(booking._id)}
-//                           disabled={unarchiving}
-//                           className="flex items-center gap-2 px-5 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition"
-//                         >
-//                           {unarchiving && pendingUnarchiveId === booking._id ? (
-//                             <Loader2 className="h-4 w-4 animate-spin" />
-//                           ) : (
-//                             <RotateCcw className="h-4 w-4" />
-//                           )}
-//                           Unarchive
-//                         </button>
-//                       ) : (
-//                         ['confirmed', 'cancelled'].includes(booking.status) && (
-//                           <button
-//                             onClick={() => requestArchive(booking._id)}
-//                             disabled={archiving}
-//                             className="flex items-center gap-2 px-5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
-//                           >
-//                             {archiving && pendingArchiveId === booking._id ? (
-//                               <Loader2 className="h-4 w-4 animate-spin" />
-//                             ) : (
-//                               <Archive className="h-4 w-4" />
-//                             )}
-//                             Archive
-//                           </button>
-//                         )
-//                       )}
-//                     </div>
-//                   </div>
-//                 </div>
-//               </div>
-//             ))}
-//           </div>
-//         )}
-
-//         {/* Archive Confirmation Modal */}
-//         {showArchiveModal && (
-//           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-//             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-//               <div className="flex items-center justify-between px-6 py-5 border-b">
-//                 <h3 className="text-xl font-bold text-gray-900">Archive Booking</h3>
-//                 <button onClick={() => setShowArchiveModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
-//                   <X className="h-6 w-6 text-gray-600" />
-//                 </button>
-//               </div>
-
-//               <div className="p-6">
-//                 <p className="text-gray-700">Are you sure you want to archive this booking?</p>
-//                 <p className="mt-3 text-sm text-gray-600">
-//                   It will be hidden from your main list but can be viewed by enabling "Show archived bookings".
-//                 </p>
-//               </div>
-
-//               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
-//                 <button
-//                   onClick={() => setShowArchiveModal(false)}
-//                   disabled={archiving}
-//                   className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition"
-//                 >
-//                   Cancel
-//                 </button>
-//                 <button
-//                   onClick={confirmArchive}
-//                   disabled={archiving}
-//                   className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${archiving ? 'bg-gray-500 cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-800'
-//                     }`}
-//                 >
-//                   {archiving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Archive className="h-5 w-5" />}
-//                   Archive
-//                 </button>
-//               </div>
-//             </div>
-//           </div>
-//         )}
-
-//         {/* Unarchive Confirmation Modal */}
-//         {showUnarchiveModal && (
-//           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-//             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-//               <div className="flex items-center justify-between px-6 py-5 border-b">
-//                 <h3 className="text-xl font-bold text-gray-900">Unarchive Booking</h3>
-//                 <button onClick={() => setShowUnarchiveModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
-//                   <X className="h-6 w-6 text-gray-600" />
-//                 </button>
-//               </div>
-
-//               <div className="p-6">
-//                 <p className="text-gray-700">Do you want to bring this booking back to your main list?</p>
-//                 <p className="mt-3 text-sm text-gray-600">
-//                   It will appear in your active bookings again.
-//                 </p>
-//               </div>
-
-//               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
-//                 <button
-//                   onClick={() => setShowUnarchiveModal(false)}
-//                   disabled={unarchiving}
-//                   className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition"
-//                 >
-//                   Cancel
-//                 </button>
-//                 <button
-//                   onClick={confirmUnarchive}
-//                   disabled={unarchiving}
-//                   className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${unarchiving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-//                     }`}
-//                 >
-//                   {unarchiving ? <Loader2 className="h-5 w-5 animate-spin" /> : <RotateCcw className="h-5 w-5" />}
-//                   Unarchive
-//                 </button>
-//               </div>
-//             </div>
-//           </div>
-//         )}
-
-//         {/* Cancel Confirmation Modal */}
-//         {showCancelModal && (
-//           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-//             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-//               <div className="flex items-center justify-between px-6 py-5 border-b">
-//                 <h3 className="text-xl font-bold text-gray-900">Cancel Booking</h3>
-//                 <button onClick={() => setShowCancelModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
-//                   <X className="h-6 w-6 text-gray-600" />
-//                 </button>
-//               </div>
-
-//               <div className="p-6">
-//                 <p className="text-gray-700">Are you sure you want to cancel this pending booking?</p>
-//                 <p className="mt-3 text-red-600 font-medium">This action cannot be undone.</p>
-//               </div>
-
-//               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
-//                 <button
-//                   onClick={() => setShowCancelModal(false)}
-//                   disabled={cancelling}
-//                   className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition"
-//                 >
-//                   No, Keep It
-//                 </button>
-//                 <button
-//                   onClick={confirmCancel}
-//                   disabled={cancelling}
-//                   className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-//                     }`}
-//                 >
-//                   {cancelling ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5" />}
-//                   Yes, Cancel
-//                 </button>
-//               </div>
-//             </div>
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default MyBookings;
-
-
+// frontend/src/pages/MyBookings.jsx
 import { useEffect, useState } from 'react';
-import { Calendar, Users, MapPin, Plane, X, Loader2, Archive, RotateCcw, AlertTriangle, IndianRupee } from 'lucide-react';
+import {
+  Calendar,
+  Users,
+  MapPin,
+  Plane,
+  X,
+  Loader2,
+  Archive,
+  RotateCcw,
+  AlertTriangle,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { io } from 'socket.io-client';
@@ -591,10 +25,11 @@ const MyBookings = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const [showRefundModal, setShowRefundModal] = useState(false);
-  const [pendingRefundId, setPendingRefundId] = useState(null);
-  const [refunding, setRefunding] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [pendingCancelBooking, setPendingCancelBooking] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
+  // Archive states
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
   const [archiving, setArchiving] = useState(false);
@@ -603,32 +38,31 @@ const MyBookings = () => {
   const [pendingUnarchiveId, setPendingUnarchiveId] = useState(null);
   const [unarchiving, setUnarchiving] = useState(false);
 
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [pendingCancelId, setPendingCancelId] = useState(null);
-  const [cancelling, setCancelling] = useState(false);
-
   useEffect(() => {
     const socket = io(BASE_URL, { withCredentials: true });
 
-    socket.on('connect', () => console.log('MyBookings socket connected'));
+    socket.on('connect', () => console.log('Socket connected'));
 
     socket.on('newBooking', (newBooking) => {
       const userId = JSON.parse(atob(localStorage.getItem('token').split('.')[1])).id;
       if (newBooking.user === userId || newBooking.user?._id === userId) {
-        setBookings(prev => [newBooking, ...prev]);
+        setBookings((prev) => [newBooking, ...prev]);
         showToast('New booking added!', 'success');
       }
     });
 
     socket.on('bookingUpdated', (updated) => {
-      setBookings(prev => prev.map(b => b._id === updated._id ? updated : b));
-      const messages = {
-        confirmed: { msg: 'Your booking has been confirmed!', type: 'success' },
-        cancelled: { msg: 'Your booking was cancelled.', type: 'error' },
-        refunded: { msg: 'Your booking was cancelled and refunded.', type: 'info' },
-      };
-      const { msg, type } = messages[updated.status] || { msg: `Status: ${updated.status}`, type: 'info' };
-      showToast(msg, type);
+      setBookings((prev) =>
+        prev.map((b) => (b._id === updated._id ? updated : b))
+      );
+      if (updated.paymentStatus === 'refunded') {
+        showToast(
+          `NPR ${updated.totalAmount.toLocaleString()} refunded. Booking cancelled.`,
+          'success'
+        );
+      } else {
+        showToast('Booking status updated', 'info');
+      }
     });
 
     return () => socket.disconnect();
@@ -647,55 +81,97 @@ const MyBookings = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) throw new Error((await res.json()).message || 'Failed');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to load bookings');
+      }
 
       setBookings(await res.json());
     } catch (err) {
       setError(err.message);
-      showToast(err.message, 'error');
+      showToast(err.message || 'Failed to load bookings', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const requestRefund = id => {
-    setPendingRefundId(id);
-    setShowRefundModal(true);
+  const requestCancel = (booking) => {
+    setPendingCancelBooking(booking);
+    setShowCancelModal(true);
   };
 
-  const confirmRefund = async () => {
-    setRefunding(true);
+  const confirmCancel = async () => {
+    if (!pendingCancelBooking) return;
+    setCancelling(true);
+
     try {
-      const res = await fetch(`${BASE_URL}/api/payments/stripe/refund/${pendingRefundId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      let toastMessage = 'Booking cancelled successfully';
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.msg || 'Refund failed');
+      // Paid booking → only call refund (it already cancels)
+      if (pendingCancelBooking.paymentStatus === 'completed') {
+        const refundRes = await fetch(
+          `${BASE_URL}/api/payments/stripe/refund/${pendingCancelBooking._id}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          }
+        );
 
-      showToast('Refund successful. Booking cancelled.', 'success');
+        const refundData = await refundRes.json();
 
-      setBookings(prev =>
-        prev.map(b =>
-          b._id === pendingRefundId ? { ...b, status: 'cancelled', paymentStatus: 'refunded' } : b
+        if (!refundRes.ok) {
+          throw new Error(refundData.msg || 'Refund failed');
+        }
+
+        toastMessage = `NPR ${pendingCancelBooking.totalAmount.toLocaleString()} refunded. Booking cancelled successfully`;
+      } else {
+        // Pending booking → call cancel only
+        const cancelRes = await fetch(
+          `${BASE_URL}/api/bookings/my/${pendingCancelBooking._id}/cancel`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          }
+        );
+
+        if (!cancelRes.ok) {
+          const data = await cancelRes.json();
+          throw new Error(data.message || 'Cancel failed');
+        }
+      }
+
+      showToast(toastMessage, 'success');
+
+      // Update UI
+      setBookings((prev) =>
+        prev.map((b) =>
+          b._id === pendingCancelBooking._id
+            ? {
+                ...b,
+                status: 'cancelled',
+                paymentStatus:
+                  pendingCancelBooking.paymentStatus === 'completed' ? 'refunded' : b.paymentStatus,
+              }
+            : b
         )
       );
-
-      setTimeout(fetchBookings, 1200);
     } catch (err) {
-      showToast(err.message || 'Refund failed', 'error');
+      showToast(err.message || 'Failed to cancel booking', 'error');
     } finally {
-      setShowRefundModal(false);
-      setPendingRefundId(null);
-      setRefunding(false);
+      setShowCancelModal(false);
+      setPendingCancelBooking(null);
+      setCancelling(false);
     }
   };
 
-  const requestArchive = id => {
+  // Archive logic (your existing code)
+  const requestArchive = (id) => {
     setPendingArchiveId(id);
     setShowArchiveModal(true);
   };
@@ -711,13 +187,13 @@ const MyBookings = () => {
         },
       });
 
-      if (!res.ok) throw new Error('Failed to archive');
+      if (!res.ok) throw new Error('Archive failed');
 
-      setBookings(prev =>
-        prev.map(b => b._id === pendingArchiveId ? { ...b, isUserArchived: true } : b)
+      setBookings((prev) =>
+        prev.map((b) => (b._id === pendingArchiveId ? { ...b, isUserArchived: true } : b))
       );
 
-      showToast('Archived', 'success');
+      showToast('Booking archived', 'success');
     } catch (err) {
       showToast('Failed to archive', 'error');
     } finally {
@@ -727,7 +203,7 @@ const MyBookings = () => {
     }
   };
 
-  const requestUnarchive = id => {
+  const requestUnarchive = (id) => {
     setPendingUnarchiveId(id);
     setShowUnarchiveModal(true);
   };
@@ -743,13 +219,13 @@ const MyBookings = () => {
         },
       });
 
-      if (!res.ok) throw new Error('Failed to unarchive');
+      if (!res.ok) throw new Error('Unarchive failed');
 
-      setBookings(prev =>
-        prev.map(b => b._id === pendingUnarchiveId ? { ...b, isUserArchived: false } : b)
+      setBookings((prev) =>
+        prev.map((b) => (b._id === pendingUnarchiveId ? { ...b, isUserArchived: false } : b))
       );
 
-      showToast('Unarchived', 'success');
+      showToast('Booking unarchived', 'success');
     } catch (err) {
       showToast('Failed to unarchive', 'error');
     } finally {
@@ -759,86 +235,88 @@ const MyBookings = () => {
     }
   };
 
-  const requestCancel = id => {
-    setPendingCancelId(id);
-    setShowCancelModal(true);
-  };
-
-  const confirmCancel = async () => {
-    setCancelling(true);
-    try {
-      const res = await fetch(`${BASE_URL}/api/bookings/my/${pendingCancelId}/cancel`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!res.ok) throw new Error('Failed to cancel');
-
-      setBookings(prev =>
-        prev.map(b => b._id === pendingCancelId ? { ...b, status: 'cancelled' } : b)
-      );
-
-      showToast('Cancelled', 'success');
-    } catch (err) {
-      showToast('Failed to cancel', 'error');
-    } finally {
-      setShowCancelModal(false);
-      setPendingCancelId(null);
-      setCancelling(false);
-    }
-  };
-
   const visibleBookings = showArchived
-    ? bookings.filter(b => b.isUserArchived)
-    : bookings.filter(b => !b.isUserArchived);
+    ? bookings.filter((b) => b.isUserArchived)
+    : bookings.filter((b) => !b.isUserArchived);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-blue-600" /></div>;
-
-  if (error) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md">
-        <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-6" />
-        <h2 className="text-2xl font-bold mb-4">Error</h2>
-        <p className="text-gray-600">{error}</p>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-10 text-center max-w-md">
+          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Error</h2>
+          <p className="text-gray-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">My Bookings</h1>
-            <p className="text-lg text-gray-600 mt-2">Manage your reservations</p>
+            <p className="text-lg text-gray-600 mt-2">Manage your hotel & flight reservations</p>
           </div>
-          <label className="flex items-center gap-3 cursor-pointer bg-white px-5 py-3 rounded-xl shadow-sm border">
-            <input type="checkbox" checked={showArchived} onChange={() => setShowArchived(!showArchived)} className="w-5 h-5 text-blue-600 rounded" />
-            <span className="text-gray-700 font-medium">Show archived</span>
+
+          <label className="flex items-center gap-3 cursor-pointer bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-200">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={() => setShowArchived(!showArchived)}
+              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            />
+            <span className="text-gray-700 font-medium">Show archived bookings</span>
           </label>
         </div>
 
         {visibleBookings.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
             <Calendar className="h-20 w-20 text-gray-300 mx-auto mb-8" />
-            <h3 className="text-2xl font-semibold mb-4">{showArchived ? "No archived bookings" : "No bookings yet"}</h3>
+            <h3 className="text-2xl font-semibold text-gray-800 mb-4">
+              {showArchived ? "No archived bookings" : "No bookings yet"}
+            </h3>
             <p className="text-gray-600 text-lg mb-8">
-              {showArchived ? "No archived bookings yet." : "Make your first reservation today!"}
+              {showArchived
+                ? "You haven't archived any bookings yet."
+                : "Start exploring hotels or flights and make your first reservation today!"}
             </p>
             {!showArchived && (
               <div className="flex gap-4 justify-center">
-                <button onClick={() => navigate('/hotels')} className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700">Browse Hotels</button>
-                <button onClick={() => navigate('/flights')} className="bg-indigo-600 text-white px-8 py-4 rounded-xl hover:bg-indigo-700">Browse Flights</button>
+                <button
+                  onClick={() => navigate('/hotels')}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition font-medium text-lg shadow-md"
+                >
+                  Browse Hotels
+                </button>
+                <button
+                  onClick={() => navigate('/flights')}
+                  className="bg-indigo-600 text-white px-8 py-4 rounded-xl hover:bg-indigo-700 transition font-medium text-lg shadow-md"
+                >
+                  Browse Flights
+                </button>
               </div>
             )}
           </div>
         ) : (
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {visibleBookings.map(booking => (
-              <div key={booking._id} className={`bg-white rounded-2xl shadow-lg overflow-hidden border ${booking.isUserArchived ? 'opacity-75 bg-gray-50' : ''}`}>
+            {visibleBookings.map((booking) => (
+              <div
+                key={booking._id}
+                className={`bg-white rounded-2xl shadow-lg overflow-hidden border transition-all duration-200 hover:shadow-xl ${
+                  booking.isUserArchived ? 'opacity-75 bg-gray-50' : ''
+                }`}
+              >
                 <div className="relative h-48">
                   {booking.type === 'flight' ? (
                     <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
@@ -846,18 +324,25 @@ const MyBookings = () => {
                     </div>
                   ) : (
                     <img
-                      src={booking.hotel?.images?.[0] ? `${BASE_URL}${booking.hotel.images[0]}` : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'}
+                      src={
+                        booking.hotel?.images?.[0]
+                          ? `${BASE_URL}${booking.hotel.images[0]}`
+                          : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'
+                      }
                       alt={booking.hotel?.name || 'Hotel'}
                       className="w-full h-full object-cover"
                     />
                   )}
+
                   <div className="absolute top-4 right-4">
-                    <span className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
-                      booking.status === 'confirmed' ? 'bg-green-500 text-white' :
-                      booking.status === 'cancelled' ? 'bg-red-500 text-white' :
-                      booking.status === 'pending' ? 'bg-yellow-500 text-white' :
-                      booking.paymentStatus === 'refunded' ? 'bg-purple-500 text-white' : 'bg-gray-500 text-white'
-                    }`}>
+                    <span
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
+                        booking.status === 'confirmed' ? 'bg-green-500 text-white' :
+                        booking.status === 'cancelled' ? 'bg-red-500 text-white' :
+                        booking.status === 'pending' ? 'bg-yellow-500 text-white' :
+                        booking.paymentStatus === 'refunded' ? 'bg-purple-500 text-white' : 'bg-gray-500 text-white'
+                      }`}
+                    >
                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                       {booking.paymentStatus === 'refunded' && ' (Refunded)'}
                     </span>
@@ -885,7 +370,8 @@ const MyBookings = () => {
                           <p className="text-gray-500">Passengers</p>
                           <p className="font-medium flex items-center gap-1">
                             <Users className="h-4 w-4" />
-                            {booking.passengersCount?.adults || 0}A, {booking.passengersCount?.children || 0}C
+                            {booking.passengersCount?.adults || 0}A,{' '}
+                            {booking.passengersCount?.children || 0}C
                           </p>
                         </div>
                       </div>
@@ -929,48 +415,67 @@ const MyBookings = () => {
                     </>
                   )}
 
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-4 border-t border-gray-100 gap-4">
+                  {/* Amount & Actions */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-5 border-t border-gray-200 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Total Amount</p>
-                      <p className="text-xl font-bold text-blue-600">NPR {booking.totalAmount?.toLocaleString() || '—'}</p>
+                      <p className="text-2xl font-bold text-blue-700">
+                        NPR {booking.totalAmount?.toLocaleString() || '—'}
+                      </p>
                     </div>
 
-                    <div className="flex flex-wrap gap-3">
-                      {/* Refund Button */}
-                      {booking.paymentStatus === 'completed' && booking.status !== 'cancelled' && (
-                        <button
-                          onClick={() => requestRefund(booking._id)}
-                          disabled={refunding}
-                          className={`flex items-center gap-2 px-5 py-2 rounded-lg text-white text-sm transition disabled:opacity-50 ${
-                            refunding ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-                          }`}
-                        >
-                          {refunding && pendingRefundId === booking._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <IndianRupee className="h-4 w-4" />}
-                          Refund
-                        </button>
-                      )}
-
-                      {/* Cancel Button */}
-                      {booking.status === 'pending' && (
-                        <button
-                          onClick={() => requestCancel(booking._id)}
-                          disabled={cancelling}
-                          className={`flex items-center gap-2 px-5 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-50 transition text-sm`}
-                        >
-                          {cancelling && pendingCancelId === booking._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                          Cancel
-                        </button>
-                      )}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* Only Cancel button */}
+                      {(booking.status === 'pending' || booking.paymentStatus === 'completed') &&
+                        booking.status !== 'cancelled' && (
+                          <button
+                            onClick={() => requestCancel(booking)}
+                            disabled={cancelling}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-white text-sm font-medium transition-all shadow-sm disabled:opacity-60 ${
+                              cancelling
+                                ? 'bg-red-400 cursor-not-allowed'
+                                : 'bg-red-500 hover:bg-red-600'
+                            }`}
+                          >
+                            {cancelling ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <X className="h-4 w-4" />
+                                Cancel
+                              </>
+                            )}
+                          </button>
+                        )}
 
                       {/* Archive / Unarchive */}
                       {booking.isUserArchived ? (
-                        <button onClick={() => requestUnarchive(booking._id)} disabled={unarchiving} className="flex items-center gap-2 px-5 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition text-sm">
-                          {unarchiving && pendingUnarchiveId === booking._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                        <button
+                          onClick={() => requestUnarchive(booking._id)}
+                          disabled={unarchiving}
+                          className="flex items-center gap-2 px-5 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition text-sm font-medium"
+                        >
+                          {unarchiving ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-4 w-4" />
+                          )}
                           Unarchive
                         </button>
                       ) : ['confirmed', 'cancelled'].includes(booking.status) && (
-                        <button onClick={() => requestArchive(booking._id)} disabled={archiving} className="flex items-center gap-2 px-5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition text-sm">
-                          {archiving && pendingArchiveId === booking._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                        <button
+                          onClick={() => requestArchive(booking._id)}
+                          disabled={archiving}
+                          className="flex items-center gap-2 px-5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-60 transition text-sm font-medium"
+                        >
+                          {archiving ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Archive className="h-4 w-4" />
+                          )}
                           Archive
                         </button>
                       )}
@@ -982,44 +487,72 @@ const MyBookings = () => {
           </div>
         )}
 
-        {/* Refund Confirmation Modal */}
-        {showRefundModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+        {/* Cancel Confirmation Modal */}
+        {showCancelModal && pendingCancelBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
               <div className="flex items-center justify-between px-6 py-5 border-b">
-                <h3 className="text-xl font-bold text-gray-900">Cancel & Refund Booking</h3>
-                <button onClick={() => setShowRefundModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <X className="h-6 w-6 text-red-600" />
+                  Cancel Booking
+                </h3>
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition"
+                >
                   <X className="h-6 w-6 text-gray-600" />
                 </button>
               </div>
 
-              <div className="p-6">
+              <div className="p-6 space-y-6">
                 <p className="text-gray-700 text-base">
-                  Are you sure you want to cancel this booking and get a full refund?
+                  Are you sure you want to cancel this booking?
                 </p>
-                <p className="mt-3 text-red-600 font-medium flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" />
-                  This action cannot be undone and will refund the full amount.
-                </p>
+
+                {pendingCancelBooking.paymentStatus === 'completed' ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+                    <p className="text-amber-800 font-medium text-lg">
+                      You will be refunded{' '}
+                      <span className="font-bold">
+                        NPR {pendingCancelBooking.totalAmount.toLocaleString()}
+                      </span>
+                    </p>
+                    <p className="text-sm text-amber-700 mt-3">
+                      The refund will be processed instantly.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                    <p className="text-gray-700">
+                      This booking is not yet paid — no refund will be processed.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
                 <button
-                  onClick={() => setShowRefundModal(false)}
-                  disabled={refunding}
-                  className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition"
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={cancelling}
+                  className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition font-medium"
                 >
                   No, Keep Booking
                 </button>
                 <button
-                  onClick={confirmRefund}
-                  disabled={refunding}
-                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${
-                    refunding ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                  onClick={confirmCancel}
+                  disabled={cancelling}
+                  className={`px-6 py-3 text-white rounded-lg font-medium flex items-center gap-2 transition min-w-[160px] justify-center ${
+                    cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
                   }`}
                 >
-                  {refunding ? <Loader2 className="h-5 w-5 animate-spin" /> : <IndianRupee className="h-5 w-5" />}
-                  Yes, Refund & Cancel
+                  {cancelling ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Yes, Cancel Booking'
+                  )}
                 </button>
               </div>
             </div>
@@ -1102,45 +635,6 @@ const MyBookings = () => {
                 >
                   {unarchiving ? <Loader2 className="h-5 w-5 animate-spin" /> : <RotateCcw className="h-5 w-5" />}
                   Unarchive
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Cancel Confirmation Modal */}
-        {showCancelModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-5 border-b">
-                <h3 className="text-xl font-bold text-gray-900">Cancel Booking</h3>
-                <button onClick={() => setShowCancelModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <X className="h-6 w-6 text-gray-600" />
-                </button>
-              </div>
-
-              <div className="p-6">
-                <p className="text-gray-700">Are you sure you want to cancel this pending booking?</p>
-                <p className="mt-3 text-red-600 font-medium">This action cannot be undone.</p>
-              </div>
-
-              <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
-                <button
-                  onClick={() => setShowCancelModal(false)}
-                  disabled={cancelling}
-                  className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition"
-                >
-                  No, Keep It
-                </button>
-                <button
-                  onClick={confirmCancel}
-                  disabled={cancelling}
-                  className={`px-6 py-2.5 text-white rounded-lg flex items-center gap-2 transition ${
-                    cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
-                  }`}
-                >
-                  {cancelling ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5" />}
-                  Yes, Cancel
                 </button>
               </div>
             </div>

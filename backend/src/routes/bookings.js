@@ -159,6 +159,7 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
 });
 
 // User cancel pending booking
+// User cancel booking (now allows pending OR confirmed/paid bookings)
 router.patch('/my/:id/cancel', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -168,17 +169,22 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not your booking' });
     }
 
-    if (booking.status !== 'pending') {
-      return res.status(400).json({ message: 'Only pending bookings can be cancelled' });
+    // Allow cancel on pending OR confirmed (paid) bookings
+    if (!['pending', 'confirmed'].includes(booking.status)) {
+      return res.status(400).json({ message: 'Booking cannot be cancelled in current status' });
     }
 
     booking.status = 'cancelled';
     await booking.save();
 
+    // Restore flight seats if flight booking
     if (booking.type === 'flight' && booking.flight && booking.passengersCount) {
       const flight = await Flight.findById(booking.flight);
       if (flight) {
-        const totalPax = (booking.passengersCount.adults || 0) + (booking.passengersCount.children || 0) + (booking.passengersCount.infants || 0);
+        const totalPax =
+          (booking.passengersCount.adults || 0) +
+          (booking.passengersCount.children || 0) +
+          (booking.passengersCount.infants || 0);
         flight.availableSeats += totalPax;
         await flight.save();
       }
@@ -189,13 +195,12 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
 
     req.app.get('io')?.emit('bookingUpdated', updated);
 
-    res.json({ message: 'Booking cancelled', booking: updated });
+    res.json({ message: 'Booking cancelled successfully', booking: updated });
   } catch (err) {
     console.error('Cancel booking error:', err);
-    res.status(500).json({ message: 'Failed to cancel' });
+    res.status(500).json({ message: 'Failed to cancel booking' });
   }
 });
-
 // User archive booking
 router.patch('/my/:id/archive', auth, async (req, res) => {
   try {
