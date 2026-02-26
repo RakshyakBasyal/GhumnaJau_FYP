@@ -1,4 +1,4 @@
-// // frontend/src/pages/AdminDashboard.js
+// // // frontend/src/pages/AdminDashboard.js
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -42,7 +42,6 @@ const AdminDashboard = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
-  // ✅ Socket connects ONCE — empty dependency array prevents reconnect loop
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -59,31 +58,25 @@ const AdminDashboard = () => {
     });
 
     socket.on('newBooking', (newBooking) => {
-      console.log('New booking received:', newBooking._id);
       setBookings(prev => [newBooking, ...prev]);
       showToast('New booking request received!', 'success');
     });
 
     socket.on('bookingUpdated', (updatedBooking) => {
-      console.log('Booking updated:', updatedBooking._id, updatedBooking.status);
       setBookings(prev =>
         prev.map(b => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b)
       );
       showToast(`Booking updated to ${updatedBooking.status}`, 'info');
     });
 
-    // ✅ Handles unpaid booking cancellations by user
     socket.on('bookingCancelled', (cancelled) => {
-      console.log('Booking cancelled:', cancelled._id);
       setBookings(prev =>
         prev.map(b => b._id === cancelled._id ? { ...b, ...cancelled } : b)
       );
       showToast('A booking was cancelled by user', 'warning');
     });
 
-    // ✅ Handles paid booking refund + cancellation by user
     socket.on('bookingRefunded', (refunded) => {
-      console.log('Booking refunded:', refunded._id);
       setBookings(prev =>
         prev.map(b => b._id === refunded._id ? { ...b, ...refunded } : b)
       );
@@ -95,14 +88,13 @@ const AdminDashboard = () => {
     });
 
     return () => socket.disconnect();
-  }, []); // ✅ Empty array — socket connects once only
+  }, []);
 
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
         const res = await getAdminStats();
         const data = res.data;
-
         setStats({
           totalUsers: data.totals.users,
           totalDestinations: data.totals.destinations,
@@ -152,7 +144,6 @@ const AdminDashboard = () => {
 
   const confirmStatusUpdate = async () => {
     if (!pendingAction) return;
-
     const { bookingId, newStatus } = pendingAction;
 
     try {
@@ -174,7 +165,12 @@ const AdminDashboard = () => {
         prev.map(b => b._id === bookingId ? { ...b, status: newStatus } : b)
       );
 
-      showToast(`Booking ${newStatus} successfully!`, 'success');
+      showToast(
+        newStatus === 'confirmed'
+          ? 'Booking confirmed successfully!'
+          : 'Booking cancelled successfully!',
+        'success'
+      );
     } catch (err) {
       showToast('Failed to update: ' + err.message, 'error');
     } finally {
@@ -186,6 +182,26 @@ const AdminDashboard = () => {
   const cancelStatusUpdate = () => {
     setShowConfirmModal(false);
     setPendingAction(null);
+  };
+
+  const paymentBadge = (paymentStatus) => {
+    const map = {
+      completed: 'bg-blue-100 text-blue-800',
+      refunded:  'bg-purple-100 text-purple-800',
+      failed:    'bg-red-100 text-red-800',
+      pending:   'bg-gray-100 text-gray-600',
+    };
+    const label = {
+      completed: 'Paid',
+      refunded:  'Refunded',
+      failed:    'Failed',
+      pending:   'Unpaid',
+    };
+    return (
+      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${map[paymentStatus] || map.pending}`}>
+        {label[paymentStatus] || 'Unpaid'}
+      </span>
+    );
   };
 
   const trendDisplay = (change) => {
@@ -213,34 +229,10 @@ const AdminDashboard = () => {
   };
 
   const statCards = [
-    {
-      title: 'Total Users',
-      value: stats.totalUsers,
-      icon: Users,
-      color: 'bg-blue-500',
-      change: stats.newThisPeriod?.users || 0,
-    },
-    {
-      title: 'Destinations',
-      value: stats.totalDestinations,
-      icon: MapPin,
-      color: 'bg-green-500',
-      change: stats.newThisPeriod?.destinations || 0,
-    },
-    {
-      title: 'Hotels',
-      value: stats.totalHotels,
-      icon: Hotel,
-      color: 'bg-purple-500',
-      change: stats.newThisPeriod?.hotels || 0,
-    },
-    {
-      title: 'Flights',
-      value: stats.totalFlights,
-      icon: PlaneTakeoff,
-      color: 'bg-orange-500',
-      change: stats.newThisPeriod?.flights || 0,
-    },
+    { title: 'Total Users',   value: stats.totalUsers,        icon: Users,       color: 'bg-blue-500',   change: stats.newThisPeriod?.users || 0 },
+    { title: 'Destinations',  value: stats.totalDestinations, icon: MapPin,      color: 'bg-green-500',  change: stats.newThisPeriod?.destinations || 0 },
+    { title: 'Hotels',        value: stats.totalHotels,       icon: Hotel,       color: 'bg-purple-500', change: stats.newThisPeriod?.hotels || 0 },
+    { title: 'Flights',       value: stats.totalFlights,      icon: PlaneTakeoff,color: 'bg-orange-500', change: stats.newThisPeriod?.flights || 0 },
   ];
 
   return (
@@ -248,7 +240,6 @@ const AdminDashboard = () => {
       <AdminNavbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
@@ -269,10 +260,7 @@ const AdminDashboard = () => {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {statCards.map((stat, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition"
-                >
+                <div key={index} className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 mb-1">{stat.title}</p>
@@ -303,24 +291,13 @@ const AdminDashboard = () => {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          User
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Hotel
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Dates
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount (NPR)
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (NPR)</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -349,18 +326,16 @@ const AdminDashboard = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                booking.status === 'confirmed'
-                                  ? 'bg-green-100 text-green-800'
-                                  : booking.status === 'cancelled'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
-                            >
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                              booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
                               {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                              {booking.paymentStatus === 'refunded' && ' (Refunded)'}
                             </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {paymentBadge(booking.paymentStatus)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {booking.status === 'pending' && (
@@ -407,31 +382,19 @@ const AdminDashboard = () => {
                   Quick Actions
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
-                  <Link
-                    to="/admin/destinations"
-                    className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition text-center"
-                  >
+                  <Link to="/admin/destinations" className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition text-center">
                     <MapPin className="h-8 w-8 text-blue-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Manage Destinations</p>
                   </Link>
-                  <Link
-                    to="/admin/hotels"
-                    className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition text-center"
-                  >
+                  <Link to="/admin/hotels" className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition text-center">
                     <Hotel className="h-8 w-8 text-green-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Manage Hotels</p>
                   </Link>
-                  <Link
-                    to="/admin/flights"
-                    className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition text-center"
-                  >
+                  <Link to="/admin/flights" className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition text-center">
                     <PlaneTakeoff className="h-8 w-8 text-purple-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Manage Flights</p>
                   </Link>
-                  <Link
-                    to="/admin/users"
-                    className="p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition text-center"
-                  >
+                  <Link to="/admin/users" className="p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition text-center">
                     <Users className="h-8 w-8 text-orange-600 mx-auto mb-2" />
                     <p className="font-semibold text-gray-900">Manage Users</p>
                   </Link>
@@ -450,14 +413,10 @@ const AdminDashboard = () => {
               <h3 className="text-xl font-bold text-gray-900">
                 {pendingAction.newStatus === 'confirmed' ? 'Confirm Booking' : 'Cancel Booking'}
               </h3>
-              <button
-                onClick={cancelStatusUpdate}
-                className="p-1 rounded-full hover:bg-gray-100 transition"
-              >
+              <button onClick={cancelStatusUpdate} className="p-1 rounded-full hover:bg-gray-100 transition">
                 <X className="h-6 w-6 text-gray-600" />
               </button>
             </div>
-
             <div className="px-6 py-5">
               <p className="text-gray-700 text-base leading-relaxed">
                 Are you sure you want to {pendingAction.newStatus} this booking?
@@ -468,7 +427,6 @@ const AdminDashboard = () => {
                 )}
               </p>
             </div>
-
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={cancelStatusUpdate}
