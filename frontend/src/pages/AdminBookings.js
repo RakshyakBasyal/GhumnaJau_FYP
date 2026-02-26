@@ -1,4 +1,4 @@
-// // // frontend/src/pages/AdminBookings.jsx
+// // // // frontend/src/pages/AdminBookings.jsx
 import { useEffect, useState, useCallback } from 'react';
 import {
   CheckCircle,
@@ -29,15 +29,12 @@ const AdminBookings = () => {
   const [showArchived, setShowArchived] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState([]);
-
   const [showClearModal, setShowClearModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [pendingStatusAction, setPendingStatusAction] = useState(null);
   const [showBulkUnarchiveModal, setShowBulkUnarchiveModal] = useState(false);
-
   const [showSingleArchiveModal, setShowSingleArchiveModal] = useState(false);
   const [pendingSingleArchiveId, setPendingSingleArchiveId] = useState(null);
-
   const [showSingleUnarchiveModal, setShowSingleUnarchiveModal] = useState(false);
   const [pendingSingleUnarchiveId, setPendingSingleUnarchiveId] = useState(null);
 
@@ -50,7 +47,6 @@ const AdminBookings = () => {
       if (!token) throw new Error('Not logged in');
 
       const url = `${BASE_URL}/api/bookings${showArchived ? '?includeArchived=true' : ''}`;
-
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -72,13 +68,10 @@ const AdminBookings = () => {
     }
   }, [showArchived, showToast]);
 
-  // ✅ Socket connects ONCE — empty dependency array prevents reconnect loop
   useEffect(() => {
     const socket = io(BASE_URL, { withCredentials: true });
 
-    socket.on('connect', () => {
-      console.log('AdminBookings socket connected');
-    });
+    socket.on('connect', () => console.log('AdminBookings socket connected'));
 
     socket.on('newBooking', (newBooking) => {
       setBookings(prev => [newBooking, ...prev]);
@@ -86,28 +79,17 @@ const AdminBookings = () => {
     });
 
     socket.on('bookingUpdated', (updated) => {
-      console.log('bookingUpdated received:', updated._id, updated.status);
-      setBookings(prev =>
-        prev.map(b => b._id === updated._id ? { ...b, ...updated } : b)
-      );
+      setBookings(prev => prev.map(b => b._id === updated._id ? { ...b, ...updated } : b));
       showToast(`Booking updated to ${updated.status}`, 'info');
     });
 
-    // ✅ Handles unpaid booking cancellations
     socket.on('bookingCancelled', (cancelled) => {
-      console.log('bookingCancelled received:', cancelled._id);
-      setBookings(prev =>
-        prev.map(b => b._id === cancelled._id ? { ...b, ...cancelled } : b)
-      );
+      setBookings(prev => prev.map(b => b._id === cancelled._id ? { ...b, ...cancelled } : b));
       showToast('A booking was cancelled by user', 'warning');
     });
 
-    // ✅ Handles paid booking refund + cancellation
     socket.on('bookingRefunded', (refunded) => {
-      console.log('bookingRefunded received:', refunded._id);
-      setBookings(prev =>
-        prev.map(b => b._id === refunded._id ? { ...b, ...refunded } : b)
-      );
+      setBookings(prev => prev.map(b => b._id === refunded._id ? { ...b, ...refunded } : b));
       showToast('A booking was cancelled by user and refunded', 'warning');
     });
 
@@ -117,54 +99,71 @@ const AdminBookings = () => {
     });
 
     return () => socket.disconnect();
-  }, []); // ✅ Empty array — socket connects once only
+  }, []);
 
-  // Fetch on mount and when archive toggle changes
   useEffect(() => {
     fetchBookings();
   }, [fetchBookings, showArchived]);
+
+  const paymentBadge = (paymentStatus) => {
+    const map = {
+      completed: 'bg-blue-100 text-blue-800',
+      refunded:  'bg-purple-100 text-purple-800',
+      failed:    'bg-red-100 text-red-800',
+      pending:   'bg-gray-100 text-gray-600',
+    };
+    const label = {
+      completed: 'Paid',
+      refunded:  'Refunded',
+      failed:    'Failed',
+      pending:   'Unpaid',
+    };
+    return (
+      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${map[paymentStatus] || map.pending}`}>
+        {label[paymentStatus] || 'Unpaid'}
+      </span>
+    );
+  };
 
   const requestStatusUpdate = (bookingId, newStatus) => {
     setPendingStatusAction({ bookingId, newStatus });
     setShowStatusModal(true);
   };
 
-const confirmStatusUpdate = async () => {
-  if (!pendingStatusAction) return;
+  const confirmStatusUpdate = async () => {
+    if (!pendingStatusAction) return;
+    const { bookingId, newStatus } = pendingStatusAction;
+    setUpdating(true);
 
-  const { bookingId, newStatus } = pendingStatusAction;
-  setUpdating(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
 
-  try {
-    const res = await fetch(`${BASE_URL}/api/bookings/${bookingId}/status`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-      },
-      body: JSON.stringify({ status: newStatus }),
-    });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to update status');
+      }
 
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.message || 'Failed to update status');
+      showToast(
+        newStatus === 'confirmed'
+          ? 'Booking confirmed successfully!'
+          : 'Booking cancelled successfully!',
+        'success'
+      );
+    } catch (err) {
+      showToast('Failed to update: ' + err.message, 'error');
+    } finally {
+      setShowStatusModal(false);
+      setPendingStatusAction(null);
+      setUpdating(false);
     }
-
-    // ✅ Clear success message like AdminDashboard
-    showToast(
-      newStatus === 'confirmed'
-        ? 'Booking confirmed successfully!'
-        : 'Booking cancelled successfully!',
-      'success'
-    );
-  } catch (err) {
-    showToast('Failed to update: ' + err.message, 'error');
-  } finally {
-    setShowStatusModal(false);
-    setPendingStatusAction(null);
-    setUpdating(false);
-  }
-};
+  };
 
   const requestSingleArchive = (bookingId) => {
     setPendingSingleArchiveId(bookingId);
@@ -174,18 +173,15 @@ const confirmStatusUpdate = async () => {
   const confirmSingleArchive = async () => {
     if (!pendingSingleArchiveId) return;
     setClearing(true);
-
     try {
       const res = await fetch(`${BASE_URL}/api/bookings/${pendingSingleArchiveId}/archive`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message || 'Failed to archive');
       }
-
       showToast('Booking archived', 'success');
       fetchBookings();
     } catch (err) {
@@ -205,18 +201,15 @@ const confirmStatusUpdate = async () => {
   const confirmSingleUnarchive = async () => {
     if (!pendingSingleUnarchiveId) return;
     setClearing(true);
-
     try {
       const res = await fetch(`${BASE_URL}/api/bookings/${pendingSingleUnarchiveId}/unarchive`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message || 'Failed to unarchive');
       }
-
       showToast('Booking unarchived', 'success');
       fetchBookings();
     } catch (err) {
@@ -244,12 +237,10 @@ const confirmStatusUpdate = async () => {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message || 'Failed to archive completed bookings');
       }
-
       const data = await res.json();
       showToast(data.message || 'Bookings archived', 'success');
       fetchBookings();
@@ -289,7 +280,6 @@ const confirmStatusUpdate = async () => {
           })
         )
       );
-
       fetchBookings();
       setSelectedIds([]);
       showToast(`${selectedIds.length} bookings unarchived`, 'success');
@@ -369,15 +359,9 @@ const confirmStatusUpdate = async () => {
                 className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition disabled:opacity-50 shadow-md"
               >
                 {clearing ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Archiving...
-                  </>
+                  <><Loader2 className="h-5 w-5 animate-spin" />Archiving...</>
                 ) : (
-                  <>
-                    <Trash2 className="h-5 w-5" />
-                    Archive Completed
-                  </>
+                  <><Trash2 className="h-5 w-5" />Archive Completed</>
                 )}
               </button>
             )}
@@ -391,9 +375,7 @@ const confirmStatusUpdate = async () => {
               No {showArchived ? 'archived' : 'active'} bookings
             </h3>
             <p className="text-gray-600 text-lg">
-              {showArchived
-                ? 'No archived bookings at the moment.'
-                : 'No active bookings to manage.'}
+              {showArchived ? 'No archived bookings at the moment.' : 'No active bookings to manage.'}
             </p>
           </div>
         ) : (
@@ -424,6 +406,7 @@ const confirmStatusUpdate = async () => {
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Details</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Amount</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Payment</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
@@ -446,9 +429,7 @@ const confirmStatusUpdate = async () => {
                           {booking.user ? booking.user.fullName : 'Deleted User'}
                         </div>
                         {booking.user && (
-                          <div className="text-sm text-gray-500 break-all">
-                            {booking.user.email}
-                          </div>
+                          <div className="text-sm text-gray-500 break-all">{booking.user.email}</div>
                         )}
                       </td>
 
@@ -467,11 +448,9 @@ const confirmStatusUpdate = async () => {
                       <td className="px-6 py-5">
                         <div className="text-sm text-gray-900 flex items-center gap-1.5">
                           <MapPin className="h-4 w-4 flex-shrink-0" />
-                          {booking.type === 'flight' ? (
-                            `${booking.flight?.from || '-'} → ${booking.flight?.to || '-'}`
-                          ) : (
-                            booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'
-                          )}
+                          {booking.type === 'flight'
+                            ? `${booking.flight?.from || '-'} → ${booking.flight?.to || '-'}`
+                            : booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'}
                         </div>
                       </td>
 
@@ -482,18 +461,14 @@ const confirmStatusUpdate = async () => {
                               Departure: {booking.flight?.departureTime || '-'}
                             </div>
                             <div className="text-sm text-gray-500 mt-1">
-                              {booking.passengersCount?.adults || 0} Adult
-                              {booking.passengersCount?.adults !== 1 ? 's' : ''},{' '}
-                              {booking.passengersCount?.children || 0} Child
-                              {booking.passengersCount?.children !== 1 ? 'ren' : ''}
+                              {booking.passengersCount?.adults || 0} Adult{booking.passengersCount?.adults !== 1 ? 's' : ''},{' '}
+                              {booking.passengersCount?.children || 0} Child{booking.passengersCount?.children !== 1 ? 'ren' : ''}
                             </div>
                           </>
                         ) : (
-                          <>
-                            {booking.checkIn && booking.checkOut
-                              ? `${new Date(booking.checkIn).toLocaleDateString()} - ${new Date(booking.checkOut).toLocaleDateString()}`
-                              : 'Dates not available'}
-                          </>
+                          booking.checkIn && booking.checkOut
+                            ? `${new Date(booking.checkIn).toLocaleDateString()} - ${new Date(booking.checkOut).toLocaleDateString()}`
+                            : 'Dates not available'
                         )}
                       </td>
 
@@ -505,17 +480,18 @@ const confirmStatusUpdate = async () => {
                       </td>
 
                       <td className="px-6 py-5">
-                        <span
-                          className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                            booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                            booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}
-                        >
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                          booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          booking.status === 'pending'   ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
                           {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                          {booking.paymentStatus === 'refunded' && ' (Refunded)'}
                         </span>
+                      </td>
+
+                      <td className="px-6 py-5">
+                        {paymentBadge(booking.paymentStatus)}
                       </td>
 
                       <td className="px-6 py-5">
@@ -682,9 +658,7 @@ const confirmStatusUpdate = async () => {
               <p className="text-gray-700">
                 Are you sure you want to unarchive {selectedIds.length} selected booking(s)?
               </p>
-              <p className="mt-3 text-sm text-gray-600">
-                They will appear in the active bookings list again.
-              </p>
+              <p className="mt-3 text-sm text-gray-600">They will appear in the active bookings list again.</p>
             </div>
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
@@ -714,18 +688,14 @@ const confirmStatusUpdate = async () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-5 border-b">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                Archive Booking
-              </h3>
+              <h3 className="text-xl font-bold text-gray-900">Archive Booking</h3>
               <button onClick={() => setShowSingleArchiveModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
                 <X className="h-6 w-6 text-gray-600" />
               </button>
             </div>
             <div className="p-6">
               <p className="text-gray-700">Are you sure you want to archive this booking?</p>
-              <p className="mt-3 text-red-600 font-medium flex items-center gap-2">
-                It will be hidden from the active list.
-              </p>
+              <p className="mt-3 text-red-600 font-medium">It will be hidden from the active list.</p>
             </div>
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
@@ -765,9 +735,7 @@ const confirmStatusUpdate = async () => {
             </div>
             <div className="p-6">
               <p className="text-gray-700">Are you sure you want to unarchive this booking?</p>
-              <p className="mt-3 text-sm text-gray-600">
-                It will appear in the active bookings list again.
-              </p>
+              <p className="mt-3 text-sm text-gray-600">It will appear in the active bookings list again.</p>
             </div>
             <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
               <button
