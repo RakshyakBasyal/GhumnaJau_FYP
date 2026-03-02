@@ -1,4 +1,4 @@
-//frontend/src/pages/Register.js
+// frontend/src/pages/Register.js
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus, Mail, Lock, Eye, EyeOff, Plane, Phone, User as UserIcon } from 'lucide-react';
@@ -37,7 +37,7 @@ const Register = () => {
       const res = await apiRegister({ fullName, email, password, phone });
 
       localStorage.setItem('token', res.data.token);
-      localStorage.setItem('username', res.data.fullName);  // Display name in navbar
+      localStorage.setItem('username', res.data.fullName);
       localStorage.setItem('userRole', res.data.role);
       localStorage.setItem('userEmail', res.data.email);
 
@@ -51,14 +51,18 @@ const Register = () => {
     }
   };
 
+  const handleGoogleSignup = () => {
+    window.location.href = 'http://localhost:5000/api/auth/google';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
-          <Link to="/" className="flex justify-center items-center space-x-3 mb-8">
-            <Plane className="h-14 w-14 text-blue-600" />
+          <div className="flex flex-col items-center justify-center space-y-2 mb-6">
+            <Plane className="h-16 w-16 text-blue-600" />
             <span className="text-4xl font-bold text-gray-900">Ghumna Jau</span>
-          </Link>
+          </div>
           <h2 className="text-3xl font-bold text-gray-900">Create your account</h2>
           <p className="mt-3 text-base text-gray-600">
             Already have an account?{' '}
@@ -67,6 +71,7 @@ const Register = () => {
             </Link>
           </p>
         </div>
+
         <div className="bg-white py-10 px-8 shadow-2xl rounded-2xl">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
@@ -74,6 +79,7 @@ const Register = () => {
                 {error}
               </div>
             )}
+
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
                 Full Name
@@ -91,6 +97,7 @@ const Register = () => {
                 />
               </div>
             </div>
+
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                 Phone Number (optional)
@@ -107,6 +114,7 @@ const Register = () => {
                 />
               </div>
             </div>
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email address
@@ -124,6 +132,7 @@ const Register = () => {
                 />
               </div>
             </div>
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Password
@@ -148,6 +157,7 @@ const Register = () => {
                 </button>
               </div>
             </div>
+
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
                 Confirm Password
@@ -172,10 +182,30 @@ const Register = () => {
                 </button>
               </div>
             </div>
+
+            {/* Google Sign Up Button with colorful logo */}
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={handleGoogleSignup}
+                className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-gray-700 font-medium shadow-sm"
+              >
+                {/* Colorful Google G logo */}
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.51h5.84c-.25 1.31-.98 2.42-2.07 3.16v2.63h3.35c1.96-1.81 3.09-4.47 3.09-7.25z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-1.01 7.28-2.73l-3.35-2.63c-1.01.68-2.29 1.08-3.93 1.08-3.02 0-5.58-2.04-6.49-4.79H.96v2.67C2.77 20.39 6.62 23 12 23z" fill="#34A853"/>
+                  <path d="M5.51 14.21c-.23-.68-.36-1.41-.36-2.21s.13-1.53.36-2.21V7.34H.96C.35 8.85 0 10.39 0 12s.35 3.15.96 4.66l4.55-2.45z" fill="#FBBC05"/>
+                  <path d="M12 4.98c1.64 0 3.11.56 4.27 1.66l3.19-3.19C17.46 1.01 14.97 0 12 0 6.62 0 2.77 2.61.96 6.34l4.55 2.45C6.42 6.02 8.98 4.98 12 4.98z" fill="#EA4335"/>
+                </svg>
+                Sign up with Google
+              </button>
+            </div>
+
+            {/* Your original Create Account button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center items-center space-x-2 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold rounded-lg shadow-md transition duration-200"
+              className="w-full flex justify-center items-center space-x-2 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold rounded-lg shadow-md transition duration-200 mt-4"
             >
               <UserPlus className="h-5 w-5" />
               <span>{loading ? 'Creating account...' : 'Create Account'}</span>

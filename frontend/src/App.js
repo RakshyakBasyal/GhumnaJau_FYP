@@ -20,7 +20,7 @@ import MyBookings from './pages/MyBookings';
 import AdminBookings from './pages/AdminBookings';
 import Flights from './pages/Flights';
 import ManageFlights from './pages/ManageFlights';
-
+import AuthGoogleSuccess from './pages/AuthGoogleSuccess';
 import PaymentResult from './pages/PaymentResult';
 
 
@@ -91,6 +91,7 @@ function App() {
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/flights" element={<Flights />} />
             <Route path="/payment/result" element={<PaymentResult />} />
+            <Route path="/auth/google/success" element={<AuthGoogleSuccess />} />
           </Route>
         </Routes>
       </Router>
