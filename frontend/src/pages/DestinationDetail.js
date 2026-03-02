@@ -1,8 +1,8 @@
 // frontend/src/pages/DestinationDetail.js
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom'; // ← added Link
+import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { MapPin, DollarSign, Calendar, Plane, Hotel, X, ChevronLeft, ChevronRight, Star, IndianRupee } from 'lucide-react';
+import { MapPin, DollarSign, Calendar, Plane, Hotel, X, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -37,18 +37,14 @@ const DestinationDetail = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Destination
         const destRes = await axios.get(`${BASE_URL}/api/destinations/${id}`);
         setDestination(destRes.data);
 
-        // 2. Hotels in this destination
         const hotelsRes = await axios.get(`${BASE_URL}/api/hotels?destination=${id}`);
         setHotels(hotelsRes.data || []);
 
-        // 3. Flights to this destination
         const flightsRes = await axios.get(`${BASE_URL}/api/flights?destination=${id}&isActive=true`);
         setFlights(flightsRes.data || []);
-
       } catch (err) {
         console.error("Error fetching destination data:", err);
       } finally {
@@ -74,7 +70,7 @@ const DestinationDetail = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
+      {/* Hero */}
       <div
         className="relative h-96 bg-cover bg-center"
         style={{ backgroundImage: `url(${coverImage})` }}
@@ -91,11 +87,9 @@ const DestinationDetail = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-        {/* About Section */}
+        {/* About */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">
-            About {destination.name}
-          </h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">About {destination.name}</h2>
           <p className="text-gray-700 text-lg leading-relaxed mb-8">
             {destination.description || 'No detailed description available yet.'}
           </p>
@@ -105,29 +99,21 @@ const DestinationDetail = () => {
               <Calendar className="w-10 h-10 text-blue-600 flex-shrink-0" />
               <div>
                 <p className="text-sm text-gray-600">Best Time</p>
-                <p className="font-semibold text-gray-900 text-lg">
-                  {destination.bestTimeToVisit || 'Year-round'}
-                </p>
+                <p className="font-semibold text-gray-900 text-lg">{destination.bestTimeToVisit || 'Year-round'}</p>
               </div>
             </div>
-
             <div className="flex items-center gap-4 p-5 bg-green-50 rounded-xl">
               <DollarSign className="w-10 h-10 text-green-600 flex-shrink-0" />
               <div>
                 <p className="text-sm text-gray-600">Avg Cost</p>
-                <p className="font-semibold text-gray-900 text-lg">
-                  {formatCostNPR(destination)}
-                </p>
+                <p className="font-semibold text-gray-900 text-lg">{formatCostNPR(destination)}</p>
               </div>
             </div>
-
             <div className="flex items-center gap-4 p-5 bg-orange-50 rounded-xl">
               <MapPin className="w-10 h-10 text-orange-600 flex-shrink-0" />
               <div>
                 <p className="text-sm text-gray-600">Country</p>
-                <p className="font-semibold text-gray-900 text-lg">
-                  {destination.country || 'Nepal'}
-                </p>
+                <p className="font-semibold text-gray-900 text-lg">{destination.country || 'Nepal'}</p>
               </div>
             </div>
           </div>
@@ -153,10 +139,7 @@ const DestinationDetail = () => {
                 <div
                   key={i}
                   className="group relative overflow-hidden rounded-xl shadow-lg cursor-pointer"
-                  onClick={() => {
-                    setCurrentPhotoIndex(i);
-                    setShowPhotos(true);
-                  }}
+                  onClick={() => { setCurrentPhotoIndex(i); setShowPhotos(true); }}
                 >
                   <img
                     src={`${BASE_URL}${img}`}
@@ -172,7 +155,7 @@ const DestinationDetail = () => {
           </div>
         )}
 
-        {/* Hotels Section */}
+        {/* Hotels */}
         <div className="mb-16">
           <div className="flex items-center gap-4 mb-8">
             <div className="bg-blue-100 p-4 rounded-full">
@@ -234,7 +217,7 @@ const DestinationDetail = () => {
           )}
         </div>
 
-        {/* Flights Section */}
+        {/* Flights */}
         <div>
           <div className="flex items-center gap-4 mb-8">
             <div className="bg-indigo-100 p-4 rounded-full">
@@ -260,9 +243,7 @@ const DestinationDetail = () => {
                         <h3 className="text-xl font-bold text-gray-900">
                           {flight.airline} {flight.flightNumber}
                         </h3>
-                        <p className="text-gray-600">
-                          {flight.from} → {flight.to}
-                        </p>
+                        <p className="text-gray-600">{flight.from} → {flight.to}</p>
                       </div>
                       <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
                         {flight.class}
@@ -280,6 +261,10 @@ const DestinationDetail = () => {
                         <span className="text-gray-600">Duration</span>
                         <span className="font-medium">{flight.duration}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Seats Available</span>
+                        <span className="font-medium">{flight.availableSeats}</span>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between border-t pt-4">
@@ -289,8 +274,9 @@ const DestinationDetail = () => {
                           NPR {Number(flight.price).toLocaleString()}
                         </p>
                       </div>
+                      {/* ✅ Pass flight ID in URL so Flights page auto-opens booking form */}
                       <Link
-                        to={`/flights`} // or dedicated flight booking page if you create one
+                        to={`/flights?openFlight=${flight._id}`}
                         className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-medium"
                       >
                         Book Now
@@ -313,21 +299,18 @@ const DestinationDetail = () => {
           >
             <X className="h-8 w-8 text-white" />
           </button>
-
           <button
             onClick={prevPhoto}
             className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-5 rounded-full hover:bg-white/40 transition"
           >
             <ChevronLeft className="h-10 w-10 text-white" />
           </button>
-
           <button
             onClick={nextPhoto}
             className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-5 rounded-full hover:bg-white/40 transition"
           >
             <ChevronRight className="h-10 w-10 text-white" />
           </button>
-
           <div className="relative max-w-6xl w-full px-6">
             <img
               src={`${BASE_URL}${allImages[currentPhotoIndex]}`}

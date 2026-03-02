@@ -30,7 +30,6 @@ const MyBookings = () => {
   const [pendingCancelBooking, setPendingCancelBooking] = useState(null);
   const [cancelling, setCancelling] = useState(false);
 
-  // Archive states
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
   const [archiving, setArchiving] = useState(false);
@@ -39,7 +38,6 @@ const MyBookings = () => {
   const [pendingUnarchiveId, setPendingUnarchiveId] = useState(null);
   const [unarchiving, setUnarchiving] = useState(false);
 
-  // ✅ Pay Now state
   const [payingBookingId, setPayingBookingId] = useState(null);
 
   useEffect(() => {
@@ -99,7 +97,6 @@ const MyBookings = () => {
     }
   };
 
-  // ✅ Pay Now handler
   const handlePayNow = async (booking) => {
     setPayingBookingId(booking._id);
     try {
@@ -360,7 +357,7 @@ const MyBookings = () => {
                     />
                   )}
 
-                  {/* Booking status badge */}
+                  {/* Booking status badge — top right */}
                   <div className="absolute top-4 right-4">
                     <span className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
                       booking.status === 'confirmed' ? 'bg-green-500 text-white' :
@@ -371,7 +368,7 @@ const MyBookings = () => {
                     </span>
                   </div>
 
-                  {/* ✅ Payment badge */}
+                  {/* Payment badge — top left */}
                   <div className="absolute top-4 left-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${
                       booking.paymentStatus === 'completed' ? 'bg-blue-500 text-white' :
@@ -462,7 +459,8 @@ const MyBookings = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-3">
-                      {/* ✅ Pay Now — only for pending payment + not cancelled */}
+
+                      {/* ✅ Pay Now — unpaid + not cancelled */}
                       {booking.paymentStatus === 'pending' && booking.status !== 'cancelled' && (
                         <button
                           onClick={() => handlePayNow(booking)}
@@ -481,23 +479,22 @@ const MyBookings = () => {
                         </button>
                       )}
 
-                      {/* Cancel button */}
-                      {(booking.status === 'pending' || booking.paymentStatus === 'completed') &&
-                        booking.status !== 'cancelled' && (
-                          <button
-                            onClick={() => requestCancel(booking)}
-                            disabled={cancelling}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition shadow-sm ${
-                              cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
-                            }`}
-                          >
-                            {cancelling ? (
-                              <><Loader2 className="h-4 w-4 animate-spin" />Processing...</>
-                            ) : (
-                              <><X className="h-4 w-4" />Cancel</>
-                            )}
-                          </button>
-                        )}
+                      {/* ✅ Cancel — show for ALL non-cancelled bookings */}
+                      {booking.status !== 'cancelled' && (
+                        <button
+                          onClick={() => requestCancel(booking)}
+                          disabled={cancelling}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition shadow-sm ${
+                            cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
+                          }`}
+                        >
+                          {cancelling ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" />Processing...</>
+                          ) : (
+                            <><X className="h-4 w-4" />Cancel</>
+                          )}
+                        </button>
+                      )}
 
                       {/* Archive / Unarchive */}
                       {booking.isUserArchived ? (
