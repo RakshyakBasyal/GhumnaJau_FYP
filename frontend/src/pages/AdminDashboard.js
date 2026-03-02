@@ -1,4 +1,4 @@
-// // // frontend/src/pages/AdminDashboard.js
+// // // // frontend/src/pages/AdminDashboard.js
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -229,10 +229,10 @@ const AdminDashboard = () => {
   };
 
   const statCards = [
-    { title: 'Total Users',   value: stats.totalUsers,        icon: Users,       color: 'bg-blue-500',   change: stats.newThisPeriod?.users || 0 },
-    { title: 'Destinations',  value: stats.totalDestinations, icon: MapPin,      color: 'bg-green-500',  change: stats.newThisPeriod?.destinations || 0 },
-    { title: 'Hotels',        value: stats.totalHotels,       icon: Hotel,       color: 'bg-purple-500', change: stats.newThisPeriod?.hotels || 0 },
-    { title: 'Flights',       value: stats.totalFlights,      icon: PlaneTakeoff,color: 'bg-orange-500', change: stats.newThisPeriod?.flights || 0 },
+    { title: 'Total Users',   value: stats.totalUsers,        icon: Users,        color: 'bg-blue-500',   change: stats.newThisPeriod?.users || 0 },
+    { title: 'Destinations',  value: stats.totalDestinations, icon: MapPin,       color: 'bg-green-500',  change: stats.newThisPeriod?.destinations || 0 },
+    { title: 'Hotels',        value: stats.totalHotels,       icon: Hotel,        color: 'bg-purple-500', change: stats.newThisPeriod?.hotels || 0 },
+    { title: 'Flights',       value: stats.totalFlights,      icon: PlaneTakeoff, color: 'bg-orange-500', change: stats.newThisPeriod?.flights || 0 },
   ];
 
   return (
@@ -338,7 +338,8 @@ const AdminDashboard = () => {
                             {paymentBadge(booking.paymentStatus)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            {booking.status === 'pending' && (
+                            {/* ✅ Only show for unpaid pending bookings */}
+                            {booking.status === 'pending' && booking.paymentStatus !== 'completed' && (
                               <div className="flex gap-3">
                                 <button
                                   onClick={() => requestStatusUpdate(booking._id, 'confirmed')}
