@@ -1,4 +1,4 @@
-// // // // frontend/src/pages/AdminBookings.jsx
+// // // // // frontend/src/pages/AdminBookings.jsx
 import { useEffect, useState, useCallback } from 'react';
 import {
   CheckCircle,
@@ -12,7 +12,6 @@ import {
   Archive,
   RotateCcw,
   AlertTriangle,
-  Plane,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import AdminNavbar from '../components/AdminNavbar';
@@ -435,7 +434,7 @@ const AdminBookings = () => {
 
                       <td className="px-6 py-5">
                         {booking.type === 'flight' ? (
-                          <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">
                             {booking.flight?.airline || 'Flight'} {booking.flight?.flightNumber || ''}
                           </div>
                         ) : (
@@ -496,7 +495,8 @@ const AdminBookings = () => {
 
                       <td className="px-6 py-5">
                         <div className="flex gap-4">
-                          {booking.status === 'pending' && (
+                          {/* ✅ Only show confirm/reject for unpaid pending bookings */}
+                          {booking.status === 'pending' && booking.paymentStatus !== 'completed' && (
                             <>
                               <button
                                 onClick={() => requestStatusUpdate(booking._id, 'confirmed')}

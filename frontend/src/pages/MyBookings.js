@@ -10,6 +10,7 @@ import {
   Archive,
   RotateCcw,
   AlertTriangle,
+  CreditCard,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
@@ -29,7 +30,6 @@ const MyBookings = () => {
   const [pendingCancelBooking, setPendingCancelBooking] = useState(null);
   const [cancelling, setCancelling] = useState(false);
 
-  // Archive states
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
   const [archiving, setArchiving] = useState(false);
@@ -37,6 +37,8 @@ const MyBookings = () => {
   const [showUnarchiveModal, setShowUnarchiveModal] = useState(false);
   const [pendingUnarchiveId, setPendingUnarchiveId] = useState(null);
   const [unarchiving, setUnarchiving] = useState(false);
+
+  const [payingBookingId, setPayingBookingId] = useState(null);
 
   useEffect(() => {
     const socket = io(BASE_URL, { withCredentials: true });
@@ -95,6 +97,35 @@ const MyBookings = () => {
     }
   };
 
+  const handlePayNow = async (booking) => {
+    setPayingBookingId(booking._id);
+    try {
+      const res = await fetch(`${BASE_URL}/api/payments/stripe/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          bookingId: booking._id,
+          amount: booking.totalAmount,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.msg || 'Failed to initiate payment');
+      }
+
+      const data = await res.json();
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
+      showToast('Payment initiation failed: ' + err.message, 'error');
+    } finally {
+      setPayingBookingId(null);
+    }
+  };
+
   const requestCancel = (booking) => {
     setPendingCancelBooking(booking);
     setShowCancelModal(true);
@@ -107,7 +138,6 @@ const MyBookings = () => {
     try {
       let toastMessage = 'Booking cancelled successfully';
 
-      // Paid booking → only call refund (it already cancels)
       if (pendingCancelBooking.paymentStatus === 'completed') {
         const refundRes = await fetch(
           `${BASE_URL}/api/payments/stripe/refund/${pendingCancelBooking._id}`,
@@ -121,14 +151,10 @@ const MyBookings = () => {
         );
 
         const refundData = await refundRes.json();
-
-        if (!refundRes.ok) {
-          throw new Error(refundData.msg || 'Refund failed');
-        }
+        if (!refundRes.ok) throw new Error(refundData.msg || 'Refund failed');
 
         toastMessage = `NPR ${pendingCancelBooking.totalAmount.toLocaleString()} refunded. Booking cancelled successfully`;
       } else {
-        // Pending booking → call cancel only
         const cancelRes = await fetch(
           `${BASE_URL}/api/bookings/my/${pendingCancelBooking._id}/cancel`,
           {
@@ -148,7 +174,6 @@ const MyBookings = () => {
 
       showToast(toastMessage, 'success');
 
-      // Update UI
       setBookings((prev) =>
         prev.map((b) =>
           b._id === pendingCancelBooking._id
@@ -170,7 +195,6 @@ const MyBookings = () => {
     }
   };
 
-  // Archive logic (your existing code)
   const requestArchive = (id) => {
     setPendingArchiveId(id);
     setShowArchiveModal(true);
@@ -192,7 +216,6 @@ const MyBookings = () => {
       setBookings((prev) =>
         prev.map((b) => (b._id === pendingArchiveId ? { ...b, isUserArchived: true } : b))
       );
-
       showToast('Booking archived', 'success');
     } catch (err) {
       showToast('Failed to archive', 'error');
@@ -224,7 +247,6 @@ const MyBookings = () => {
       setBookings((prev) =>
         prev.map((b) => (b._id === pendingUnarchiveId ? { ...b, isUserArchived: false } : b))
       );
-
       showToast('Booking unarchived', 'success');
     } catch (err) {
       showToast('Failed to unarchive', 'error');
@@ -262,13 +284,13 @@ const MyBookings = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">My Bookings</h1>
             <p className="text-lg text-gray-600 mt-2">Manage your hotel & flight reservations</p>
           </div>
-
           <label className="flex items-center gap-3 cursor-pointer bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-200">
             <input
               type="checkbox"
@@ -317,6 +339,7 @@ const MyBookings = () => {
                   booking.isUserArchived ? 'opacity-75 bg-gray-50' : ''
                 }`}
               >
+                {/* Card Image */}
                 <div className="relative h-48">
                   {booking.type === 'flight' ? (
                     <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
@@ -334,33 +357,44 @@ const MyBookings = () => {
                     />
                   )}
 
+                  {/* Booking status badge — top right */}
                   <div className="absolute top-4 right-4">
-                    <span
-                      className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
-                        booking.status === 'confirmed' ? 'bg-green-500 text-white' :
-                        booking.status === 'cancelled' ? 'bg-red-500 text-white' :
-                        booking.status === 'pending' ? 'bg-yellow-500 text-white' :
-                        booking.paymentStatus === 'refunded' ? 'bg-purple-500 text-white' : 'bg-gray-500 text-white'
-                      }`}
-                    >
+                    <span className={`px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
+                      booking.status === 'confirmed' ? 'bg-green-500 text-white' :
+                      booking.status === 'cancelled' ? 'bg-red-500 text-white' :
+                      'bg-yellow-500 text-white'
+                    }`}>
                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                      {booking.paymentStatus === 'refunded' && ' (Refunded)'}
+                    </span>
+                  </div>
+
+                  {/* Payment badge — top left */}
+                  <div className="absolute top-4 left-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${
+                      booking.paymentStatus === 'completed' ? 'bg-blue-500 text-white' :
+                      booking.paymentStatus === 'refunded'  ? 'bg-purple-500 text-white' :
+                      booking.paymentStatus === 'failed'    ? 'bg-red-500 text-white' :
+                      'bg-gray-800 text-white'
+                    }`}>
+                      {booking.paymentStatus === 'completed' ? 'Paid' :
+                       booking.paymentStatus === 'refunded'  ? 'Refunded' :
+                       booking.paymentStatus === 'failed'    ? 'Failed' :
+                       'Unpaid'}
                     </span>
                   </div>
                 </div>
 
                 <div className="p-6">
+                  {/* Flight details */}
                   {booking.type === 'flight' ? (
                     <>
                       <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">
                         {booking.flight?.airline || 'Flight Booking'} {booking.flight?.flightNumber || ''}
                       </h3>
-
                       <p className="text-gray-600 flex items-center gap-1.5 mb-4">
                         <MapPin className="h-4 w-4" />
                         {booking.flight?.from || '-'} → {booking.flight?.to || '-'}
                       </p>
-
                       <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
                         <div>
                           <p className="text-gray-500">Departure</p>
@@ -381,12 +415,10 @@ const MyBookings = () => {
                       <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-1">
                         {booking.hotel?.name || 'Hotel Booking'}
                       </h3>
-
                       <p className="text-gray-600 flex items-center gap-1.5 mb-4">
                         <MapPin className="h-4 w-4" />
                         {booking.hotel?.destination?.name || booking.hotel?.country || 'Nepal'}
                       </p>
-
                       <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
                         <div>
                           <p className="text-gray-500">Check-in</p>
@@ -416,68 +448,75 @@ const MyBookings = () => {
                   )}
 
                   {/* Amount & Actions */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-5 border-t border-gray-200 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Total Amount</p>
-                      <p className="text-2xl font-bold text-blue-700">
-                        NPR {booking.totalAmount?.toLocaleString() || '—'}
-                      </p>
+                  <div className="pt-5 border-t border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Total Amount</p>
+                        <p className="text-2xl font-bold text-blue-700">
+                          NPR {booking.totalAmount?.toLocaleString() || '—'}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                      {/* Only Cancel button */}
-                      {(booking.status === 'pending' || booking.paymentStatus === 'completed') &&
-                        booking.status !== 'cancelled' && (
-                          <button
-                            onClick={() => requestCancel(booking)}
-                            disabled={cancelling}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-white text-sm font-medium transition-all shadow-sm disabled:opacity-60 ${
-                              cancelling
-                                ? 'bg-red-400 cursor-not-allowed'
-                                : 'bg-red-500 hover:bg-red-600'
-                            }`}
-                          >
-                            {cancelling ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Processing...
-                              </>
-                            ) : (
-                              <>
-                                <X className="h-4 w-4" />
-                                Cancel
-                              </>
-                            )}
-                          </button>
-                        )}
+                    <div className="flex flex-wrap gap-3">
+
+                      {/* ✅ Pay Now — unpaid + not cancelled */}
+                      {booking.paymentStatus === 'pending' && booking.status !== 'cancelled' && (
+                        <button
+                          onClick={() => handlePayNow(booking)}
+                          disabled={payingBookingId === booking._id}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition shadow-sm ${
+                            payingBookingId === booking._id
+                              ? 'bg-blue-400 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700'
+                          }`}
+                        >
+                          {payingBookingId === booking._id ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" />Redirecting...</>
+                          ) : (
+                            <><CreditCard className="h-4 w-4" />Pay Now</>
+                          )}
+                        </button>
+                      )}
+
+                      {/* ✅ Cancel — show for ALL non-cancelled bookings */}
+                      {booking.status !== 'cancelled' && (
+                        <button
+                          onClick={() => requestCancel(booking)}
+                          disabled={cancelling}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition shadow-sm ${
+                            cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
+                          }`}
+                        >
+                          {cancelling ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" />Processing...</>
+                          ) : (
+                            <><X className="h-4 w-4" />Cancel</>
+                          )}
+                        </button>
+                      )}
 
                       {/* Archive / Unarchive */}
                       {booking.isUserArchived ? (
                         <button
                           onClick={() => requestUnarchive(booking._id)}
                           disabled={unarchiving}
-                          className="flex items-center gap-2 px-5 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition text-sm font-medium"
+                          className="flex items-center gap-2 px-5 py-2.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition text-sm font-medium"
                         >
-                          {unarchiving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RotateCcw className="h-4 w-4" />
-                          )}
+                          {unarchiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                           Unarchive
                         </button>
-                      ) : ['confirmed', 'cancelled'].includes(booking.status) && (
-                        <button
-                          onClick={() => requestArchive(booking._id)}
-                          disabled={archiving}
-                          className="flex items-center gap-2 px-5 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-60 transition text-sm font-medium"
-                        >
-                          {archiving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Archive className="h-4 w-4" />
-                          )}
-                          Archive
-                        </button>
+                      ) : (
+                        ['confirmed', 'cancelled'].includes(booking.status) && (
+                          <button
+                            onClick={() => requestArchive(booking._id)}
+                            disabled={archiving}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-60 transition text-sm font-medium"
+                          >
+                            {archiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                            Archive
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -546,10 +585,7 @@ const MyBookings = () => {
                   }`}
                 >
                   {cancelling ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Processing...
-                    </>
+                    <><Loader2 className="h-5 w-5 animate-spin" />Processing...</>
                   ) : (
                     'Yes, Cancel Booking'
                   )}
@@ -569,14 +605,12 @@ const MyBookings = () => {
                   <X className="h-6 w-6 text-gray-600" />
                 </button>
               </div>
-
               <div className="p-6">
                 <p className="text-gray-700">Are you sure you want to archive this booking?</p>
                 <p className="mt-3 text-sm text-gray-600">
                   It will be hidden from your main list but can be viewed by enabling "Show archived bookings".
                 </p>
               </div>
-
               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
                 <button
                   onClick={() => setShowArchiveModal(false)}
@@ -610,14 +644,10 @@ const MyBookings = () => {
                   <X className="h-6 w-6 text-gray-600" />
                 </button>
               </div>
-
               <div className="p-6">
                 <p className="text-gray-700">Do you want to bring this booking back to your main list?</p>
-                <p className="mt-3 text-sm text-gray-600">
-                  It will appear in your active bookings again.
-                </p>
+                <p className="mt-3 text-sm text-gray-600">It will appear in your active bookings again.</p>
               </div>
-
               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
                 <button
                   onClick={() => setShowUnarchiveModal(false)}

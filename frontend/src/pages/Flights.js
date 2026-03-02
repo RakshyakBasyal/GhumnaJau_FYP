@@ -1,5 +1,6 @@
 // frontend/src/pages/Flights.jsx
 import { useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plane, Clock, ArrowRight, MapPin, Search, X, ChevronDown, Loader2, AlertTriangle, CheckCircle, CreditCard } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
@@ -25,13 +26,12 @@ const Flights = () => {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
-
-  // After booking is created — show success + pay option
-  const [successBooking, setSuccessBooking] = useState(null); // { bookingId, totalAmount, flightName }
+  const [successBooking, setSuccessBooking] = useState(null);
 
   const searchRef = useRef(null);
   const inputRef = useRef(null);
   const { showToast } = useToast();
+  const location = useLocation();
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -54,6 +54,20 @@ const Flights = () => {
     };
     fetchInitialData();
   }, []);
+
+  // ✅ Auto-open booking form if openFlight param is in URL
+  useEffect(() => {
+    if (filteredFlights.length === 0) return;
+    const params = new URLSearchParams(location.search);
+    const openFlightId = params.get('openFlight');
+    if (openFlightId) {
+      openBookingForm(openFlightId);
+      setTimeout(() => {
+        const el = document.getElementById(`flight-${openFlightId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [filteredFlights, location.search]);
 
   useEffect(() => {
     let result = [...flights];
@@ -192,7 +206,6 @@ const Flights = () => {
 
       const data = await res.json();
 
-      // ✅ Show success panel with Pay Now option
       setSuccessBooking({
         bookingId: data.booking._id,
         totalAmount: total,
@@ -207,7 +220,6 @@ const Flights = () => {
     }
   };
 
-  // ── STRIPE PAYMENT ──
   const handlePayNow = async () => {
     if (!successBooking) return;
     setPaymentLoading(true);
@@ -232,7 +244,6 @@ const Flights = () => {
       }
 
       const data = await res.json();
-      // Redirect to Stripe checkout
       window.location.href = data.checkoutUrl;
     } catch (err) {
       showToast('Payment initiation failed: ' + err.message, 'error');
@@ -353,7 +364,8 @@ const Flights = () => {
         ) : (
           <div className="space-y-8">
             {filteredFlights.map(flight => (
-              <div key={flight._id}>
+              // ✅ id added for scroll targeting from DestinationDetail
+              <div key={flight._id} id={`flight-${flight._id}`}>
 
                 {/* Flight Card */}
                 <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 hover:shadow-lg transition-all duration-300">
@@ -476,9 +488,7 @@ const Flights = () => {
                     {/* Contact */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Phone Number
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
                         <input
                           type="tel"
                           value={bookerPhone}
@@ -488,9 +498,7 @@ const Flights = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Email
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                         <input
                           type="email"
                           value={bookerEmail}
@@ -535,7 +543,7 @@ const Flights = () => {
                   </div>
                 )}
 
-                {/* ✅ Success Panel — shown after booking created */}
+                {/* ✅ Success Panel */}
                 {openBookingFlightId === flight._id && successBooking && (
                   <div className="mt-4 bg-green-50 rounded-xl shadow-lg p-8 border border-green-200">
                     <div className="flex justify-between items-start mb-6">
@@ -571,7 +579,6 @@ const Flights = () => {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-4">
-                      {/* Pay Now */}
                       <button
                         onClick={handlePayNow}
                         disabled={paymentLoading}
@@ -582,19 +589,12 @@ const Flights = () => {
                         }`}
                       >
                         {paymentLoading ? (
-                          <>
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            Redirecting...
-                          </>
+                          <><Loader2 className="h-5 w-5 animate-spin" />Redirecting...</>
                         ) : (
-                          <>
-                            <CreditCard className="h-5 w-5" />
-                            Pay Now
-                          </>
+                          <><CreditCard className="h-5 w-5" />Pay Now</>
                         )}
                       </button>
 
-                      {/* Pay Later */}
                       <button
                         onClick={closeBookingForm}
                         className="flex-1 py-4 rounded-xl border-2 border-gray-300 text-gray-700 font-bold text-lg hover:bg-gray-50 transition"
@@ -608,7 +608,6 @@ const Flights = () => {
                     </p>
                   </div>
                 )}
-
               </div>
             ))}
           </div>

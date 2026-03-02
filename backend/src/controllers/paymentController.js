@@ -1,4 +1,4 @@
-// //backend/src/controllers/paymentController.js
+// backend/src/controllers/paymentController.js
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
 const Flight = require('../models/Flight');
@@ -58,7 +58,7 @@ exports.createStripeCheckoutSession = async (req, res) => {
   }
 };
 
-// Handle successful payment redirect
+// Handle successful payment redirect — auto-confirms paid bookings
 exports.handleStripeSuccessRedirect = async (req, res) => {
   try {
     const { bookingId, session_id } = req.query;
@@ -75,7 +75,17 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
         booking.paymentStatus = 'completed';
         booking.transactionId = session.payment_intent;
         booking.paidAt = new Date();
+        booking.status = 'confirmed'; // ✅ auto-confirm on payment
         await booking.save();
+
+        // ✅ Emit socket so admin dashboard updates live
+        const io = req.app.get('io');
+        if (io) {
+          const populated = await Booking.findById(booking._id)
+            .populate('user', 'fullName email')
+            .populate(booking.type === 'hotel' ? 'hotel' : 'flight');
+          io.emit('bookingUpdated', populated);
+        }
       }
       return res.redirect(`${FRONTEND_URL}/payment/result?status=success&bookingId=${bookingId}`);
     }
@@ -93,7 +103,7 @@ exports.handleStripeFailureRedirect = (req, res) => {
   res.redirect(`${FRONTEND_URL}/payment/result?status=failed&bookingId=${bookingId || ''}`);
 };
 
-// Process refund (called automatically when cancelling paid booking)
+// Process refund (called when user cancels a paid booking)
 exports.refundBookingPayment = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -138,7 +148,6 @@ exports.refundBookingPayment = async (req, res) => {
       }
     }
 
-    // ✅ FIX: populate user + hotel/flight so admin table updates correctly
     const populated = await Booking.findById(booking._id)
       .populate('user', 'fullName email')
       .populate(booking.type === 'hotel' ? 'hotel' : 'flight');
