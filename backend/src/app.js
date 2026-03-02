@@ -10,9 +10,15 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+const passport = require('passport');
+require('./config/passport')(passport); // ← loads our Google strategy
+
+app.use(passport.initialize());
+
 
 // Serve uploaded images
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
