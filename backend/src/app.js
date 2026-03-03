@@ -36,6 +36,7 @@ app.use("/api/admin", adminRoutes);
 app.use('/api/hotels', require('./routes/hotelRoutes'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/flights', flightRoutes);
+app.use('/api/itineraries', require('./routes/itineraryRoutes'));
 
 app.use('/api/payments', require('./routes/paymentRoutes'));
 module.exports = app;

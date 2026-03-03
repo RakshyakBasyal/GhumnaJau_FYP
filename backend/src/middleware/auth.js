@@ -16,22 +16,16 @@ module.exports = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    req.user = { ...decoded, _id: decoded.id };  // ← FIXED
 
-    // Check if user still exists and token is not invalidated
     const user = await User.findById(decoded.id).select('lastLogout role');
     
     if (!user) {
-      return res.status(401).json({ 
-        msg: 'User no longer exists. Please log in again.' 
-      });
+      return res.status(401).json({ msg: 'User no longer exists. Please log in again.' });
     }
 
-    // If user has logged out/deleted after this token was issued
     if (user.lastLogout && new Date(decoded.iat * 1000) < user.lastLogout) {
-      return res.status(401).json({ 
-        msg: 'Session has been invalidated. Please log in again.' 
-      });
+      return res.status(401).json({ msg: 'Session has been invalidated. Please log in again.' });
     }
 
     next();
