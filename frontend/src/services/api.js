@@ -20,23 +20,21 @@ API.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       const msg = error.response.data?.msg || '';
+      const isLoginRequest = error.config?.url?.includes('/auth/login');
 
-      // Check for invalidation messages from your auth middleware
-      if (
+      if (!isLoginRequest && (
         msg.includes('Session has been invalidated') ||
         msg.includes('Session invalidated') ||
         msg.includes('User no longer exists') ||
         msg.includes('Token is not valid') ||
         msg.includes('No token')
-      ) {
+      )) {
         console.warn('401 detected - session invalidated, logging out');
         localStorage.removeItem('token');
-        // Optional: add query param to show message on login
         window.location.href = '/login?sessionExpired=true';
       }
     }
 
-    // Let other errors (400, 500, etc.) propagate normally
     return Promise.reject(error);
   }
 );
@@ -45,37 +43,26 @@ API.interceptors.response.use(
 export const register = (data) => API.post('/auth/register', data);
 export const login = (data) => API.post('/auth/login', data);
 
-
 // Destinations
 export const getDestinations = () => API.get('/destinations');
 export const getDestination = (id) => API.get(`/destinations/${id}`);
-
 export const createDestination = (formData) => API.post('/destinations', formData);
-
 export const updateDestination = (id, formData) => API.put(`/destinations/${id}`, formData);
-
 export const deleteDestination = (id) => API.delete(`/destinations/${id}`);
 
 // Users / Profile
-
 export const getUsers = () => API.get('/users');
 export const deleteUser = (id) => API.delete(`/users/${id}`);
 export const getAdminStats = () => API.get("/admin/stats");
-
 export const deleteMyAccount = () => API.delete("/users/me");
 export const getMe = () => API.get("/users/me");
-
-// Updated profile update (PATCH + FormData for avatar)
 export const updateMe = (formData) => API.patch("/users/profile", formData);
 
 // Hotels
 export const getHotels = () => API.get('/hotels');
 export const getHotel = (id) => API.get(`/hotels/${id}`);
-
 export const createHotel = (formData) => API.post('/hotels', formData);
-
 export const updateHotel = (id, formData) => API.put(`/hotels/${id}`, formData);
-
 export const deleteHotel = (id) => API.delete(`/hotels/${id}`);
 
 // Flights
@@ -84,5 +71,4 @@ export const createFlight = (data) => API.post('/flights', data);
 export const updateFlight = (id, data) => API.patch(`/flights/${id}`, data);
 export const deleteFlight = (id) => API.delete(`/flights/${id}`);
 
-// Export the axios instance if needed elsewhere
 export default API;
