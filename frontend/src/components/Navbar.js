@@ -1,4 +1,4 @@
-//frontnend/src/components/Navbar.js
+// frontend/src/components/Navbar.js
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Plane, LogOut, Menu, X, User } from "lucide-react";
@@ -29,7 +29,7 @@ const Navbar = () => {
       setUserRole("");
     }
 
-    // close dropdowns on route change
+    // Close dropdowns on route change
     setProfileDropdownOpen(false);
     setSignInDropdownOpen(false);
     setMobileMenuOpen(false);
@@ -53,14 +53,13 @@ const Navbar = () => {
     { to: "/destinations", label: "Destinations" },
     { to: "/hotels", label: "Hotels" },
     { to: "/flights", label: "Flights" },
-    { to: "/restaurants", label: "Restaurants" },
-    { to: "/activities", label: "Activities" },
+    { to: "/itinerary", label: "Itinerary" },          // ← no highlight class
     { to: "/social-feed", label: "Social Feed" },
     { to: "/travel-logs", label: "Travel Logs" },
     { to: "/buddy-matching", label: "Find Buddies" },
   ];
 
-  // ✅ ONLY FIRST NAME for normal users, still "Admin" for admin
+  // First name for normal users, "Admin" for admin
   const firstName = (userName || "User").trim().split(/\s+/)[0] || "User";
   const displayName = userRole === "ADMIN" ? "Admin" : firstName;
 
@@ -79,7 +78,11 @@ const Navbar = () => {
               <Link
                 key={link.to}
                 to={link.to}
-                className="text-gray-600 hover:text-blue-600 font-medium transition"
+                className={`font-medium transition ${
+                  location.pathname === link.to
+                    ? "text-blue-600 font-semibold"           // Active = blue + bold
+                    : "text-gray-600 hover:text-blue-600"     // Normal = gray → blue hover
+                }`}
               >
                 {link.label}
               </Link>
@@ -87,7 +90,6 @@ const Navbar = () => {
 
             {isLoggedIn ? (
               <div className="relative">
-                {/* ✅ boxy profile button stays same */}
                 <button
                   onClick={() => setProfileDropdownOpen((p) => !p)}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition"
@@ -96,10 +98,8 @@ const Navbar = () => {
                   <span className="max-w-[140px] truncate">{displayName}</span>
                 </button>
 
-                {/* Dropdown - same logic */}
                 {profileDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
-                    {/* Normal User: Profile + Logout */}
                     {userRole !== "ADMIN" && (
                       <>
                         <Link
@@ -119,7 +119,6 @@ const Navbar = () => {
                       </>
                     )}
 
-                    {/* Admin: Admin Dashboard + Logout */}
                     {userRole === "ADMIN" && (
                       <>
                         <Link
@@ -190,7 +189,11 @@ const Navbar = () => {
               <Link
                 key={link.to}
                 to={link.to}
-                className="block py-2 text-gray-600 hover:text-blue-600"
+                className={`block py-2 ${
+                  location.pathname === link.to
+                    ? "text-blue-600 font-semibold"
+                    : "text-gray-600 hover:text-blue-600"
+                }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {link.label}
@@ -250,4 +253,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-

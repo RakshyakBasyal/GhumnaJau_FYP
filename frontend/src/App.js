@@ -22,6 +22,8 @@ import Flights from './pages/Flights';
 import ManageFlights from './pages/ManageFlights';
 import AuthGoogleSuccess from './pages/AuthGoogleSuccess';
 import PaymentResult from './pages/PaymentResult';
+import Itinerary from './pages/Itinerary';
+import ItineraryDetail from './pages/ItineraryDetail';
 
 
    
@@ -92,6 +94,8 @@ function App() {
             <Route path="/flights" element={<Flights />} />
             <Route path="/payment/result" element={<PaymentResult />} />
             <Route path="/auth/google/success" element={<AuthGoogleSuccess />} />
+            <Route path="/itinerary" element={<Itinerary />} />
+            <Route path="/itinerary/:id" element={<ItineraryDetail />} />
           </Route>
         </Routes>
       </Router>
