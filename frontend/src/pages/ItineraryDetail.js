@@ -1,0 +1,1123 @@
+// frontend/src/pages/ItineraryDetail.jsx
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  Plus, Calendar, MapPin, Hotel, Plane, UtensilsCrossed,
+  Zap, Trash2, Edit2, X, Loader2, Search, ChevronRight,
+  Star, ArrowRight, DollarSign, Clock, AlertTriangle,
+  ChevronDown, ChevronUp, Check, CheckCircle2, Circle,
+  PlayCircle, Flag, RotateCcw, TrendingUp, TrendingDown,
+  Minus, Package
+} from 'lucide-react';
+import { TripModal, StatusButton, STATUS_CFG } from './Itinerary';
+
+const BASE_URL  = 'http://localhost:5000';
+const fmtNPR    = (n) => `NPR ${Math.round(n).toLocaleString()}`;
+const tok       = () => localStorage.getItem('token');
+const todayStr  = () => new Date().toISOString().slice(0, 10);
+
+const TYPE_CFG = {
+  destination: { icon: MapPin,          label: 'Destination', color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-200'  },
+  hotel:       { icon: Hotel,           label: 'Hotel',       color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200'   },
+  flight:      { icon: Plane,           label: 'Flight',      color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  restaurant:  { icon: UtensilsCrossed, label: 'Restaurant',  color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200'  },
+  activity:    { icon: Zap,             label: 'Activity',    color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+};
+const getCfg = (t) => TYPE_CFG[t] || { icon: Calendar, label: t, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200' };
+
+const fmtDate  = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const fmtShort = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+const fmtDateRange = (itin) => {
+  if (!itin?.startDate && !itin?.endDate) return null;
+  if (itin.startDate && itin.endDate) return `${fmtDate(itin.startDate)} – ${fmtDate(itin.endDate)}`;
+  if (itin.startDate) return `From ${fmtDate(itin.startDate)}`;
+  return `Until ${fmtDate(itin.endDate)}`;
+};
+
+const getDays = (itin) => {
+  if (!itin?.startDate || !itin?.endDate) return [];
+  const days = [];
+  const end  = new Date(itin.endDate);
+  for (let d = new Date(itin.startDate); d <= end; d.setDate(d.getDate() + 1)) {
+    days.push(new Date(d));
+  }
+  return days;
+};
+
+const getNights = (itin) => {
+  if (!itin?.startDate || !itin?.endDate) return 1;
+  return Math.max(1, Math.round((new Date(itin.endDate) - new Date(itin.startDate)) / 86400000));
+};
+
+const isSameDay = (d1, d2) => {
+  const a = new Date(d1), b = new Date(d2);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+};
+
+// ── Modal Shell ───────────────────────────────────────────────────────────────
+const Modal = ({ children, onClose, wide }) => (
+  <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center px-4"
+    onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className={`bg-white w-full ${wide ? 'max-w-lg' : 'max-w-md'} rounded-2xl shadow-2xl overflow-hidden`}>
+      {children}
+    </div>
+  </div>
+);
+
+// ── Confirm Delete ────────────────────────────────────────────────────────────
+const ConfirmDelete = ({ label, onClose, onConfirm }) => {
+  const [loading, setLoading] = useState(false);
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-8 text-center">
+        <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="h-7 w-7 text-red-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-1">Delete this?</h2>
+        <p className="text-gray-500 text-sm mb-6">"{label}" will be permanently removed.</p>
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition text-sm">
+            Cancel
+          </button>
+          <button onClick={async () => { setLoading(true); await onConfirm(); setLoading(false); }} disabled={loading}
+            className="flex-1 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 font-medium flex items-center justify-center gap-2 transition text-sm">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Delete
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ── Mark Done Modal — asks for actual cost ────────────────────────────────────
+const MarkDoneModal = ({ item, onClose, onConfirm }) => {
+  const [cost,    setCost]    = useState(item.estimatedCost > 0 ? String(item.estimatedCost) : '');
+  const [loading, setLoading] = useState(false);
+  const cfg = getCfg(item.type);
+  const Icon = cfg.icon;
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 border-b border-gray-100">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-bold text-gray-900">Mark as Done</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+      <div className="p-6 space-y-4">
+        {/* Item preview */}
+        <div className={`flex items-center gap-3 p-3 rounded-xl ${cfg.bg} border ${cfg.border}`}>
+          <div className={`w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0`}>
+            <Icon className={`h-4 w-4 ${cfg.color}`} />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
+            {item.estimatedCost > 0 && (
+              <p className="text-xs text-gray-500">Estimated: {fmtNPR(item.estimatedCost)}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Actual cost input */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Actual Cost (NPR) <span className="text-gray-400 font-normal">— optional</span>
+          </label>
+          <input
+            autoFocus type="number" value={cost} onChange={e => setCost(e.target.value)}
+            placeholder="Enter what you actually spent..."
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+          />
+          <p className="text-xs text-gray-400 mt-1.5">Leave blank if no cost or unknown</p>
+        </div>
+
+        {/* Diff preview */}
+        {cost && item.estimatedCost > 0 && (
+          <div className={`px-4 py-3 rounded-xl text-sm flex items-center gap-2 ${
+            parseFloat(cost) > item.estimatedCost ? 'bg-red-50 text-red-700' :
+            parseFloat(cost) < item.estimatedCost ? 'bg-green-50 text-green-700' :
+            'bg-gray-50 text-gray-600'
+          }`}>
+            {parseFloat(cost) > item.estimatedCost
+              ? <TrendingUp className="h-4 w-4" />
+              : parseFloat(cost) < item.estimatedCost
+              ? <TrendingDown className="h-4 w-4" />
+              : <Minus className="h-4 w-4" />}
+            {parseFloat(cost) > item.estimatedCost
+              ? `NPR ${(parseFloat(cost) - item.estimatedCost).toLocaleString()} over estimate`
+              : parseFloat(cost) < item.estimatedCost
+              ? `NPR ${(item.estimatedCost - parseFloat(cost)).toLocaleString()} under estimate`
+              : 'Exactly on estimate'}
+          </div>
+        )}
+      </div>
+      <div className="px-6 pb-6 flex gap-3">
+        <button onClick={onClose}
+          className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-sm transition">
+          Cancel
+        </button>
+        <button
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
+            await onConfirm({ isDone: true, actualCost: cost ? parseFloat(cost) : null });
+            setLoading(false);
+          }}
+          className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          Mark as Done
+        </button>
+      </div>
+    </Modal>
+  );
+};
+
+// ── Edit Actual Cost Modal ────────────────────────────────────────────────────
+const EditCostModal = ({ item, onClose, onConfirm }) => {
+  const [cost, setCost]       = useState(item.actualCost != null ? String(item.actualCost) : '');
+  const [loading, setLoading] = useState(false);
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+        <h2 className="text-lg font-bold text-gray-900">Edit Actual Cost</h2>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="p-5 space-y-3">
+        <p className="text-sm text-gray-600 font-medium truncate">{item.title}</p>
+        {item.estimatedCost > 0 && (
+          <p className="text-xs text-gray-400">Estimated: {fmtNPR(item.estimatedCost)}</p>
+        )}
+        <input
+          autoFocus type="number" value={cost} onChange={e => setCost(e.target.value)}
+          placeholder="Actual amount spent (NPR)"
+          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+        />
+      </div>
+      <div className="px-5 pb-5 flex gap-3">
+        <button onClick={onClose}
+          className="flex-1 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-sm transition">
+          Cancel
+        </button>
+        <button
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
+            await onConfirm({ actualCost: cost ? parseFloat(cost) : null });
+            setLoading(false);
+          }}
+          className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold text-sm flex items-center justify-center gap-2 transition">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
+        </button>
+      </div>
+    </Modal>
+  );
+};
+
+// ── Search Modal Base ─────────────────────────────────────────────────────────
+const SearchModal = ({ title, subtitle, onClose, loading, children, query, setQuery, placeholder }) => (
+  <Modal onClose={onClose} wide>
+    <div className="p-5 border-b border-gray-100">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+          {subtitle && <p className="text-xs text-blue-500 mt-0.5">{subtitle}</p>}
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+        <input
+          autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
+          className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 outline-none transition"
+        />
+      </div>
+    </div>
+    <div className="overflow-y-auto max-h-72">
+      {loading && <p className="text-center py-10 text-gray-400 text-sm">Loading...</p>}
+      {children}
+    </div>
+  </Modal>
+);
+
+// ── Add Destination Modal ─────────────────────────────────────────────────────
+const AddDestModal = ({ onClose, onAdd, plannedDate }) => {
+  const [all, setAll]         = useState([]);
+  const [query, setQuery]     = useState('');
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding]   = useState(null);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/destinations`)
+      .then(r => r.json()).then(d => setAll(Array.isArray(d) ? d : d.destinations || []))
+      .catch(() => setAll([])).finally(() => setLoading(false));
+  }, []);
+
+  const filtered = query.trim() ? all.filter(d => d.name.toLowerCase().includes(query.toLowerCase())) : all;
+
+  return (
+    <SearchModal title="Add Destination" onClose={onClose} loading={loading} query={query} setQuery={setQuery} placeholder="Search destinations...">
+      {!loading && filtered.length === 0 && <p className="text-center py-10 text-gray-400 text-sm">No destinations found</p>}
+      {filtered.map(dest => (
+        <button key={dest._id} disabled={!!adding}
+          onClick={async () => {
+            setAdding(dest._id);
+            await onAdd({ type: 'destination', title: dest.name, referenceId: dest._id, plannedDate: plannedDate || undefined });
+            setAdding(null);
+          }}
+          className="w-full flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition group text-left border-b border-gray-50 last:border-0">
+          <div className="w-10 h-10 rounded-xl overflow-hidden bg-green-50 flex-shrink-0">
+            {dest.images?.[0]
+              ? <img src={`${BASE_URL}${dest.images[0]}`} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center"><MapPin className="h-4 w-4 text-green-600" /></div>}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 text-sm">{dest.name}</p>
+            <p className="text-xs text-gray-500">{dest.country || 'Nepal'}</p>
+          </div>
+          {adding === dest._id
+            ? <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+            : <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 transition" />}
+        </button>
+      ))}
+    </SearchModal>
+  );
+};
+
+// ── Add Hotel Modal — all destinations ────────────────────────────────────────
+const AddHotelModal = ({ onClose, onAdd, destinationIds, plannedDate }) => {
+  const [all, setAll]         = useState([]);
+  const [query, setQuery]     = useState('');
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding]   = useState(null);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/hotels`)
+      .then(r => r.json()).then(d => {
+        let hotels = Array.isArray(d) ? d : d.hotels || [];
+        if (destinationIds?.length > 0) {
+          hotels = hotels.filter(h => destinationIds.includes(String(h.destination?._id || h.destination)));
+        }
+        setAll(hotels);
+      })
+      .catch(() => setAll([])).finally(() => setLoading(false));
+  }, [JSON.stringify(destinationIds)]);
+
+  const filtered = query.trim() ? all.filter(h => h.name.toLowerCase().includes(query.toLowerCase())) : all;
+
+  return (
+    <SearchModal
+      title="Add Hotel"
+      subtitle={destinationIds?.length > 0 ? `Filtered by your ${destinationIds.length} destination(s)` : null}
+      onClose={onClose} loading={loading} query={query} setQuery={setQuery} placeholder="Search hotels...">
+      {!loading && filtered.length === 0 && (
+        <p className="text-center py-10 text-gray-400 text-sm">
+          {destinationIds?.length > 0 ? 'No hotels found for your destinations' : 'No hotels found'}
+        </p>
+      )}
+      {filtered.map(hotel => {
+        const minPrice = hotel.roomTypes?.length ? Math.min(...hotel.roomTypes.map(r => r.pricePerNight)) : 0;
+        return (
+          <button key={hotel._id} disabled={!!adding}
+            onClick={async () => {
+              setAdding(hotel._id);
+              await onAdd({ type: 'hotel', title: hotel.name, referenceId: hotel._id, estimatedCost: minPrice, plannedDate: plannedDate || undefined });
+              setAdding(null);
+            }}
+            className="w-full flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition group text-left border-b border-gray-50 last:border-0">
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-blue-50 flex-shrink-0">
+              {hotel.images?.[0]
+                ? <img src={`${BASE_URL}${hotel.images[0]}`} alt="" className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center"><Hotel className="h-4 w-4 text-blue-600" /></div>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 text-sm">{hotel.name}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                <span className="text-xs text-gray-500">{hotel.rating || 5}</span>
+                {hotel.destination?.name && <span className="text-xs text-gray-400">· {hotel.destination.name}</span>}
+              </div>
+            </div>
+            {minPrice > 0 && (
+              <span className="text-sm font-bold text-blue-600 whitespace-nowrap">
+                NPR {minPrice.toLocaleString()}<span className="text-xs font-normal text-gray-400">/night</span>
+              </span>
+            )}
+            {adding === hotel._id
+              ? <Loader2 className="h-4 w-4 text-blue-500 animate-spin ml-1" />
+              : <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 transition ml-1" />}
+          </button>
+        );
+      })}
+    </SearchModal>
+  );
+};
+
+// ── Add Flight Modal — all destinations ───────────────────────────────────────
+const AddFlightModal = ({ onClose, onAdd, destinationIds, plannedDate }) => {
+  const [all, setAll]         = useState([]);
+  const [query, setQuery]     = useState('');
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding]   = useState(null);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/flights`)
+      .then(r => r.json()).then(d => {
+        let flights = Array.isArray(d) ? d : [];
+        if (destinationIds?.length > 0) {
+          flights = flights.filter(f => destinationIds.includes(String(f.destination?._id || f.destination)));
+        }
+        setAll(flights);
+      })
+      .catch(() => setAll([])).finally(() => setLoading(false));
+  }, [JSON.stringify(destinationIds)]);
+
+  const filtered = query.trim()
+    ? all.filter(f =>
+        f.airline.toLowerCase().includes(query.toLowerCase()) ||
+        f.flightNumber.toLowerCase().includes(query.toLowerCase()) ||
+        f.from.toLowerCase().includes(query.toLowerCase()) ||
+        f.to.toLowerCase().includes(query.toLowerCase()))
+    : all;
+
+  return (
+    <SearchModal
+      title="Add Flight"
+      subtitle={destinationIds?.length > 0 ? `Filtered by your ${destinationIds.length} destination(s)` : null}
+      onClose={onClose} loading={loading} query={query} setQuery={setQuery} placeholder="Search airline or route...">
+      {!loading && filtered.length === 0 && (
+        <p className="text-center py-10 text-gray-400 text-sm">
+          {destinationIds?.length > 0 ? 'No flights found for your destinations' : 'No flights found'}
+        </p>
+      )}
+      <div className="p-2 space-y-1">
+        {filtered.map(flight => (
+          <button key={flight._id} disabled={!!adding}
+            onClick={async () => {
+              setAdding(flight._id);
+              await onAdd({
+                type: 'flight',
+                title: `${flight.airline} ${flight.flightNumber}`,
+                notes: `${flight.from} → ${flight.to} · ${flight.departureTime}–${flight.arrivalTime} · ${flight.duration}`,
+                plannedDate: plannedDate || flight.departureDate,
+                referenceId: flight._id,
+                estimatedCost: flight.price || 0,
+              });
+              setAdding(null);
+            }}
+            className="w-full text-left p-3.5 rounded-xl hover:bg-gray-50 border border-gray-100 transition">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <div className="bg-indigo-50 p-1.5 rounded-lg"><Plane className="h-3.5 w-3.5 text-indigo-600" /></div>
+                <span className="font-bold text-gray-900 text-sm">{flight.airline} · {flight.flightNumber}</span>
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{flight.class}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-blue-600 text-sm">NPR {Number(flight.price).toLocaleString()}</span>
+                {adding === flight._id && <Loader2 className="h-3.5 w-3.5 text-indigo-500 animate-spin" />}
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 ml-8 flex items-center gap-1.5">
+              <span className="font-medium text-gray-700">{flight.from}</span>
+              <ArrowRight className="h-3 w-3" />
+              <span className="font-medium text-gray-700">{flight.to}</span>
+              <span>·</span><span>{flight.departureTime}–{flight.arrivalTime}</span>
+              <span>·</span><span>{flight.duration}</span>
+            </p>
+          </button>
+        ))}
+      </div>
+    </SearchModal>
+  );
+};
+
+// ── Add Custom Modal ──────────────────────────────────────────────────────────
+const AddCustomModal = ({ type, onClose, onAdd, plannedDate }) => {
+  const [title,   setTitle]   = useState('');
+  const [notes,   setNotes]   = useState('');
+  const [date,    setDate]    = useState(plannedDate?.slice(0, 10) || '');
+  const [cost,    setCost]    = useState('');
+  const [loading, setLoading] = useState(false);
+  const isRest = type === 'restaurant';
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+        <h2 className="text-lg font-bold text-gray-900">{isRest ? 'Add Restaurant' : 'Add Activity'}</h2>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="p-5 space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Name <span className="text-red-400">*</span></label>
+          <input
+            autoFocus type="text" value={title} onChange={e => setTitle(e.target.value)}
+            placeholder={isRest ? 'e.g. Krishnarpan Restaurant' : 'e.g. Paragliding in Pokhara'}
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add a note..."
+            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">{isRest ? 'Reservation Date' : 'Planned Date'}</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Est. Cost (NPR)</label>
+            <input type="number" value={cost} onChange={e => setCost(e.target.value)} placeholder="0"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+            />
+          </div>
+        </div>
+      </div>
+      <div className="px-5 pb-5 flex gap-3">
+        <button onClick={onClose}
+          className="flex-1 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-sm transition">
+          Cancel
+        </button>
+        <button
+          disabled={!title.trim() || loading}
+          onClick={async () => {
+            setLoading(true);
+            await onAdd({ type, title, notes, plannedDate: date || undefined, estimatedCost: parseFloat(cost) || 0 });
+            setLoading(false);
+          }}
+          className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add
+        </button>
+      </div>
+    </Modal>
+  );
+};
+
+// ── Item Row ──────────────────────────────────────────────────────────────────
+const ItemRow = ({ item, onDelete, onMarkDone, onUndone, onEditCost }) => {
+  const cfg  = getCfg(item.type);
+  const Icon = cfg.icon;
+
+  return (
+    <div className={`group flex items-start gap-3 py-3 px-1 border-b border-gray-50 last:border-0 ${item.isDone ? 'opacity-60' : ''}`}>
+      {/* Done toggle */}
+      <button
+        onClick={() => item.isDone ? onUndone(item) : onMarkDone(item)}
+        className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-green-500 transition">
+        {item.isDone
+          ? <CheckCircle2 className="h-5 w-5 text-green-500" />
+          : <Circle className="h-5 w-5" />}
+      </button>
+
+      {/* Type icon */}
+      <div className={`w-8 h-8 rounded-lg ${cfg.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+        <Icon className={`h-4 w-4 ${cfg.color}`} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className={`font-semibold text-gray-900 text-sm truncate ${item.isDone ? 'line-through text-gray-400' : ''}`}>
+          {item.title}
+        </p>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-400 mt-0.5">
+          {/* Cost: estimated vs actual */}
+          {(item.estimatedCost > 0 || item.actualCost != null) && (
+            <span className="flex items-center gap-1">
+              {item.estimatedCost > 0 && (
+                <span className={item.isDone ? 'line-through text-gray-300' : 'text-gray-400'}>
+                  Est. {fmtNPR(item.estimatedCost)}
+                </span>
+              )}
+              {item.isDone && item.actualCost != null && (
+                <>
+                  {item.estimatedCost > 0 && <span className="text-gray-300 mx-0.5">→</span>}
+                  <span className={`font-semibold ${
+                    item.estimatedCost > 0 && item.actualCost > item.estimatedCost ? 'text-red-500' :
+                    item.estimatedCost > 0 && item.actualCost < item.estimatedCost ? 'text-green-600' :
+                    'text-blue-600'
+                  }`}>
+                    Actual: {fmtNPR(item.actualCost)}
+                  </span>
+                </>
+              )}
+              {item.isDone && item.actualCost == null && item.estimatedCost > 0 && (
+                <button onClick={() => onEditCost(item)} className="text-blue-500 hover:underline ml-1">+ add actual cost</button>
+              )}
+            </span>
+          )}
+          {item.notes && <span className="truncate max-w-xs">{item.notes}</span>}
+          {item.plannedDate && (
+            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{fmtDate(item.plannedDate)}</span>
+          )}
+        </div>
+        {/* Edit actual cost link if done */}
+        {item.isDone && item.actualCost != null && (
+          <button onClick={() => onEditCost(item)} className="text-xs text-gray-400 hover:text-blue-500 mt-0.5 transition">
+            Edit actual cost
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
+        <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.color} border ${cfg.border} hidden sm:block`}>{cfg.label}</span>
+        <button onClick={() => onDelete(item)}
+          className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Day Section ───────────────────────────────────────────────────────────────
+const DaySection = ({ day, dayNum, items, onAddItem, destinationIds, onDeleteItem, onMarkDone, onUndone, onEditCost }) => {
+  const [open,  setOpen]  = useState(true);
+  const [modal, setModal] = useState(null);
+  const dateStr = day.toISOString().slice(0, 10);
+
+  const doneCount  = items.filter(i => i.isDone).length;
+  const totalCount = items.length;
+
+  const handleAdd = async (itemData) => {
+    await onAddItem({ ...itemData, plannedDate: itemData.plannedDate || dateStr });
+    setModal(null);
+  };
+
+  const ADD_BTNS = [
+    { key: 'destination', label: 'Destination', Icon: MapPin          },
+    { key: 'hotel',       label: 'Hotel',       Icon: Hotel           },
+    { key: 'flight',      label: 'Flight',      Icon: Plane           },
+    { key: 'restaurant',  label: 'Restaurant',  Icon: UtensilsCrossed },
+    { key: 'activity',    label: 'Activity',    Icon: Zap             },
+  ];
+
+  return (
+    <>
+      {modal === 'destination' && <AddDestModal   onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
+      {modal === 'hotel'       && <AddHotelModal  onClose={() => setModal(null)} onAdd={handleAdd} destinationIds={destinationIds} plannedDate={dateStr} />}
+      {modal === 'flight'      && <AddFlightModal onClose={() => setModal(null)} onAdd={handleAdd} destinationIds={destinationIds} plannedDate={dateStr} />}
+      {modal === 'restaurant'  && <AddCustomModal type="restaurant" onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
+      {modal === 'activity'    && <AddCustomModal type="activity"   onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <button onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition text-left">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg min-w-[4rem] text-center">
+              Day {dayNum}
+            </div>
+            <div>
+              <p className="font-bold text-gray-900 text-sm">
+                {day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+              <p className="text-xs text-gray-400">
+                {totalCount === 0
+                  ? 'Nothing planned'
+                  : `${doneCount}/${totalCount} done`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {totalCount > 0 && doneCount === totalCount && (
+              <span className="text-xs text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-semibold">
+                All done
+              </span>
+            )}
+            {open ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+          </div>
+        </button>
+
+        {open && (
+          <div className="border-t border-gray-100">
+            {items.length > 0 && (
+              <div className="px-5 pt-2 pb-1">
+                {items.map(item => (
+                  <ItemRow
+                    key={item._id} item={item}
+                    onDelete={onDeleteItem}
+                    onMarkDone={onMarkDone}
+                    onUndone={onUndone}
+                    onEditCost={onEditCost}
+                  />
+                ))}
+              </div>
+            )}
+            {items.length === 0 && (
+              <p className="text-center text-gray-400 text-xs py-4 px-5">Nothing planned for this day yet</p>
+            )}
+            <div className="px-5 pb-4 pt-2 flex flex-wrap gap-2">
+              {ADD_BTNS.map(({ key, label, Icon }) => (
+                <button key={key} onClick={() => setModal(key)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition">
+                  <Icon className="h-3.5 w-3.5" /> + {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
+// ── Budget Sidebar ────────────────────────────────────────────────────────────
+const BudgetCard = ({ items, nights }) => {
+  const categories = [
+    { key: 'flight',                label: 'Flights',            Icon: Plane,           multiplier: 1      },
+    { key: 'hotel',                 label: 'Hotels',             Icon: Hotel,           multiplier: nights },
+    { key: 'restaurant,activity',   label: 'Activities & Dining', Icon: Zap,            multiplier: 1      },
+    { key: 'destination',           label: 'Destinations',        Icon: MapPin,         multiplier: 1      },
+  ];
+
+  const rows = categories.map(cat => {
+    const types   = cat.key.split(',');
+    const catItems = items.filter(i => types.includes(i.type));
+    const estTotal  = catItems.reduce((s, i) => s + (i.estimatedCost || 0), 0) * cat.multiplier;
+    const doneItems = catItems.filter(i => i.isDone && i.actualCost != null);
+    const actTotal  = doneItems.length > 0 ? doneItems.reduce((s, i) => s + (i.actualCost || 0), 0) : null;
+    return { ...cat, estTotal, actTotal, catItems };
+  }).filter(r => r.estTotal > 0 || r.actTotal != null);
+
+  const grandEst = rows.reduce((s, r) => s + r.estTotal, 0);
+  const grandAct = rows.filter(r => r.actTotal != null).reduce((s, r) => s + (r.actTotal || 0), 0);
+  const hasAny   = grandEst > 0;
+  const hasActual = rows.some(r => r.actTotal != null);
+  const diff     = grandAct - rows.filter(r => r.actTotal != null).reduce((s, r) => s + r.estTotal, 0);
+
+  if (!hasAny) return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <DollarSign className="h-4 w-4 text-blue-600" />
+        <h3 className="font-bold text-gray-900 text-sm">Budget</h3>
+      </div>
+      <p className="text-gray-400 text-xs text-center py-3">Add items with costs to see budget</p>
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <DollarSign className="h-4 w-4 text-blue-600" />
+        <h3 className="font-bold text-gray-900 text-sm">Budget</h3>
+      </div>
+
+      {/* Column headers */}
+      {hasActual && (
+        <div className="flex justify-between text-xs text-gray-400 mb-2 px-0">
+          <span>Category</span>
+          <div className="flex gap-4">
+            <span>Est.</span>
+            <span>Actual</span>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2.5">
+        {rows.map(row => (
+          <div key={row.key} className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2 text-gray-500 flex-1 min-w-0">
+              <row.Icon className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{row.label}{row.multiplier > 1 ? ` ×${nights}n` : ''}</span>
+            </span>
+            <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+              <span className={`font-semibold ${hasActual ? 'text-gray-400 text-xs' : 'text-gray-900'}`}>
+                {fmtNPR(row.estTotal)}
+              </span>
+              {hasActual && (
+                <span className={`font-semibold text-sm w-24 text-right ${
+                  row.actTotal != null
+                    ? row.actTotal > row.estTotal ? 'text-red-500' : row.actTotal < row.estTotal ? 'text-green-600' : 'text-gray-900'
+                    : 'text-gray-300'
+                }`}>
+                  {row.actTotal != null ? fmtNPR(row.actTotal) : '—'}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {/* Grand totals */}
+        <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span className="font-bold text-gray-900 text-sm">Total</span>
+          <div className="flex items-center gap-3">
+            <span className={`font-bold ${hasActual ? 'text-gray-400 text-xs' : 'text-blue-600 text-base'}`}>
+              {fmtNPR(grandEst)}
+            </span>
+            {hasActual && (
+              <span className={`font-bold text-base ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-blue-600'}`}>
+                {fmtNPR(grandAct)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Over/under summary */}
+        {hasActual && diff !== 0 && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold ${
+            diff > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'
+          }`}>
+            {diff > 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+            {diff > 0
+              ? `${fmtNPR(diff)} over estimate so far`
+              : `${fmtNPR(Math.abs(diff))} under estimate so far`}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Main ItineraryDetail Page ─────────────────────────────────────────────────
+const ItineraryDetail = () => {
+  const { id }     = useParams();
+  const navigate   = useNavigate();
+  const token      = tok();
+
+  const [itin,       setItin]       = useState(null);
+  const [items,      setItems]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [modal,      setModal]      = useState(null);   // quick-add modal type
+  const [markItem,   setMarkItem]   = useState(null);   // item waiting for mark-done modal
+  const [editCost,   setEditCost]   = useState(null);   // item to edit cost of
+  const [editTrip,   setEditTrip]   = useState(false);
+
+  useEffect(() => {
+    if (!token) { navigate('/login'); return; }
+    fetch(`${BASE_URL}/api/itineraries/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => { if (!r.ok) throw new Error('Not found'); return r.json(); })
+      .then(data => { setItin(data); setItems(data.items || []); })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [id, token, navigate]);
+
+  // ── Item handlers ─────────────────────────────────────────────────────────
+  const handleAddItem = async (itemData) => {
+    const res = await fetch(`${BASE_URL}/api/itineraries/${id}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(itemData),
+    });
+    if (!res.ok) { alert('Failed to add item'); return; }
+    const newItem = await res.json();
+    setItems(prev => [...prev, newItem]);
+    setModal(null);
+  };
+
+  const handleRemoveItem = async () => {
+    await fetch(`${BASE_URL}/api/itineraries/items/${deleteItem._id}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    });
+    setItems(prev => prev.filter(i => i._id !== deleteItem._id));
+    setDeleteItem(null);
+  };
+
+  const handleMarkDone = async ({ isDone, actualCost }) => {
+    const res = await fetch(`${BASE_URL}/api/itineraries/items/${markItem._id}/done`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ isDone, actualCost }),
+    });
+    if (!res.ok) { alert('Failed to update'); return; }
+    const updated = await res.json();
+    setItems(prev => prev.map(i => i._id === updated._id ? updated : i));
+    setMarkItem(null);
+  };
+
+  const handleUndone = async (item) => {
+    const res = await fetch(`${BASE_URL}/api/itineraries/items/${item._id}/done`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ isDone: false }),
+    });
+    if (!res.ok) return;
+    const updated = await res.json();
+    setItems(prev => prev.map(i => i._id === updated._id ? updated : i));
+  };
+
+  const handleEditCost = async ({ actualCost }) => {
+    const res = await fetch(`${BASE_URL}/api/itineraries/items/${editCost._id}/cost`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ actualCost }),
+    });
+    if (!res.ok) return;
+    const updated = await res.json();
+    setItems(prev => prev.map(i => i._id === updated._id ? updated : i));
+    setEditCost(null);
+  };
+
+  // ── Trip edit/status ──────────────────────────────────────────────────────
+  const handleEditSave = async ({ title, startDate, endDate }) => {
+    const res = await fetch(`${BASE_URL}/api/itineraries/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title, startDate: startDate || undefined, endDate: endDate || undefined }),
+    });
+    if (!res.ok) { alert('Failed to update'); return; }
+    const updated = await res.json();
+    setItin(prev => ({ ...prev, ...updated }));
+    setEditTrip(false);
+  };
+
+  const handleStatusChange = async (_, newStatus) => {
+    const res = await fetch(`${BASE_URL}/api/itineraries/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res.ok) { alert('Failed'); return; }
+    const updated = await res.json();
+    setItin(prev => ({ ...prev, status: updated.status }));
+  };
+
+  const handleDeleteTrip = async () => {
+    await fetch(`${BASE_URL}/api/itineraries/${id}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+    });
+    navigate('/itinerary');
+  };
+
+  // ── Derived values ────────────────────────────────────────────────────────
+  const days        = itin ? getDays(itin) : [];
+  const hasDays     = days.length > 0;
+  const nights      = itin ? getNights(itin) : 1;
+  const status      = itin?.status || 'planning';
+  const sCfg        = STATUS_CFG[status];
+  const unscheduled = hasDays ? items.filter(i => !i.plannedDate) : [];
+
+  const destinationIds = useMemo(() =>
+    items.filter(i => i.type === 'destination').map(i => String(i.referenceId)).filter(Boolean),
+    [items]
+  );
+
+  const QUICK_BTNS = [
+    { key: 'destination', label: 'Destination', Icon: MapPin          },
+    { key: 'hotel',       label: 'Hotel',       Icon: Hotel           },
+    { key: 'flight',      label: 'Flight',      Icon: Plane           },
+    { key: 'restaurant',  label: 'Restaurant',  Icon: UtensilsCrossed },
+    { key: 'activity',    label: 'Activity',    Icon: Zap             },
+  ];
+
+  if (loading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center gap-3">
+      <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+      <span className="text-gray-500">Loading itinerary...</span>
+    </div>
+  );
+
+  if (error || !itin) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <p className="text-red-500 font-medium mb-4">{error || 'Trip not found'}</p>
+        <button onClick={() => navigate('/itinerary')} className="text-blue-600 font-semibold">
+          Back to My Trips
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Modals */}
+      {deleteItem  && <ConfirmDelete label={deleteItem.title} onClose={() => setDeleteItem(null)} onConfirm={handleRemoveItem} />}
+      {markItem    && <MarkDoneModal item={markItem} onClose={() => setMarkItem(null)} onConfirm={handleMarkDone} />}
+      {editCost    && <EditCostModal item={editCost} onClose={() => setEditCost(null)} onConfirm={handleEditCost} />}
+      {editTrip    && <TripModal existing={itin} onClose={() => setEditTrip(false)} onSave={handleEditSave} />}
+
+      {/* Quick-add modals (no-day mode) */}
+      {!hasDays && modal === 'destination' && <AddDestModal   onClose={() => setModal(null)} onAdd={handleAddItem} />}
+      {!hasDays && modal === 'hotel'       && <AddHotelModal  onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
+      {!hasDays && modal === 'flight'      && <AddFlightModal onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
+      {!hasDays && modal === 'restaurant'  && <AddCustomModal type="restaurant" onClose={() => setModal(null)} onAdd={handleAddItem} />}
+      {!hasDays && modal === 'activity'    && <AddCustomModal type="activity"   onClose={() => setModal(null)} onAdd={handleAddItem} />}
+
+      {/* Sticky header */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <button onClick={() => navigate('/itinerary')}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition whitespace-nowrap">
+              Back
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg font-bold text-gray-900 truncate">{itin.title}</h1>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${sCfg.bg} ${sCfg.color} flex-shrink-0`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${sCfg.dot} ${status === 'active' ? 'animate-pulse' : ''}`} />
+                  {sCfg.label}
+                </span>
+              </div>
+              {fmtDateRange(itin) && (
+                <p className="text-xs text-gray-400">{fmtDateRange(itin)} · {nights} night{nights !== 1 ? 's' : ''}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <StatusButton itin={itin} onStatusChange={handleStatusChange} />
+            <button onClick={() => setEditTrip(true)}
+              className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 text-sm font-semibold transition">
+              <Edit2 className="h-3.5 w-3.5" /> Edit
+            </button>
+            <button onClick={handleDeleteTrip}
+              className="flex items-center gap-1.5 px-4 py-2 border border-red-100 text-red-500 rounded-xl hover:bg-red-50 text-sm font-semibold transition">
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid lg:grid-cols-3 gap-6">
+
+          {/* Main content — 2/3 */}
+          <div className="lg:col-span-2 space-y-4">
+            {hasDays ? (
+              <>
+                {days.map((day, i) => (
+                  <DaySection
+                    key={day.toISOString()}
+                    day={day} dayNum={i + 1}
+                    items={items.filter(item => item.plannedDate && isSameDay(item.plannedDate, day))}
+                    onAddItem={handleAddItem}
+                    destinationIds={destinationIds}
+                    onDeleteItem={setDeleteItem}
+                    onMarkDone={setMarkItem}
+                    onUndone={handleUndone}
+                    onEditCost={setEditCost}
+                  />
+                ))}
+                {unscheduled.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <p className="text-sm font-bold text-gray-700 mb-3">Unscheduled Items</p>
+                    {unscheduled.map(item => (
+                      <ItemRow
+                        key={item._id} item={item}
+                        onDelete={setDeleteItem}
+                        onMarkDone={setMarkItem}
+                        onUndone={handleUndone}
+                        onEditCost={setEditCost}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="font-bold text-gray-900 mb-1">Itinerary Items</h3>
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 px-3 py-2 rounded-lg mb-4">
+                  Add start and end dates to enable day-by-day planning
+                </p>
+                {items.length === 0 ? (
+                  <div className="text-center py-10">
+                    <Calendar className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">No items yet — use the buttons below to start planning</p>
+                  </div>
+                ) : (
+                  items.map(item => (
+                    <ItemRow
+                      key={item._id} item={item}
+                      onDelete={setDeleteItem}
+                      onMarkDone={setMarkItem}
+                      onUndone={handleUndone}
+                      onEditCost={setEditCost}
+                    />
+                  ))
+                )}
+                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+                  {QUICK_BTNS.map(({ key, label, Icon }) => (
+                    <button key={key} onClick={() => setModal(key)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition">
+                      <Icon className="h-3.5 w-3.5" /> + {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar — 1/3 */}
+          <div className="space-y-4">
+
+            {/* Trip status */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-3">Trip Status</h3>
+              <div className="space-y-1.5 mb-4">
+                {(['planning', 'active', 'completed']).map(key => {
+                  const cfg    = STATUS_CFG[key];
+                  const active = status === key;
+                  return (
+                    <div key={key} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl ${active ? cfg.bg : ''}`}>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? cfg.dot : 'bg-gray-200'} ${active && key === 'active' ? 'animate-pulse' : ''}`} />
+                      <span className={`text-sm font-semibold capitalize ${active ? cfg.color : 'text-gray-300'}`}>{cfg.label}</span>
+                      {active && <CheckCircle2 className={`h-4 w-4 ml-auto ${cfg.color}`} />}
+                    </div>
+                  );
+                })}
+              </div>
+              <StatusButton itin={itin} onStatusChange={handleStatusChange} />
+            </div>
+
+            {/* Budget */}
+            <BudgetCard items={items} nights={nights} />
+
+            {/* Item summary */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-3">Summary</h3>
+              {itin.startDate && itin.endDate && (
+                <div className="flex items-center justify-between py-1.5 text-sm border-b border-gray-50 mb-1">
+                  <span className="flex items-center gap-2 text-gray-500"><Calendar className="h-3.5 w-3.5 text-blue-400" />Duration</span>
+                  <span className="font-semibold text-gray-900">{nights} nights</span>
+                </div>
+              )}
+              {items.length === 0 ? (
+                <p className="text-gray-400 text-xs text-center py-3">No items yet</p>
+              ) : (
+                <>
+                  {Object.entries(TYPE_CFG).map(([type, cfg]) => {
+                    const count = items.filter(i => i.type === type).length;
+                    if (!count) return null;
+                    const Icon = cfg.icon;
+                    const done = items.filter(i => i.type === type && i.isDone).length;
+                    return (
+                      <div key={type} className="flex items-center justify-between py-1.5 text-sm">
+                        <span className="flex items-center gap-2 text-gray-500">
+                          <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />{cfg.label}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          <span className="font-semibold text-gray-900">{done}</span>/{count} done
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div className="mt-2 pt-2 border-t border-gray-50 flex justify-between text-sm">
+                    <span className="text-gray-500">Overall</span>
+                    <span className="font-semibold text-gray-900">
+                      {items.filter(i => i.isDone).length}/{items.length} done
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ItineraryDetail;
