@@ -14,7 +14,7 @@ const schema = new mongoose.Schema({
   plannedDate:   { type: Date },
   referenceId:   { type: mongoose.Schema.Types.ObjectId },
   estimatedCost: { type: Number, default: 0 },
-  actualCost:    { type: Number, default: null },   // null = not yet recorded
+  actualCost:    { type: Number, default: null },
   isDone:        { type: Boolean, default: false },
   doneAt:        { type: Date },
   order:         { type: Number, default: 0 },

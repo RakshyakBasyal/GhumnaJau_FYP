@@ -1,9 +1,19 @@
 // backend/src/routes/itineraryRoutes.js
-const express = require('express');
-const router  = express.Router();
-const auth    = require('../middleware/auth');
+// NOTE: You need multer installed — run: npm install multer
+const express   = require('express');
+const router    = express.Router();
+const multer    = require('multer');
+const path      = require('path');
+const auth      = require('../middleware/auth');
 const Itinerary     = require('../models/Itinerary');
 const ItineraryItem = require('../models/ItineraryItem');
+
+// ── Multer for cover photo uploads ────────────────────────────────────────────
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename:    (req, file, cb) => cb(null, `cover_${Date.now()}${path.extname(file.originalname)}`),
+});
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ── Itinerary CRUD ────────────────────────────────────────────────────────────
 
@@ -61,59 +71,73 @@ router.patch('/:id', auth, async (req, res) => {
   }
 });
 
-router.patch('/:id/status', auth, async (req, res) => {
+// Upload cover photo
+router.patch('/:id/cover', auth, upload.single('coverImage'), async (req, res) => {
   try {
-    const { status } = req.body;
-    if (!['planning', 'active', 'completed'].includes(status)) {
-      return res.status(400).json({ msg: 'Invalid status' });
-    }
-    const update = { status };
-    if (status === 'active')    update.startedAt   = new Date();
-    if (status === 'completed') update.completedAt = new Date();
-    if (status === 'planning')  { update.startedAt = null; update.completedAt = null; }
-
-    const itinerary = await Itinerary.findOneAndUpdate(
+    if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
+    const coverImage = `/uploads/${req.file.filename}`;
+    const itinerary  = await Itinerary.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
-      { $set: update },
+      { $set: { coverImage } },
       { new: true }
     );
     if (!itinerary) return res.status(404).json({ msg: 'Not found' });
-    res.json(itinerary);
+    res.json({ coverImage });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
 });
 
-// ── Item Routes — /items routes MUST come before /:id ─────────────────────────
+// Update trip status — only planning→active, active→completed (no going back)
+router.patch('/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['active', 'completed'].includes(status)) {
+      return res.status(400).json({ msg: 'Invalid status transition' });
+    }
+    const itin = await Itinerary.findOne({ _id: req.params.id, user: req.user._id });
+    if (!itin) return res.status(404).json({ msg: 'Not found' });
+    // Guard: completed trips stay completed
+    if (itin.status === 'completed') return res.status(400).json({ msg: 'Trip is already completed' });
+    // Guard: can only go planning→active or active→completed
+    if (status === 'completed' && itin.status !== 'active') return res.status(400).json({ msg: 'Start the trip first' });
+
+    const update = { status };
+    if (status === 'active')    update.startedAt   = new Date();
+    if (status === 'completed') update.completedAt = new Date();
+
+    const updated = await Itinerary.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
+      { $set: update },
+      { new: true }
+    );
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+// ── Item routes — MUST come before /:id delete ────────────────────────────────
 
 router.post('/:id/items', auth, async (req, res) => {
   try {
     const itinerary = await Itinerary.findOne({ _id: req.params.id, user: req.user._id });
     if (!itinerary) return res.status(404).json({ msg: 'Itinerary not found' });
-    const item = await ItineraryItem.create({
-      user:      req.user._id,
-      itinerary: req.params.id,
-      ...req.body,
-    });
+    const item = await ItineraryItem.create({ user: req.user._id, itinerary: req.params.id, ...req.body });
     res.status(201).json(item);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
 });
 
-// Mark item done / undone — enters actual cost at time of marking done
+// Mark item done / undone
 router.patch('/items/:itemId/done', auth, async (req, res) => {
   try {
     const { isDone, actualCost } = req.body;
-    const update = {
-      isDone,
-      doneAt:     isDone ? new Date() : null,
-      actualCost: isDone ? (actualCost ?? null) : null,
-    };
-    const item = await ItineraryItem.findOneAndUpdate(
+    const update = { isDone, doneAt: isDone ? new Date() : null, actualCost: isDone ? (actualCost ?? null) : null };
+    const item   = await ItineraryItem.findOneAndUpdate(
       { _id: req.params.itemId, user: req.user._id },
-      { $set: update },
-      { new: true }
+      { $set: update }, { new: true }
     );
     if (!item) return res.status(404).json({ msg: 'Item not found' });
     res.json(item);
@@ -122,14 +146,12 @@ router.patch('/items/:itemId/done', auth, async (req, res) => {
   }
 });
 
-// Edit actual cost independently (after already marked done)
+// Edit actual cost
 router.patch('/items/:itemId/cost', auth, async (req, res) => {
   try {
-    const { actualCost } = req.body;
     const item = await ItineraryItem.findOneAndUpdate(
       { _id: req.params.itemId, user: req.user._id },
-      { $set: { actualCost: actualCost ?? null } },
-      { new: true }
+      { $set: { actualCost: req.body.actualCost ?? null } }, { new: true }
     );
     if (!item) return res.status(404).json({ msg: 'Item not found' });
     res.json(item);
