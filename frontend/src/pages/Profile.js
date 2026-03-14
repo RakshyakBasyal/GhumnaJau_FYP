@@ -119,16 +119,16 @@ const Profile = () => {
 
         const user = await userRes.json();
 
-        // Smart avatar URL handling + high-resolution for Google photos
+        // ── FIXED GOOGLE AVATAR HANDLING ───────────────────────────────
         let avatarUrl = null;
         if (user.avatar) {
-          if (user.avatar.startsWith('http') || user.avatar.startsWith('https')) {
-            // Google photo: request higher resolution (400px for main view)
-            avatarUrl = user.avatar.includes('=s') 
-              ? user.avatar.replace(/=s\d+-c/, '=s400-c') 
-              : `${user.avatar}=s400-c`;
+          if (user.avatar.startsWith("http") || user.avatar.startsWith("https")) {
+            // Google photo → force high resolution
+            let cleanUrl = user.avatar.replace(/=s\d+-c/g, "").replace(/sz=\d+/g, "");
+            const separator = cleanUrl.includes("?") ? "&" : "?";
+            avatarUrl = `${cleanUrl}${separator}sz=400`;   // 400px for profile card
           } else {
-            // Your own upload (relative path)
+            // Local uploaded avatar
             avatarUrl = `${BASE_URL}${user.avatar}`;
           }
         }
@@ -205,13 +205,13 @@ const Profile = () => {
 
       const updated = await res.json();
 
-      // Smart URL for updated avatar
+      // Update avatar preview after save
       let updatedAvatarUrl = null;
       if (updated.avatar) {
-        if (updated.avatar.startsWith('http') || updated.avatar.startsWith('https')) {
-          updatedAvatarUrl = updated.avatar.includes('=s') 
-            ? updated.avatar.replace(/=s\d+-c/, '=s400-c') 
-            : `${updated.avatar}=s400-c`;
+        if (updated.avatar.startsWith("http") || updated.avatar.startsWith("https")) {
+          let cleanUrl = updated.avatar.replace(/=s\d+-c/g, "").replace(/sz=\d+/g, "");
+          const separator = cleanUrl.includes("?") ? "&" : "?";
+          updatedAvatarUrl = `${cleanUrl}${separator}sz=400`;
         } else {
           updatedAvatarUrl = `${BASE_URL}${updated.avatar}`;
         }
@@ -239,13 +239,14 @@ const Profile = () => {
   const handleCancel = () => {
     setIsEditing(false);
     setAvatarFile(null);
-    setAvatarPreview(userData.avatar 
-      ? (userData.avatar.startsWith('http') || userData.avatar.startsWith('https')
-          ? userData.avatar.includes('=s') 
-            ? userData.avatar.replace(/=s\d+-c/, '=s400-c') 
-            : `${userData.avatar}=s400-c`
-          : `${BASE_URL}${userData.avatar}`)
-      : null);
+    // Reset preview to original
+    setAvatarPreview(
+      userData.avatar
+        ? (userData.avatar.startsWith("http") || userData.avatar.startsWith("https")
+            ? userData.avatar.replace(/=s\d+-c/g, "").replace(/sz=\d+/g, "") + (userData.avatar.includes("?") ? "&" : "?") + "sz=400"
+            : `${BASE_URL}${userData.avatar}`)
+        : null
+    );
   };
 
   const handleDeleteAccount = async () => {
@@ -260,9 +261,7 @@ const Profile = () => {
       const token = localStorage.getItem("token");
       const res = await fetch(`${BASE_URL}/api/users/me`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const data = await res.json();
@@ -315,7 +314,7 @@ const Profile = () => {
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-12 transition-all duration-300 hover:shadow-xl">
           <div className="p-6 sm:p-10">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
-              {/* Avatar – with high-res fix */}
+              {/* Avatar */}
               <div className="relative group">
                 <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-white shadow-xl bg-gradient-to-br from-blue-50 to-indigo-50 transition-transform duration-300 group-hover:scale-105">
                   {avatarPreview ? (
@@ -327,12 +326,11 @@ const Profile = () => {
                       onError={(e) => {
                         console.log("Avatar load failed:", avatarPreview);
                         e.target.onerror = null;
-                        e.target.src = '';
+                        e.target.src = "";
                         setAvatarPreview(null);
                       }}
                       loading="lazy"
                       decoding="async"
-                      style={{ imageRendering: '-webkit-optimize-contrast' }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -456,7 +454,7 @@ const Profile = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {bookings.slice(0, 6).map((booking, index) => (
+                {bookings.slice(0, 6).map((booking) => (
                   <div
                     key={booking._id}
                     className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
@@ -542,7 +540,7 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Full-screen Avatar Viewer – higher res for modal */}
+      {/* Full-screen Avatar Viewer */}
       {showAvatarModal && avatarPreview && (
         <div
           className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
@@ -557,8 +555,8 @@ const Profile = () => {
             </button>
             <img
               src={
-                avatarPreview.includes('=s')
-                  ? avatarPreview.replace(/=s\d+-c/, '=s800-c') // bigger for modal
+                avatarPreview.includes("googleusercontent.com")
+                  ? avatarPreview.replace(/sz=\d+/, "sz=800")
                   : avatarPreview
               }
               alt="Profile Full View"
