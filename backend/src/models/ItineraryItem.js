@@ -13,11 +13,23 @@ const schema = new mongoose.Schema({
   notes:         { type: String },
   plannedDate:   { type: Date },
   referenceId:   { type: mongoose.Schema.Types.ObjectId },
+
+  // Cost tracking
   estimatedCost: { type: Number, default: 0 },
-  actualCost:    { type: Number, default: null },   // null = not yet recorded
+  actualCost:    { type: Number, default: null },
   isDone:        { type: Boolean, default: false },
   doneAt:        { type: Date },
-  order:         { type: Number, default: 0 },
+
+  // Hotel-specific
+  roomTypeName:          { type: String },   // e.g. "Deluxe Room"
+  roomTypePricePerNight: { type: Number },   // e.g. 5000
+  numberOfNights:        { type: Number },   // e.g. 3
+
+  // Flight-specific
+  pricePerTicket:      { type: Number },     // e.g. 8500
+  numberOfPassengers:  { type: Number },     // e.g. 2
+
+  order: { type: Number, default: 0 },
 }, { timestamps: true });
 
 module.exports = mongoose.model('ItineraryItem', schema);
