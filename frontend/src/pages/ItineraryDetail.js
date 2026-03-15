@@ -877,92 +877,193 @@ const DaySection = ({ day, dayNum, items, onAddItem, destinationIds, onDeleteIte
   );
 };
 
-// ── Budget Sidebar Card ───────────────────────────────────────────────────────
-const BudgetCard = ({ items, nights }) => {
-  const rows = [
-    { key: 'flight',              label: 'Flights',             Icon: Plane,           mult: 1      },
-    { key: 'hotel',               label: 'Hotels',              Icon: Hotel,           mult: nights },
-    { key: 'restaurant,activity', label: 'Activities & Dining', Icon: Zap,             mult: 1      },
-    { key: 'destination',         label: 'Destinations',        Icon: MapPin,          mult: 1      },
-  ].map(row => {
-    const types    = row.key.split(',');
-    const catItems = items.filter(i => types.includes(i.type));
-    const est      = catItems.reduce((s, i) => s + (i.estimatedCost || 0), 0) * row.mult;
-    const doneAct  = catItems.filter(i => i.isDone && i.actualCost != null);
-    const act      = doneAct.length > 0 ? doneAct.reduce((s, i) => s + (i.actualCost || 0), 0) : null;
-    return { ...row, est, act };
-  }).filter(r => r.est > 0 || r.act != null);
-
-  const grandEst    = rows.reduce((s, r) => s + r.est, 0);
-  const actRows     = rows.filter(r => r.act != null);
-  const grandAct    = actRows.reduce((s, r) => s + r.act, 0);
-  const hasActual   = actRows.length > 0;
-  const partialEst  = actRows.reduce((s, r) => s + r.est, 0);
-  const diff        = grandAct - partialEst;
-
-  if (grandEst === 0 && !hasActual) return (
-    <div className="bg-white rounded-2xl shadow-sm p-5">
-      <h3 className="font-bold text-gray-900 text-base mb-3 flex items-center gap-2"><DollarSign className="h-4 w-4 text-blue-600" />Budget</h3>
-      <p className="text-gray-400 text-xs text-center py-3">Add items with costs to see your budget</p>
-    </div>
+// ── Set Budget Modal ─────────────────────────────────────────────────────────
+const SetBudgetModal = ({ current, onClose, onSave }) => {
+  const [value, setValue] = useState(current != null ? String(current) : '');
+  const [loading, setLoading] = useState(false);
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{current != null ? 'Edit Trip Budget' : 'Set Trip Budget'}</h2>
+          <p className="text-sm text-gray-500 mt-0.5">How much do you plan to spend in total?</p>
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="p-6">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Total Budget (NPR)</label>
+        <input autoFocus type="number" value={value} onChange={e => setValue(e.target.value)}
+          placeholder="e.g. 50000"
+          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-blue-600 transition" />
+        <p className="text-xs text-gray-400 mt-2">This is your overall spending target for the whole trip.</p>
+      </div>
+      <div className="px-6 pb-6 flex gap-3">
+        <button onClick={onClose} className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-sm transition">Cancel</button>
+        <button disabled={loading}
+          onClick={async () => { setLoading(true); await onSave(value ? parseFloat(value) : null); setLoading(false); }}
+          className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold text-sm flex items-center justify-center gap-2 transition">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save Budget
+        </button>
+      </div>
+    </Modal>
   );
+};
+
+// ── Budget Sidebar Card ───────────────────────────────────────────────────────
+const BudgetCard = ({ items, nights, budget, onSetBudget }) => {
+  // Flatten items — hotels already have estimatedCost = pricePerNight * nights baked in
+  const grandEst = items.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+  const doneItems = items.filter(i => i.isDone && i.actualCost != null);
+  const grandAct  = doneItems.reduce((s, i) => s + (i.actualCost || 0), 0);
+  const hasActual = doneItems.length > 0;
+
+  // Per-category breakdown
+  const cats = [
+    { key: 'flight',    label: 'Flights',    Icon: Plane           },
+    { key: 'hotel',     label: 'Hotels',     Icon: Hotel           },
+    { key: 'restaurant,activity', label: 'Activities & Dining', Icon: Zap },
+    { key: 'destination', label: 'Destinations', Icon: MapPin      },
+  ].map(cat => {
+    const types    = cat.key.split(',');
+    const catItems = items.filter(i => types.includes(i.type));
+    const est      = catItems.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+    const actItems = catItems.filter(i => i.isDone && i.actualCost != null);
+    const act      = actItems.length > 0 ? actItems.reduce((s, i) => s + (i.actualCost || 0), 0) : null;
+    return { ...cat, est, act };
+  }).filter(c => c.est > 0 || c.act != null);
+
+  const budgetDiff = budget != null ? grandEst - budget : null;
+  const actualDiff = hasActual && budget != null ? grandAct - budget : null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
-      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><DollarSign className="h-4 w-4 text-blue-600" />Budget</h3>
-      {hasActual && (
-        <div className="flex justify-end gap-6 text-xs text-gray-400 mb-2 pr-0">
-          <span>Estimated</span><span>Actual</span>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-blue-600" /> Budget
+        </h3>
+        <button onClick={onSetBudget}
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition px-2 py-1 rounded-lg hover:bg-blue-50">
+          {budget != null ? 'Edit' : '+ Set Budget'}
+        </button>
+      </div>
+
+      {/* User-set budget row */}
+      {budget != null && (
+        <div className="mb-4 pb-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-semibold text-gray-700">Your Budget</span>
+            <span className="text-base font-bold text-gray-900">{fmtNPR(budget)}</span>
+          </div>
+          {grandEst > 0 && (
+            <>
+              <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+                <span>Estimated spend</span>
+                <span className={budgetDiff > 0 ? 'text-red-500 font-semibold' : 'text-green-600 font-semibold'}>
+                  {fmtNPR(grandEst)}
+                  {budgetDiff > 0 ? ` (+${fmtNPR(budgetDiff)} over)` : budgetDiff < 0 ? ` (${fmtNPR(Math.abs(budgetDiff))} left)` : ''}
+                </span>
+              </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${budgetDiff > 0 ? 'bg-red-400' : 'bg-blue-500'}`}
+                  style={{ width: `${Math.min(100, (grandEst / budget) * 100)}%` }}
+                />
+              </div>
+            </>
+          )}
+          {hasActual && (
+            <div className="mt-2 flex justify-between text-xs">
+              <span className="text-gray-400">Actually spent so far</span>
+              <span className={`font-semibold ${actualDiff > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                {fmtNPR(grandAct)}
+                {actualDiff > 0 ? ` (+${fmtNPR(actualDiff)} over)` : actualDiff < 0 ? ` (${fmtNPR(Math.abs(actualDiff))} left)` : ''}
+              </span>
+            </div>
+          )}
         </div>
       )}
-      <div className="space-y-2.5">
-        {rows.map(r => (
-          <div key={r.key} className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-gray-500 flex-1 min-w-0">
-              <r.Icon className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{r.label}{r.mult > 1 ? ` ×${nights}n` : ''}</span>
-            </span>
-            <div className="flex gap-6 flex-shrink-0 ml-2">
-              <span className={`font-semibold ${hasActual ? 'text-gray-400 text-xs' : 'text-gray-900'} w-24 text-right`}>{fmtNPR(r.est)}</span>
-              {hasActual && (
-                <span className={`font-semibold text-sm w-24 text-right ${r.act != null ? (r.act > r.est ? 'text-red-500' : r.act < r.est ? 'text-green-600' : 'text-gray-900') : 'text-gray-300'}`}>
-                  {r.act != null ? fmtNPR(r.act) : '—'}
-                </span>
-              )}
+
+      {/* No items yet */}
+      {cats.length === 0 && (
+        <p className="text-gray-400 text-sm text-center py-3">Add items to see cost breakdown</p>
+      )}
+
+      {/* Category breakdown */}
+      {cats.length > 0 && (
+        <>
+          {budget == null && hasActual && (
+            <div className="flex justify-end gap-8 text-xs text-gray-400 mb-2">
+              <span>Estimated</span><span>Actual</span>
             </div>
+          )}
+          <div className="space-y-3">
+            {cats.map(c => (
+              <div key={c.key} className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2 text-gray-500 flex-1 min-w-0">
+                  <c.Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="truncate">{c.label}</span>
+                </span>
+                <div className="flex items-center gap-4 flex-shrink-0 ml-2">
+                  <span className={`font-semibold ${hasActual ? 'text-gray-400 text-xs' : 'text-gray-900'}`}>{fmtNPR(c.est)}</span>
+                  {hasActual && (
+                    <span className={`font-semibold w-28 text-right ${c.act != null
+                      ? c.act > c.est ? 'text-red-500' : c.act < c.est ? 'text-green-600' : 'text-gray-900'
+                      : 'text-gray-300'}`}>
+                      {c.act != null ? fmtNPR(c.act) : '—'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Total row */}
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="font-bold text-gray-900 text-sm">Total</span>
+              <div className="flex items-center gap-4">
+                <span className={`font-bold ${hasActual ? 'text-gray-400 text-xs' : 'text-blue-600 text-base'}`}>
+                  {fmtNPR(grandEst)}
+                </span>
+                {hasActual && (
+                  <span className={`font-bold text-base w-28 text-right ${
+                    grandAct > grandEst ? 'text-red-500' : grandAct < grandEst ? 'text-green-600' : 'text-blue-600'
+                  }`}>
+                    {fmtNPR(grandAct)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Est vs actual diff (when no user budget set) */}
+            {hasActual && budget == null && grandAct !== grandEst && (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold ${grandAct > grandEst ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+                {grandAct > grandEst ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                {grandAct > grandEst ? `${fmtNPR(grandAct - grandEst)} over estimate` : `${fmtNPR(grandEst - grandAct)} under estimate`}
+              </div>
+            )}
           </div>
-        ))}
-        <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-          <span className="font-bold text-gray-900 text-sm">Total</span>
-          <div className="flex gap-6">
-            <span className={`font-bold ${hasActual ? 'text-gray-400 text-xs' : 'text-blue-600 text-base'} w-24 text-right`}>{fmtNPR(grandEst)}</span>
-            {hasActual && <span className={`font-bold text-base w-24 text-right ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-600' : 'text-blue-600'}`}>{fmtNPR(grandAct)}</span>}
-          </div>
-        </div>
-        {hasActual && diff !== 0 && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold ${diff > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-            {diff > 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-            {diff > 0 ? `${fmtNPR(diff)} over estimate` : `${fmtNPR(Math.abs(diff))} under estimate`}
-          </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 };
 
 
 // ── Trip Completion Summary Banner ───────────────────────────────────────────
-const TripSummaryBanner = ({ itin, items, nights }) => {
-  const totalEst   = items.reduce((s, i) => s + (i.estimatedCost || 0), 0);
-  const totalAct   = items.filter(i => i.isDone && i.actualCost != null).reduce((s, i) => s + (i.actualCost || 0), 0);
-  const hasActual  = items.some(i => i.isDone && i.actualCost != null);
-  const doneCount  = items.filter(i => i.isDone).length;
-  const destNames  = items.filter(i => i.type === 'destination').map(i => i.title);
-  const diff       = hasActual ? totalAct - items.filter(i => i.isDone && i.actualCost != null).reduce((s, i) => s + (i.estimatedCost || 0), 0) : null;
+const TripSummaryBanner = ({ itin, items, nights, budget }) => {
+  const totalEst  = items.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+  const totalAct  = items.filter(i => i.isDone && i.actualCost != null).reduce((s, i) => s + (i.actualCost || 0), 0);
+  const hasActual = items.some(i => i.isDone && i.actualCost != null);
+  const doneCount = items.filter(i => i.isDone).length;
+  const destNames = items.filter(i => i.type === 'destination').map(i => i.title);
+
+  // What to compare actual spend against: user budget if set, otherwise estimated
+  const baseline     = budget != null ? budget : totalEst;
+  const actVsBase    = hasActual ? totalAct - baseline : null;
+  const estVsBudget  = budget != null ? totalEst - budget : null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
-      {/* Green top stripe */}
       <div className="h-2 bg-blue-600" />
       <div className="p-6">
         <div className="flex items-center gap-3 mb-6">
@@ -987,23 +1088,38 @@ const TripSummaryBanner = ({ itin, items, nights }) => {
             <p className="text-2xl font-bold text-gray-900">{doneCount}</p>
             <p className="text-sm text-gray-500">of {items.length} planned</p>
           </div>
-          {totalEst > 0 && (
+          {budget != null && (
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Your Budget</p>
+              <p className="text-xl font-bold text-gray-900">{fmtNPR(budget)}</p>
+              {estVsBudget != null && (
+                <p className={`text-sm ${estVsBudget > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                  Est. {estVsBudget > 0 ? `${fmtNPR(estVsBudget)} over` : `${fmtNPR(Math.abs(estVsBudget))} under`}
+                </p>
+              )}
+            </div>
+          )}
+          {budget == null && totalEst > 0 && (
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Estimated</p>
               <p className="text-xl font-bold text-gray-900">{fmtNPR(totalEst)}</p>
-              <p className="text-sm text-gray-500">total budget</p>
+              <p className="text-sm text-gray-500">planned spend</p>
             </div>
           )}
           {hasActual && (
-            <div className={`rounded-xl p-4 ${diff > 0 ? 'bg-red-50' : diff < 0 ? 'bg-green-50' : 'bg-blue-50'}`}>
-              <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-green-500' : 'text-blue-400'}`}>
+            <div className={`rounded-xl p-4 ${actVsBase > 0 ? 'bg-red-50' : actVsBase < 0 ? 'bg-green-50' : 'bg-blue-50'}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${actVsBase > 0 ? 'text-red-400' : actVsBase < 0 ? 'text-green-500' : 'text-blue-400'}`}>
                 Actually Spent
               </p>
-              <p className={`text-xl font-bold ${diff > 0 ? 'text-red-600' : diff < 0 ? 'text-green-700' : 'text-blue-600'}`}>
+              <p className={`text-xl font-bold ${actVsBase > 0 ? 'text-red-600' : actVsBase < 0 ? 'text-green-700' : 'text-blue-600'}`}>
                 {fmtNPR(totalAct)}
               </p>
-              <p className={`text-sm ${diff > 0 ? 'text-red-400' : diff < 0 ? 'text-green-500' : 'text-blue-400'}`}>
-                {diff > 0 ? `${fmtNPR(diff)} over` : diff < 0 ? `${fmtNPR(Math.abs(diff))} saved` : 'exactly on budget'}
+              <p className={`text-sm ${actVsBase > 0 ? 'text-red-400' : actVsBase < 0 ? 'text-green-500' : 'text-blue-400'}`}>
+                {actVsBase > 0
+                  ? `${fmtNPR(actVsBase)} over ${budget != null ? 'budget' : 'estimate'}`
+                  : actVsBase < 0
+                  ? `${fmtNPR(Math.abs(actVsBase))} ${budget != null ? 'saved' : 'under estimate'}`
+                  : `exactly on ${budget != null ? 'budget' : 'estimate'}`}
               </p>
             </div>
           )}
@@ -1042,9 +1158,10 @@ const ItineraryDetail = () => {
   const [markItem,    setMarkItem]    = useState(null);
   const [editCost,    setEditCost]    = useState(null);
   const [editTrip,    setEditTrip]    = useState(false);
-  const [showShare,   setShowShare]   = useState(false);
-  const [showCover,   setShowCover]   = useState(false);
-  const [deleteTrip,  setDeleteTrip]  = useState(false);
+  const [showShare,      setShowShare]      = useState(false);
+  const [showCover,      setShowCover]      = useState(false);
+  const [deleteTrip,     setDeleteTrip]     = useState(false);
+  const [showSetBudget,  setShowSetBudget]  = useState(false);
 
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
@@ -1129,6 +1246,18 @@ const ItineraryDetail = () => {
     navigate('/itinerary');
   };
 
+  const handleSetBudget = async (amount) => {
+    const res = await fetch(`${BASE_URL}/api/itineraries/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ budget: amount }),
+    });
+    if (!res.ok) { alert('Failed to save budget'); return; }
+    const updated = await res.json();
+    setItin(prev => ({ ...prev, budget: updated.budget }));
+    setShowSetBudget(false);
+  };
+
   const days          = itin ? getDays(itin) : [];
   const hasDays       = days.length > 0;
   const nights        = itin ? getNights(itin) : 1;
@@ -1177,8 +1306,9 @@ const ItineraryDetail = () => {
       {markItem   && <MarkDoneModal item={markItem} onClose={() => setMarkItem(null)} onConfirm={handleMarkDone} />}
       {editCost   && <EditCostModal item={editCost} onClose={() => setEditCost(null)} onConfirm={handleEditCost} />}
       {editTrip   && <TripModal existing={itin} onClose={() => setEditTrip(false)} onSave={handleEditSave} />}
-      {showShare  && <ShareModal itin={itin} onClose={() => setShowShare(false)} />}
-      {showCover  && <CoverPhotoModal itinId={id} token={token} onClose={() => setShowCover(false)} onSaved={path => setItin(prev => ({ ...prev, coverImage: path }))} />}
+      {showShare     && <ShareModal itin={itin} onClose={() => setShowShare(false)} />}
+      {showCover     && <CoverPhotoModal itinId={id} token={token} onClose={() => setShowCover(false)} onSaved={path => setItin(prev => ({ ...prev, coverImage: path }))} />}
+      {showSetBudget && <SetBudgetModal current={itin.budget} onClose={() => setShowSetBudget(false)} onSave={handleSetBudget} />}
       {!hasDays && modal === 'destination' && <AddDestModal   onClose={() => setModal(null)} onAdd={handleAddItem} />}
       {!hasDays && modal === 'hotel'       && <AddHotelModal  onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
       {!hasDays && modal === 'flight'      && <AddFlightModal onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
@@ -1230,7 +1360,7 @@ const ItineraryDetail = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Trip Completion Summary — shown when trip is completed */}
         {status === 'completed' && (
-          <TripSummaryBanner itin={itin} items={items} nights={nights} />
+          <TripSummaryBanner itin={itin} items={items} nights={nights} budget={itin.budget ?? null} />
         )}
         <div className="grid lg:grid-cols-3 gap-6">
 
@@ -1323,7 +1453,7 @@ const ItineraryDetail = () => {
             </div>
 
             {/* Budget */}
-            <BudgetCard items={items} nights={nights} />
+            <BudgetCard items={items} nights={nights} budget={itin.budget ?? null} onSetBudget={() => setShowSetBudget(true)} />
 
             {/* Summary */}
             <div className="bg-white rounded-2xl shadow-sm p-6">

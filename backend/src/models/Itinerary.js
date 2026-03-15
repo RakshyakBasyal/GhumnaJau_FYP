@@ -6,7 +6,8 @@ const itinerarySchema = new mongoose.Schema({
   title:       { type: String, default: 'New Trip' },
   startDate:   Date,
   endDate:     Date,
-  coverImage:  { type: String, default: null },   // uploaded cover photo path
+  coverImage:  { type: String, default: null },
+  budget:      { type: Number, default: null },   // user-defined total trip budget
   status: {
     type:    String,
     enum:    ['planning', 'active', 'completed'],
