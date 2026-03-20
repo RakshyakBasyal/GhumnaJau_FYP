@@ -15,6 +15,7 @@ router.get(
   '/google',
   passport.authenticate('google', {
     scope: ['profile', 'email'],
+    prompt: 'select_account',
   })
 );
 
@@ -23,10 +24,9 @@ router.get(
   '/google/callback',
   passport.authenticate('google', {
     failureRedirect: 'http://localhost:3000/login?error=google_failed',
-    session: false, // We use JWT, no session needed
+    session: false,
   }),
   (req, res) => {
-    // User authenticated successfully — create JWT
     const token = jwt.sign(
       {
         id: req.user._id,
@@ -38,7 +38,6 @@ router.get(
       { expiresIn: '7d' }
     );
 
-    // Redirect to frontend with token in URL
     res.redirect(`http://localhost:3000/auth/google/success?token=${token}`);
   }
 );
