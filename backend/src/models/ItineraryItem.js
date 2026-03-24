@@ -6,7 +6,7 @@ const schema = new mongoose.Schema({
   itinerary:     { type: mongoose.Schema.Types.ObjectId, ref: 'Itinerary', required: true },
   type: {
     type: String,
-    enum: ['destination', 'hotel', 'flight', 'restaurant', 'activity', 'custom'],
+    enum: ['destination', 'hotel', 'flight', 'restaurant', 'activity', 'custom', 'custom_expense'],
     required: true,
   },
   title:         { type: String, default: '' },

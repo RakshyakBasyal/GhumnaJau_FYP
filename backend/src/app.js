@@ -32,6 +32,6 @@ app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/flights', flightRoutes);
 app.use('/api/itineraries', require('./routes/itineraryRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
-// ← /api/ai line removed
+app.use('/api/password-reset', require('./routes/passwordResetRoutes'));
 
 module.exports = app;

@@ -8,7 +8,7 @@ import {
   ChevronUp, Check, CheckCircle2, Circle, TrendingUp, TrendingDown,
   Minus, Cloud, Sun, CloudRain, Wind, Thermometer, Camera,
   Share2, Package, ClipboardList, StickyNote, Copy, CheckCheck,
-  FileText
+  FileText, Receipt
 } from 'lucide-react';
 import { TripModal, StatusButton, STATUS_CFG, Modal, ConfirmDelete } from './Itinerary';
 
@@ -18,11 +18,12 @@ const tok      = () => localStorage.getItem('token');
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const TYPE_CFG = {
-  destination: { icon: MapPin,          label: 'Destination', color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-200'  },
-  hotel:       { icon: Hotel,           label: 'Hotel',       color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200'   },
-  flight:      { icon: Plane,           label: 'Flight',      color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200' },
-  restaurant:  { icon: UtensilsCrossed, label: 'Restaurant',  color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200'  },
-  activity:    { icon: Zap,             label: 'Activity',    color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+  destination:    { icon: MapPin,          label: 'Destination',    color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-200',  noCost: true  },
+  hotel:          { icon: Hotel,           label: 'Hotel',          color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200'                  },
+  flight:         { icon: Plane,           label: 'Flight',         color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200'                },
+  restaurant:     { icon: UtensilsCrossed, label: 'Restaurant',     color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200'                 },
+  activity:       { icon: Zap,             label: 'Activity',       color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200'                },
+  custom_expense: { icon: Receipt,         label: 'Expense',        color: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200'                  },
 };
 const getCfg = (t) => TYPE_CFG[t] || { icon: Calendar, label: t, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200' };
 
@@ -77,6 +78,68 @@ const SearchModal = ({ title, subtitle, onClose, loading, children, query, setQu
     </div>
   </Modal>
 );
+
+// ── Add Custom Expense Modal ──────────────────────────────────────────────────
+const AddCustomExpenseModal = ({ onClose, onAdd, plannedDate }) => {
+  const [title,   setTitle]   = useState('');
+  const [amount,  setAmount]  = useState('');
+  const [date,    setDate]    = useState(plannedDate?.slice(0, 10) || '');
+  const [notes,   setNotes]   = useState('');
+  const [loading, setLoading] = useState(false);
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Add Expense</h2>
+          <p className="text-sm text-gray-400 mt-0.5">Record any cost manually</p>
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="p-5 space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">What did you spend on? <span className="text-red-400">*</span></label>
+          <input autoFocus type="text" value={title} onChange={e => setTitle(e.target.value)}
+            placeholder="e.g. Taxi to airport, Entrance fee, Souvenir shopping"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount (NPR) <span className="text-red-400">*</span></label>
+          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any extra details..."
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition" />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Date</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition" />
+        </div>
+      </div>
+      <div className="px-5 pb-5 flex gap-3">
+        <button onClick={onClose} className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-sm transition">Cancel</button>
+        <button disabled={!title.trim() || !amount || loading}
+          onClick={async () => {
+            setLoading(true);
+            await onAdd({
+              type: 'custom_expense',
+              title,
+              notes,
+              plannedDate: date || undefined,
+              estimatedCost: parseFloat(amount) || 0,
+            });
+            setLoading(false);
+          }}
+          className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add Expense
+        </button>
+      </div>
+    </Modal>
+  );
+};
 
 // ── Add Destination Modal ─────────────────────────────────────────────────────
 const AddDestModal = ({ onClose, onAdd, plannedDate }) => {
@@ -456,13 +519,15 @@ const AddCustomModal = ({ type, onClose, onAdd, plannedDate }) => {
   );
 };
 
+
 // ── Mark Done Modal ───────────────────────────────────────────────────────────
 const MarkDoneModal = ({ item, onClose, onConfirm }) => {
   const [cost, setCost]       = useState(item.estimatedCost > 0 ? String(item.estimatedCost) : '');
   const [loading, setLoading] = useState(false);
-  const cfg  = getCfg(item.type);
-  const Icon = cfg.icon;
-  const diff = cost && item.estimatedCost > 0 ? parseFloat(cost) - item.estimatedCost : null;
+  const cfg        = getCfg(item.type);
+  const Icon       = cfg.icon;
+  const isNoCost   = item.type === 'destination';
+  const diff       = !isNoCost && cost && item.estimatedCost > 0 ? parseFloat(cost) - item.estimatedCost : null;
 
   return (
     <Modal onClose={onClose}>
@@ -477,27 +542,35 @@ const MarkDoneModal = ({ item, onClose, onConfirm }) => {
           </div>
           <div>
             <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
-            {item.estimatedCost > 0 && <p className="text-xs text-gray-500">Estimated: {fmtNPR(item.estimatedCost)}</p>}
+            {!isNoCost && item.estimatedCost > 0 && <p className="text-xs text-gray-500">Estimated: {fmtNPR(item.estimatedCost)}</p>}
           </div>
         </div>
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Actual Cost (NPR) <span className="text-gray-400 font-normal">— optional</span></label>
-          <input autoFocus type="number" value={cost} onChange={e => setCost(e.target.value)}
-            placeholder="How much did you actually spend?"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition" />
-          <p className="text-xs text-gray-400 mt-1.5">Leave blank if no cost or free</p>
-        </div>
-        {diff !== null && (
-          <div className={`px-4 py-3 rounded-xl text-sm flex items-center gap-2 font-medium ${diff > 0 ? 'bg-red-50 text-red-600' : diff < 0 ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
-            {diff > 0 ? <TrendingUp className="h-4 w-4" /> : diff < 0 ? <TrendingDown className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
-            {diff > 0 ? `NPR ${diff.toLocaleString()} over estimate` : diff < 0 ? `NPR ${Math.abs(diff).toLocaleString()} under estimate` : 'Exactly on estimate'}
-          </div>
+        {isNoCost ? (
+          <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">
+            Marking this destination as visited. No cost to record.
+          </p>
+        ) : (
+          <>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Actual Cost (NPR) <span className="text-gray-400 font-normal">— optional</span></label>
+              <input autoFocus type="number" value={cost} onChange={e => setCost(e.target.value)}
+                placeholder="How much did you actually spend?"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition" />
+              <p className="text-xs text-gray-400 mt-1.5">Leave blank if free or unknown</p>
+            </div>
+            {diff !== null && (
+              <div className={`px-4 py-3 rounded-xl text-sm flex items-center gap-2 font-medium ${diff > 0 ? 'bg-red-50 text-red-600' : diff < 0 ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
+                {diff > 0 ? <TrendingUp className="h-4 w-4" /> : diff < 0 ? <TrendingDown className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
+                {diff > 0 ? `NPR ${diff.toLocaleString()} over estimate` : diff < 0 ? `NPR ${Math.abs(diff).toLocaleString()} under estimate` : 'Exactly on estimate'}
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className="px-6 pb-6 flex gap-3">
         <button onClick={onClose} className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold text-sm transition">Cancel</button>
         <button disabled={loading}
-          onClick={async () => { setLoading(true); await onConfirm({ isDone: true, actualCost: cost ? parseFloat(cost) : null }); setLoading(false); }}
+          onClick={async () => { setLoading(true); await onConfirm({ isDone: true, actualCost: isNoCost ? null : (cost ? parseFloat(cost) : null) }); setLoading(false); }}
           className="flex-1 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-semibold text-sm flex items-center justify-center gap-2 transition">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Mark as Done
         </button>
@@ -727,11 +800,15 @@ const ItemRow = ({ item, onDelete, onMarkDone, onUndone, onEditCost }) => {
   const cfg  = getCfg(item.type);
   const Icon = cfg.icon;
   return (
-    <div className={`group flex items-start gap-4 py-4 border-b border-gray-100 last:border-0 ${item.isDone ? 'opacity-55' : ''}`}>
-      <button onClick={() => item.isDone ? onUndone(item) : onMarkDone(item)}
-        className="mt-1 flex-shrink-0 text-gray-300 hover:text-green-500 transition">
-        {item.isDone ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <Circle className="h-5 w-5" />}
-      </button>
+    <div className={`group flex items-start gap-4 py-4 border-b border-gray-100 last:border-0 ${item.isDone && item.type !== 'destination' ? 'opacity-55' : ''}`}>
+      {item.type !== 'destination' ? (
+        <button onClick={() => item.isDone ? onUndone(item) : onMarkDone(item)}
+          className="mt-1 flex-shrink-0 text-gray-300 hover:text-green-500 transition">
+          {item.isDone ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <Circle className="h-5 w-5" />}
+        </button>
+      ) : (
+        <div className="mt-1 w-5 h-5 flex-shrink-0" />
+      )}
       <div className={`w-9 h-9 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
         <Icon className={`h-4 w-4 ${cfg.color}`} />
       </div>
@@ -740,15 +817,15 @@ const ItemRow = ({ item, onDelete, onMarkDone, onUndone, onEditCost }) => {
           {item.title}
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-500">
-          {item.estimatedCost > 0 && (
+          {item.type !== 'destination' && item.estimatedCost > 0 && (
             <span className={item.isDone ? 'line-through text-gray-300' : ''}>Est. {fmtNPR(item.estimatedCost)}</span>
           )}
-          {item.isDone && item.actualCost != null && (
+          {item.type !== 'destination' && item.isDone && item.actualCost != null && (
             <span className={`font-semibold ${item.actualCost > item.estimatedCost ? 'text-red-500' : item.actualCost < item.estimatedCost ? 'text-green-600' : 'text-blue-600'}`}>
               Actual: {fmtNPR(item.actualCost)}
             </span>
           )}
-          {item.isDone && item.actualCost == null && item.estimatedCost > 0 && (
+          {item.type !== 'destination' && item.isDone && item.actualCost == null && item.estimatedCost > 0 && (
             <button onClick={() => onEditCost(item)} className="text-blue-500 hover:text-blue-700 transition">+ add actual cost</button>
           )}
           {item.type === 'hotel' && item.roomTypeName && (
@@ -766,7 +843,7 @@ const ItemRow = ({ item, onDelete, onMarkDone, onUndone, onEditCost }) => {
             </span>
           )}
         </div>
-        {item.isDone && item.actualCost != null && (
+        {item.type !== 'destination' && item.isDone && item.actualCost != null && (
           <button onClick={() => onEditCost(item)} className="text-xs text-gray-400 hover:text-blue-500 mt-1 transition">Edit actual cost</button>
         )}
       </div>
@@ -818,20 +895,22 @@ const DaySection = ({ day, dayNum, items, onAddItem, destinationIds, onDeleteIte
 
   const handleAdd = async (itemData) => { await onAddItem({ ...itemData, plannedDate: itemData.plannedDate || dateStr }); setModal(null); };
   const ADD_BTNS  = [
-    { key: 'destination', label: 'Destination', Icon: MapPin          },
-    { key: 'hotel',       label: 'Hotel',       Icon: Hotel           },
-    { key: 'flight',      label: 'Flight',      Icon: Plane           },
-    { key: 'restaurant',  label: 'Restaurant',  Icon: UtensilsCrossed },
-    { key: 'activity',    label: 'Activity',    Icon: Zap             },
+    { key: 'destination',    label: 'Destination', Icon: MapPin          },
+    { key: 'hotel',          label: 'Hotel',       Icon: Hotel           },
+    { key: 'flight',         label: 'Flight',      Icon: Plane           },
+    { key: 'restaurant',     label: 'Restaurant',  Icon: UtensilsCrossed },
+    { key: 'activity',       label: 'Activity',    Icon: Zap             },
+    { key: 'custom_expense', label: 'Expense',     Icon: Receipt         },
   ];
 
   return (
     <>
-      {modal === 'destination' && <AddDestModal   onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
-      {modal === 'hotel'       && <AddHotelModal  onClose={() => setModal(null)} onAdd={handleAdd} destinationIds={destinationIds} plannedDate={dateStr} />}
-      {modal === 'flight'      && <AddFlightModal onClose={() => setModal(null)} onAdd={handleAdd} destinationIds={destinationIds} plannedDate={dateStr} />}
-      {modal === 'restaurant'  && <AddCustomModal type="restaurant" onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
-      {modal === 'activity'    && <AddCustomModal type="activity"   onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
+      {modal === 'destination'    && <AddDestModal          onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
+      {modal === 'hotel'          && <AddHotelModal         onClose={() => setModal(null)} onAdd={handleAdd} destinationIds={destinationIds} plannedDate={dateStr} />}
+      {modal === 'flight'         && <AddFlightModal        onClose={() => setModal(null)} onAdd={handleAdd} destinationIds={destinationIds} plannedDate={dateStr} />}
+      {modal === 'restaurant'     && <AddCustomModal type="restaurant" onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
+      {modal === 'activity'       && <AddCustomModal type="activity"   onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
+      {modal === 'custom_expense' && <AddCustomExpenseModal onClose={() => setModal(null)} onAdd={handleAdd} plannedDate={dateStr} />}
 
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <button onClick={() => setOpen(o => !o)}
@@ -912,17 +991,17 @@ const SetBudgetModal = ({ current, onClose, onSave }) => {
 // ── Budget Sidebar Card ───────────────────────────────────────────────────────
 const BudgetCard = ({ items, nights, budget, onSetBudget }) => {
   // Flatten items — hotels already have estimatedCost = pricePerNight * nights baked in
-  const grandEst = items.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+  const grandEst = items.filter(i => i.type !== 'destination').reduce((s, i) => s + (i.estimatedCost || 0), 0);
   const doneItems = items.filter(i => i.isDone && i.actualCost != null);
   const grandAct  = doneItems.reduce((s, i) => s + (i.actualCost || 0), 0);
   const hasActual = doneItems.length > 0;
 
   // Per-category breakdown
   const cats = [
-    { key: 'flight',    label: 'Flights',    Icon: Plane           },
-    { key: 'hotel',     label: 'Hotels',     Icon: Hotel           },
-    { key: 'restaurant,activity', label: 'Activities & Dining', Icon: Zap },
-    { key: 'destination', label: 'Destinations', Icon: MapPin      },
+    { key: 'flight',              label: 'Flights',            Icon: Plane           },
+    { key: 'hotel',               label: 'Hotels',             Icon: Hotel           },
+    { key: 'restaurant,activity', label: 'Activities & Dining',Icon: Zap             },
+    { key: 'custom_expense',      label: 'Other Expenses',     Icon: Receipt         },
   ].map(cat => {
     const types    = cat.key.split(',');
     const catItems = items.filter(i => types.includes(i.type));
@@ -1051,8 +1130,8 @@ const BudgetCard = ({ items, nights, budget, onSetBudget }) => {
 
 // ── Trip Completion Summary Banner ───────────────────────────────────────────
 const TripSummaryBanner = ({ itin, items, nights, budget }) => {
-  const totalEst  = items.reduce((s, i) => s + (i.estimatedCost || 0), 0);
-  const totalAct  = items.filter(i => i.isDone && i.actualCost != null).reduce((s, i) => s + (i.actualCost || 0), 0);
+  const totalEst  = items.filter(i => i.type !== 'destination').reduce((s, i) => s + (i.estimatedCost || 0), 0);
+  const totalAct  = items.filter(i => i.isDone && i.actualCost != null && i.type !== 'destination').reduce((s, i) => s + (i.actualCost || 0), 0);
   const hasActual = items.some(i => i.isDone && i.actualCost != null);
   const doneCount = items.filter(i => i.isDone).length;
   const destNames = items.filter(i => i.type === 'destination').map(i => i.title);
@@ -1275,11 +1354,12 @@ const ItineraryDetail = () => {
   );
 
   const QUICK_BTNS = [
-    { key: 'destination', label: 'Destination', Icon: MapPin          },
-    { key: 'hotel',       label: 'Hotel',       Icon: Hotel           },
-    { key: 'flight',      label: 'Flight',      Icon: Plane           },
-    { key: 'restaurant',  label: 'Restaurant',  Icon: UtensilsCrossed },
-    { key: 'activity',    label: 'Activity',    Icon: Zap             },
+    { key: 'destination',    label: 'Destination', Icon: MapPin          },
+    { key: 'hotel',          label: 'Hotel',       Icon: Hotel           },
+    { key: 'flight',         label: 'Flight',      Icon: Plane           },
+    { key: 'restaurant',     label: 'Restaurant',  Icon: UtensilsCrossed },
+    { key: 'activity',       label: 'Activity',    Icon: Zap             },
+    { key: 'custom_expense', label: 'Expense',     Icon: Receipt         },
   ];
 
   if (loading) return (
@@ -1309,11 +1389,12 @@ const ItineraryDetail = () => {
       {showShare     && <ShareModal itin={itin} onClose={() => setShowShare(false)} />}
       {showCover     && <CoverPhotoModal itinId={id} token={token} onClose={() => setShowCover(false)} onSaved={path => setItin(prev => ({ ...prev, coverImage: path }))} />}
       {showSetBudget && <SetBudgetModal current={itin.budget} onClose={() => setShowSetBudget(false)} onSave={handleSetBudget} />}
-      {!hasDays && modal === 'destination' && <AddDestModal   onClose={() => setModal(null)} onAdd={handleAddItem} />}
-      {!hasDays && modal === 'hotel'       && <AddHotelModal  onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
-      {!hasDays && modal === 'flight'      && <AddFlightModal onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
-      {!hasDays && modal === 'restaurant'  && <AddCustomModal type="restaurant" onClose={() => setModal(null)} onAdd={handleAddItem} />}
-      {!hasDays && modal === 'activity'    && <AddCustomModal type="activity"   onClose={() => setModal(null)} onAdd={handleAddItem} />}
+      {!hasDays && modal === 'destination'    && <AddDestModal          onClose={() => setModal(null)} onAdd={handleAddItem} />}
+      {!hasDays && modal === 'hotel'          && <AddHotelModal         onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
+      {!hasDays && modal === 'flight'         && <AddFlightModal        onClose={() => setModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
+      {!hasDays && modal === 'restaurant'     && <AddCustomModal type="restaurant" onClose={() => setModal(null)} onAdd={handleAddItem} />}
+      {!hasDays && modal === 'activity'       && <AddCustomModal type="activity"   onClose={() => setModal(null)} onAdd={handleAddItem} />}
+      {!hasDays && modal === 'custom_expense' && <AddCustomExpenseModal onClose={() => setModal(null)} onAdd={handleAddItem} />}
 
       {/* Cover image hero — same treatment as hotel detail pages */}
       <div className="relative h-56 bg-gradient-to-br from-blue-500 to-blue-700 overflow-hidden">
@@ -1421,8 +1502,8 @@ const ItineraryDetail = () => {
                 <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
                   {QUICK_BTNS.map(({ key, label, Icon }) => (
                     <button key={key} onClick={() => setModal(key)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition">
-                      <Icon className="h-3.5 w-3.5" /> + {label}
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition">
+                      <Icon className="h-4 w-4" /> {label}
                     </button>
                   ))}
                 </div>
