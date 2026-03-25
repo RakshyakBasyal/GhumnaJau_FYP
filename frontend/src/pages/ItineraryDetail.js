@@ -1583,3 +1583,4 @@ const ItineraryDetail = () => {
 };
 
 export default ItineraryDetail;
+
