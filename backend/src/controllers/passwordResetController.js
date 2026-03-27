@@ -1,3 +1,4 @@
+//backend/src/controllers/passwordResetController.js
 const User       = require('../models/User');
 const transporter = require('../config/mailer');
 const bcrypt     = require('bcryptjs');
