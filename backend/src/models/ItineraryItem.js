@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const schema = new mongoose.Schema({
   user:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   itinerary: { type: mongoose.Schema.Types.ObjectId, ref: 'Itinerary', required: true },
+  planId:    { type: mongoose.Schema.Types.ObjectId, ref: 'ItineraryPlan', default: null }, // which plan step this belongs to
 
   type: {
     type: String,
