@@ -60,6 +60,25 @@ const bookingSchema = new mongoose.Schema({
     enum: ['pending', 'completed', 'failed', 'refunded'], // Added 'refunded'
     default: 'pending'
   },
+  cancellationReason: {
+    type: String,
+    default: '',
+  },
+  cancellationNote: {
+    type: String,
+    default: '',
+  },
+  cancelledAt: {
+    type: Date,
+  },
+  refundPercent: {
+    type: Number,
+    default: 0,
+  },
+  refundAmount: {
+    type: Number,
+    default: 0,
+  },
   transactionId: {
     type: String,
   },

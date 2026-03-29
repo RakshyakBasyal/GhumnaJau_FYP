@@ -204,6 +204,7 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
 // User cancel booking (allows pending OR confirmed/paid bookings)
 router.patch('/my/:id/cancel', auth, async (req, res) => {
   try {
+    const { cancellationReason = '', cancellationNote = '' } = req.body || {};
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
@@ -216,6 +217,11 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
     }
 
     booking.status = 'cancelled';
+    booking.cancellationReason = cancellationReason;
+    booking.cancellationNote = cancellationNote;
+    booking.cancelledAt = new Date();
+    booking.refundPercent = 0;
+    booking.refundAmount = 0;
     await booking.save();
 
     // Restore flight seats if flight booking

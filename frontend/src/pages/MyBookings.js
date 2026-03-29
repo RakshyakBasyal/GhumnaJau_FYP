@@ -29,6 +29,8 @@ const MyBookings = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [pendingCancelBooking, setPendingCancelBooking] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelNote, setCancelNote] = useState('');
 
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
@@ -39,6 +41,40 @@ const MyBookings = () => {
   const [unarchiving, setUnarchiving] = useState(false);
 
   const [payingBookingId, setPayingBookingId] = useState(null);
+
+  const cancellationReasons = [
+    { value: 'change_of_plans', label: 'Change of plans' },
+    { value: 'found_better_option', label: 'Found a better option' },
+    { value: 'pricing_issue', label: 'Pricing issue' },
+    { value: 'travel_dates_changed', label: 'Travel dates changed' },
+    { value: 'booking_mistake', label: 'Booked by mistake' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const getTravelDate = (booking) => {
+    if (!booking) return null;
+    const value = booking.type === 'hotel' ? booking.checkIn : booking.flight?.departureDate;
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const getRefundPercent = (booking) => {
+    if (!booking || booking.paymentStatus !== 'completed') return 0;
+    const travelDate = getTravelDate(booking);
+    if (!travelDate) return 0;
+    const diffDays = (travelDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+    if (diffDays >= 7) return 100;
+    if (diffDays >= 3) return 80;
+    if (diffDays >= 1) return 50;
+    return 0;
+  };
+
+  const getRefundPreview = (booking) => {
+    const percent = getRefundPercent(booking);
+    const amount = ((booking?.totalAmount || 0) * percent) / 100;
+    return { percent, amount };
+  };
 
   useEffect(() => {
     const socket = io(BASE_URL, { withCredentials: true });
@@ -128,15 +164,25 @@ const MyBookings = () => {
 
   const requestCancel = (booking) => {
     setPendingCancelBooking(booking);
+    setCancelReason('');
+    setCancelNote('');
     setShowCancelModal(true);
   };
 
   const confirmCancel = async () => {
     if (!pendingCancelBooking) return;
+    if (!cancelReason) {
+      showToast('Please select a cancellation reason', 'error');
+      return;
+    }
     setCancelling(true);
 
     try {
       let toastMessage = 'Booking cancelled successfully';
+      const payload = {
+        cancellationReason: cancelReason,
+        cancellationNote: cancelNote.trim(),
+      };
 
       if (pendingCancelBooking.paymentStatus === 'completed') {
         const refundRes = await fetch(
@@ -147,13 +193,16 @@ const MyBookings = () => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${localStorage.getItem('token')}`,
             },
+            body: JSON.stringify(payload),
           }
         );
 
         const refundData = await refundRes.json();
         if (!refundRes.ok) throw new Error(refundData.msg || 'Refund failed');
-
-        toastMessage = `NPR ${pendingCancelBooking.totalAmount.toLocaleString()} refunded. Booking cancelled successfully`;
+        toastMessage =
+          refundData.amountRefunded > 0
+            ? `NPR ${Number(refundData.amountRefunded).toLocaleString()} refunded. Booking cancelled successfully`
+            : 'Booking cancelled. No refund applicable for this cancellation window.';
       } else {
         const cancelRes = await fetch(
           `${BASE_URL}/api/bookings/my/${pendingCancelBooking._id}/cancel`,
@@ -163,6 +212,7 @@ const MyBookings = () => {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${localStorage.getItem('token')}`,
             },
+            body: JSON.stringify(payload),
           }
         );
 
@@ -181,7 +231,13 @@ const MyBookings = () => {
                 ...b,
                 status: 'cancelled',
                 paymentStatus:
-                  pendingCancelBooking.paymentStatus === 'completed' ? 'refunded' : b.paymentStatus,
+                  pendingCancelBooking.paymentStatus === 'completed'
+                    ? getRefundPercent(pendingCancelBooking) > 0
+                      ? 'refunded'
+                      : b.paymentStatus
+                    : b.paymentStatus,
+                cancellationReason: cancelReason,
+                cancellationNote: cancelNote.trim(),
               }
             : b
         )
@@ -191,6 +247,8 @@ const MyBookings = () => {
     } finally {
       setShowCancelModal(false);
       setPendingCancelBooking(null);
+      setCancelReason('');
+      setCancelNote('');
       setCancelling(false);
     }
   };
@@ -550,15 +608,22 @@ const MyBookings = () => {
 
                 {pendingCancelBooking.paymentStatus === 'completed' ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-                    <p className="text-amber-800 font-medium text-lg">
-                      You will be refunded{' '}
-                      <span className="font-bold">
-                        NPR {pendingCancelBooking.totalAmount.toLocaleString()}
-                      </span>
-                    </p>
-                    <p className="text-sm text-amber-700 mt-3">
-                      The refund will be processed instantly.
-                    </p>
+                    {(() => {
+                      const { percent, amount } = getRefundPreview(pendingCancelBooking);
+                      return (
+                        <>
+                          <p className="text-amber-800 font-medium text-lg">
+                            Estimated refund:{' '}
+                            <span className="font-bold">
+                              NPR {amount.toLocaleString()} ({percent}%)
+                            </span>
+                          </p>
+                          <p className="text-sm text-amber-700 mt-2">
+                            Policy before {pendingCancelBooking.type === 'hotel' ? 'check-in' : 'departure'}: 7+ days = 100%, 3-6 days = 80%, 1-2 days = 50%, under 24h = 0%.
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
@@ -567,6 +632,35 @@ const MyBookings = () => {
                     </p>
                   </div>
                 )}
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Cancellation reason <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a reason</option>
+                    {cancellationReasons.map((reason) => (
+                      <option key={reason.value} value={reason.value}>{reason.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Additional note (optional)
+                  </label>
+                  <textarea
+                    value={cancelNote}
+                    onChange={(e) => setCancelNote(e.target.value)}
+                    rows={3}
+                    placeholder="Tell us anything else about why you are cancelling."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-4 px-6 py-5 border-t bg-gray-50">
@@ -579,9 +673,9 @@ const MyBookings = () => {
                 </button>
                 <button
                   onClick={confirmCancel}
-                  disabled={cancelling}
+                  disabled={cancelling || !cancelReason}
                   className={`px-6 py-3 text-white rounded-lg font-medium flex items-center gap-2 transition min-w-[160px] justify-center ${
-                    cancelling ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
+                    cancelling || !cancelReason ? 'bg-red-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'
                   }`}
                 >
                   {cancelling ? (

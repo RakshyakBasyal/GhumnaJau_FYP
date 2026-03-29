@@ -3,6 +3,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
 const Flight = require('../models/Flight');
 const { sendBookingConfirmationEmail } = require('../utils/bookingEmail');
+const { calculateRefundPolicy, calculateRefundAmount } = require('../utils/refundPolicy');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
@@ -123,8 +124,9 @@ exports.handleStripeFailureRedirect = (req, res) => {
 exports.refundBookingPayment = async (req, res) => {
   try {
     const { bookingId } = req.params;
+    const { cancellationReason = '', cancellationNote = '' } = req.body || {};
 
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findById(bookingId).populate('flight', 'departureDate');
     if (!booking) return res.status(404).json({ msg: 'Booking not found' });
 
     if (booking.user.toString() !== req.user.id) {
@@ -143,12 +145,24 @@ exports.refundBookingPayment = async (req, res) => {
       return res.status(400).json({ msg: 'No transaction ID found' });
     }
 
-    const refund = await stripe.refunds.create({
-      payment_intent: booking.transactionId,
-    });
+    const { refundPercent } = calculateRefundPolicy(booking);
+    const refundAmount = calculateRefundAmount(booking.totalAmount, refundPercent);
+    let refund = null;
 
-    booking.paymentStatus = 'refunded';
+    if (refundAmount > 0) {
+      refund = await stripe.refunds.create({
+        payment_intent: booking.transactionId,
+        amount: Math.round(refundAmount * 100),
+      });
+      booking.paymentStatus = 'refunded';
+    }
+
     booking.status = 'cancelled';
+    booking.cancellationReason = cancellationReason;
+    booking.cancellationNote = cancellationNote;
+    booking.cancelledAt = new Date();
+    booking.refundPercent = refundPercent;
+    booking.refundAmount = refundAmount;
     await booking.save();
 
     // Restore seats if flight booking
@@ -172,9 +186,14 @@ exports.refundBookingPayment = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Refund processed and booking cancelled',
-      amountRefunded: booking.totalAmount,
-      refundId: refund.id,
+      message:
+        refundAmount > 0
+          ? 'Refund processed and booking cancelled'
+          : 'Booking cancelled with no refund (outside refund window)',
+      amountRefunded: refundAmount,
+      refundPercent,
+      refundId: refund?.id || null,
+      booking: populated,
     });
   } catch (err) {
     console.error('Refund error:', err.message);
