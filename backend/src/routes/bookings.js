@@ -5,6 +5,7 @@ const Booking = require('../models/Booking');
 const Flight = require('../models/Flight');
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
+const { sendBookingConfirmationEmail } = require('../utils/bookingEmail');
 
 // Get all bookings (admin)
 router.get('/', auth, admin, async (req, res) => {
@@ -173,7 +174,23 @@ router.patch('/:id/status', auth, admin, async (req, res) => {
 
     const updated = await Booking.findById(booking._id)
       .populate('user', 'fullName email')
-      .populate(booking.type === 'hotel' ? 'hotel' : 'flight');
+      .populate({
+        path: 'hotel',
+        select: 'name country destination',
+        populate: { path: 'destination', select: 'name country' }
+      })
+      .populate({
+        path: 'flight',
+        select: 'airline flightNumber from to departureTime arrivalTime departureDate class'
+      });
+
+    if (status === 'confirmed') {
+      try {
+        await sendBookingConfirmationEmail({ booking: updated, source: 'admin' });
+      } catch (mailErr) {
+        console.error('Booking confirmation email failed (admin):', mailErr.message);
+      }
+    }
 
     req.app.get('io')?.emit('bookingUpdated', updated);
 

@@ -2,6 +2,7 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
 const Flight = require('../models/Flight');
+const { sendBookingConfirmationEmail } = require('../utils/bookingEmail');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
@@ -78,13 +79,28 @@ exports.handleStripeSuccessRedirect = async (req, res) => {
         booking.status = 'confirmed'; // ✅ auto-confirm on payment
         await booking.save();
 
-        // ✅ Emit socket so admin dashboard updates live
+        const populated = await Booking.findById(booking._id)
+          .populate('user', 'fullName email')
+          .populate({
+            path: 'hotel',
+            select: 'name country destination',
+            populate: { path: 'destination', select: 'name country' }
+          })
+          .populate({
+            path: 'flight',
+            select: 'airline flightNumber from to departureTime arrivalTime departureDate class'
+          });
+
+        // Emit socket so admin dashboard updates live
         const io = req.app.get('io');
         if (io) {
-          const populated = await Booking.findById(booking._id)
-            .populate('user', 'fullName email')
-            .populate(booking.type === 'hotel' ? 'hotel' : 'flight');
           io.emit('bookingUpdated', populated);
+        }
+
+        try {
+          await sendBookingConfirmationEmail({ booking: populated, source: 'payment' });
+        } catch (mailErr) {
+          console.error('Booking confirmation email failed (payment):', mailErr.message);
         }
       }
       return res.redirect(`${FRONTEND_URL}/payment/result?status=success&bookingId=${bookingId}`);
