@@ -65,9 +65,9 @@ const MyBookings = () => {
     if (!travelDate) return 0;
     const diffDays = (travelDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
     if (diffDays >= 7) return 100;
-    if (diffDays >= 3) return 80;
-    if (diffDays >= 1) return 50;
-    return 0;
+    if (diffDays >= 3) return 90;
+    if (diffDays >= 1) return 70;
+    return 30;
   };
 
   const getRefundPreview = (booking) => {
@@ -619,7 +619,7 @@ const MyBookings = () => {
                             </span>
                           </p>
                           <p className="text-sm text-amber-700 mt-2">
-                            Policy before {pendingCancelBooking.type === 'hotel' ? 'check-in' : 'departure'}: 7+ days = 100%, 3-6 days = 80%, 1-2 days = 50%, under 24h = 0%.
+                            Policy before {pendingCancelBooking.type === 'hotel' ? 'check-in' : 'departure'}: 7+ days = 100%, 3-6 days = 90%, 1-2 days = 70%, under 24h = 30%.
                           </p>
                         </>
                       );

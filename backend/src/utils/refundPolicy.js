@@ -9,9 +9,9 @@ function getEffectiveTravelDate(booking) {
 
 function getRefundPercent(daysBeforeStart) {
   if (daysBeforeStart >= 7) return 100;
-  if (daysBeforeStart >= 3) return 80;
-  if (daysBeforeStart >= 1) return 50;
-  return 0;
+  if (daysBeforeStart >= 3) return 90;
+  if (daysBeforeStart >= 1) return 70;
+  return 30;
 }
 
 function calculateRefundPolicy(booking) {
