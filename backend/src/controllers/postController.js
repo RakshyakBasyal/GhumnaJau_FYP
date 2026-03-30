@@ -35,6 +35,8 @@ exports.createPost = async (req, res) => {
       .populate('hotel',       'name')
       .populate('flight',      'airline flightNumber from to');
 
+    req.app.get('io')?.emit('postCreated', populated);
+
     res.status(201).json(populated);
   } catch (err) {
     console.error('Create post error:', err);
@@ -203,6 +205,8 @@ exports.editPost = async (req, res) => {
       .populate('hotel',       'name')
       .populate('flight',      'airline flightNumber from to');
 
+    req.app.get('io')?.emit('postUpdated', populated);
+
     res.json(populated);
   } catch (err) {
     console.error('Edit post error:', err);
@@ -225,6 +229,8 @@ exports.deletePost = async (req, res) => {
 
     post.isDeleted = true;
     await post.save();
+
+    req.app.get('io')?.emit('postDeleted', { postId: post._id.toString() });
 
     res.json({ msg: 'Post deleted' });
   } catch (err) {
@@ -249,6 +255,12 @@ exports.toggleLike = async (req, res) => {
     }
 
     await post.save();
+
+    req.app.get('io')?.emit('postLiked', {
+      postId: post._id.toString(),
+      likes: post.likes.map(id => id.toString()),
+      likeCount: post.likes.length,
+    });
 
     res.json({ liked: !alreadyLiked, likeCount: post.likes.length });
   } catch (err) {

@@ -1,6 +1,7 @@
 // frontend/src/pages/Feed.jsx
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { PenSquare, Compass, Users, Loader, RefreshCw, SlidersHorizontal, X } from 'lucide-react';
+import { io } from 'socket.io-client';
 import PostCard from '../components/feed/PostCard';
 import CreatePostModal from '../components/feed/CreatePostModal';
 import { getExploreFeed, getFollowingFeed } from '../services/feedApi';
@@ -36,6 +37,8 @@ const EmptyExplore = () => (
     <p className="text-sm text-gray-500">Be the first to share your travel experience!</p>
   </div>
 );
+
+const BASE_URL = 'http://localhost:5000';
 
 export default function Feed() {
   const [tab,           setTab]          = useState('explore');   // 'explore' | 'following'
@@ -102,6 +105,54 @@ export default function Feed() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [loaderRef, loadingMore, page, totalPages, fetchPosts]);
+
+  // Live feed updates
+  useEffect(() => {
+    const socket = io(BASE_URL, { withCredentials: true });
+
+    const refreshIfFollowing = () => {
+      if (tab === 'following') fetchPosts(true, category);
+    };
+
+    socket.on('postCreated', (post) => {
+      if (tab === 'explore') {
+        setPosts(prev => {
+          if (prev.some(p => p._id === post._id)) {
+            return prev.map(p => (p._id === post._id ? post : p));
+          }
+          return [post, ...prev];
+        });
+      } else {
+        refreshIfFollowing();
+      }
+    });
+
+    socket.on('postUpdated', (updatedPost) => {
+      setPosts(prev => prev.map(p => (p._id === updatedPost._id ? updatedPost : p)));
+    });
+
+    socket.on('postDeleted', ({ postId }) => {
+      setPosts(prev => prev.filter(p => p._id !== postId));
+    });
+
+    socket.on('postLiked', ({ postId, likes, likeCount }) => {
+      setPosts(prev =>
+        prev.map(p => (p._id === postId ? { ...p, likes, likeCount } : p))
+      );
+    });
+
+    socket.on('commentAdded', ({ postId, commentCount }) => {
+      setPosts(prev => prev.map(p => (p._id === postId ? { ...p, commentCount } : p)));
+    });
+
+    socket.on('commentDeleted', ({ postId, commentCount }) => {
+      setPosts(prev => prev.map(p => (p._id === postId ? { ...p, commentCount } : p)));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [tab, category, fetchPosts]);
 
   const handlePostCreated = (newPost, isEdit) => {
     if (isEdit) {

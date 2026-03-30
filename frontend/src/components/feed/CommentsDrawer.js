@@ -1,6 +1,7 @@
 // frontend/src/components/feed/CommentsDrawer.jsx
 import { useState, useEffect, useRef } from 'react';
 import { X, Send, Loader, Pencil, Trash2 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import { getComments, addComment, editComment, deleteComment } from '../../services/feedApi';
 
 const Avatar = ({ name, avatar, size = 8 }) => {
@@ -38,10 +39,35 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
   const bottomRef = useRef();
 
   const myId = localStorage.getItem('userId');
+  const BASE_URL = 'http://localhost:5000';
 
   useEffect(() => {
     fetchComments();
     setTimeout(() => inputRef.current?.focus(), 300);
+  }, [post._id]);
+
+  useEffect(() => {
+    const socket = io(BASE_URL, { withCredentials: true });
+
+    socket.on('commentAdded', ({ postId, comment }) => {
+      if (postId !== post._id || !comment) return;
+      setComments(prev => {
+        if (prev.some(c => c._id === comment._id)) return prev;
+        return [...prev, comment];
+      });
+    });
+
+    socket.on('commentUpdated', ({ postId, comment }) => {
+      if (postId !== post._id || !comment) return;
+      setComments(prev => prev.map(c => (c._id === comment._id ? comment : c)));
+    });
+
+    socket.on('commentDeleted', ({ postId, commentId }) => {
+      if (postId !== post._id || !commentId) return;
+      setComments(prev => prev.filter(c => c._id !== commentId));
+    });
+
+    return () => socket.disconnect();
   }, [post._id]);
 
   const fetchComments = async () => {

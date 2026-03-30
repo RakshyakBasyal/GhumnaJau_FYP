@@ -26,6 +26,12 @@ exports.addComment = async (req, res) => {
     const populated = await Comment.findById(comment._id)
       .populate('author', 'fullName avatar');
 
+    req.app.get('io')?.emit('commentAdded', {
+      postId: post._id.toString(),
+      comment: populated,
+      commentCount: post.commentCount,
+    });
+
     res.status(201).json(populated);
   } catch (err) {
     console.error('Add comment error:', err);
@@ -79,6 +85,11 @@ exports.editComment = async (req, res) => {
     const populated = await Comment.findById(comment._id)
       .populate('author', 'fullName avatar');
 
+    req.app.get('io')?.emit('commentUpdated', {
+      postId: comment.post.toString(),
+      comment: populated,
+    });
+
     res.json(populated);
   } catch (err) {
     console.error('Edit comment error:', err);
@@ -105,6 +116,13 @@ exports.deleteComment = async (req, res) => {
     // Decrement post comment count
     await Post.findByIdAndUpdate(comment.post, {
       $inc: { commentCount: -1 },
+    });
+
+    const updatedPost = await Post.findById(comment.post).select('commentCount');
+    req.app.get('io')?.emit('commentDeleted', {
+      postId: comment.post.toString(),
+      commentId: comment._id.toString(),
+      commentCount: updatedPost?.commentCount ?? 0,
     });
 
     res.json({ msg: 'Comment deleted' });

@@ -1,5 +1,5 @@
 // frontend/src/components/feed/PostCard.jsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Heart, MessageCircle, MapPin, Building2, Plane, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { toggleLike, deletePost } from '../../services/feedApi';
 import CommentsDrawer from './CommentsDrawer';
@@ -47,6 +47,12 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   const [imgIdx,       setImgIdx]       = useState(0);
 
   const cat = CATEGORY_STYLES[post.category] || CATEGORY_STYLES.story;
+
+  useEffect(() => {
+    setLiked(post.likes?.includes(myId));
+    setLikeCount(post.likes?.length || post.likeCount || 0);
+    setCommentCount(post.commentCount || 0);
+  }, [post.likes, post.likeCount, post.commentCount, myId]);
 
   const handleLike = async () => {
     // Optimistic
