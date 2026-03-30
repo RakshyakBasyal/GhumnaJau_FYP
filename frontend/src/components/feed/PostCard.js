@@ -5,10 +5,10 @@ import { toggleLike, deletePost } from '../../services/feedApi';
 import CommentsDrawer from './CommentsDrawer';
 
 const CATEGORY_STYLES = {
-  story:  { label: '✈️ Story',   cls: 'bg-blue-50   text-blue-700   border-blue-200'   },
-  photo:  { label: '📷 Photo',   cls: 'bg-purple-50 text-purple-700 border-purple-200' },
-  review: { label: '⭐ Review',  cls: 'bg-amber-50  text-amber-700  border-amber-200'  },
-  tip:    { label: '💡 Tip',     cls: 'bg-green-50  text-green-700  border-green-200'  },
+  story:  { label: 'Story',   cls: 'bg-blue-50   text-blue-700   border-blue-200'   },
+  photo:  { label: 'Photo',   cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  review: { label: 'Review',  cls: 'bg-slate-50  text-slate-700  border-slate-200'  },
+  tip:    { label: 'Tip',     cls: 'bg-emerald-50  text-emerald-700  border-emerald-200'  },
 };
 
 const timeAgo = (date) => {
@@ -29,7 +29,7 @@ const Avatar = ({ name, avatar }) => {
     />
   );
   return (
-    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ring-2 ring-white">
+    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ring-2 ring-white">
       {name?.charAt(0).toUpperCase()}
     </div>
   );
@@ -199,8 +199,8 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50">
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1.5 text-sm font-medium transition-all ${
-              liked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium transition-all ${
+              liked ? 'text-red-500 bg-red-50' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
             }`}
           >
             <Heart size={18} className={liked ? 'fill-current' : ''} />
@@ -209,7 +209,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
 
           <button
             onClick={() => setShowComments(true)}
-            className="flex items-center gap-1.5 text-sm font-medium text-gray-400 hover:text-amber-500 transition"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition"
           >
             <MessageCircle size={18} />
             <span>{commentCount}</span>

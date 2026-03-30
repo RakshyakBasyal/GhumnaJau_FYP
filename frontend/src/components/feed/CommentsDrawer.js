@@ -14,7 +14,7 @@ const Avatar = ({ name, avatar, size = 8 }) => {
     />
   );
   return (
-    <div className={`${sizeClass} rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-xs flex-shrink-0`}>
+    <div className={`${sizeClass} rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-xs flex-shrink-0`}>
       {name?.charAt(0).toUpperCase()}
     </div>
   );
@@ -130,7 +130,7 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
           {loading ? (
             <div className="flex justify-center pt-8">
-              <Loader size={20} className="animate-spin text-amber-500" />
+              <Loader size={20} className="animate-spin text-blue-600" />
             </div>
           ) : comments.length === 0 ? (
             <div className="text-center py-12">
@@ -149,7 +149,7 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
                     {editingId === comment._id ? (
                       <div className="flex gap-2 mt-1">
                         <input
-                          className="flex-1 text-xs border border-amber-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          className="flex-1 text-xs border border-blue-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                           value={editContent}
                           onChange={e => setEditContent(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && handleEdit(comment._id)}
@@ -157,7 +157,7 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
                         />
                         <button
                           onClick={() => handleEdit(comment._id)}
-                          className="text-xs text-amber-600 font-semibold hover:text-amber-700"
+                          className="text-xs text-blue-600 font-semibold hover:text-blue-700"
                         >Save</button>
                         <button
                           onClick={() => setEditingId(null)}
@@ -174,7 +174,7 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
                       <>
                         <button
                           onClick={() => { setEditingId(comment._id); setEditContent(comment.content); }}
-                          className="text-xs text-gray-400 hover:text-amber-600 flex items-center gap-1 transition"
+                          className="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1 transition"
                         >
                           <Pencil size={11} /> Edit
                         </button>
@@ -202,12 +202,12 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Write a comment…"
-            className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-transparent transition"
+            className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent transition"
           />
           <button
             type="submit"
             disabled={!input.trim() || submitting}
-            className="w-8 h-8 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white rounded-full flex items-center justify-center transition flex-shrink-0"
+            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-full flex items-center justify-center transition flex-shrink-0"
           >
             {submitting
               ? <Loader size={14} className="animate-spin" />

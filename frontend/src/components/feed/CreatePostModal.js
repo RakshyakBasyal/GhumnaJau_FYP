@@ -8,10 +8,10 @@ const BASE = 'http://localhost:5000/api';
 const authHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
 const CATEGORIES = [
-  { value: 'story',  label: '✈️ Travel Story',       color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  { value: 'photo',  label: '📷 Trip Photo',          color: 'bg-purple-50 text-purple-700 border-purple-200' },
-  { value: 'review', label: '⭐ Destination Review',  color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  { value: 'tip',    label: '💡 Travel Tip',          color: 'bg-green-50 text-green-700 border-green-200' },
+  { value: 'story',  label: 'Travel Story',       color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { value: 'photo',  label: 'Trip Photo',         color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  { value: 'review', label: 'Destination Review', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  { value: 'tip',    label: 'Travel Tip',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 ];
 
 export default function CreatePostModal({ onClose, onCreated, editingPost = null }) {
@@ -115,7 +115,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
 
           {/* Author row */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm flex-shrink-0">
+            <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm flex-shrink-0">
               {currentUser.name.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -129,7 +129,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
             value={content}
             onChange={e => setContent(e.target.value)}
             placeholder="Share your travel experience, a hidden gem, or a tip for fellow wanderers..."
-            className="w-full resize-none border border-gray-200 rounded-xl p-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+            className="w-full resize-none border border-gray-200 rounded-xl p-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
           />
           <p className="text-xs text-gray-400 text-right -mt-2">{content.length}/2000</p>
 
@@ -144,7 +144,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
                   onClick={() => setCategory(cat.value)}
                   className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
                     category === cat.value
-                      ? cat.color + ' ring-2 ring-offset-1 ring-amber-400'
+                      ? cat.color + ' ring-2 ring-offset-1 ring-blue-400'
                       : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
                   }`}
                 >
@@ -164,9 +164,9 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
               <select
                 value={destination}
                 onChange={e => setDestination(e.target.value)}
-                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-amber-300 text-gray-700"
+                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-300 text-gray-700"
               >
-                <option value="">📍 Tag a destination</option>
+                <option value="">Tag a destination</option>
                 {destinations.map(d => (
                   <option key={d._id} value={d._id}>{d.name}, {d.country}</option>
                 ))}
@@ -180,9 +180,9 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
               <select
                 value={hotel}
                 onChange={e => setHotel(e.target.value)}
-                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-amber-300 text-gray-700"
+                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-300 text-gray-700"
               >
-                <option value="">🏨 Mention a hotel</option>
+                <option value="">Mention a hotel</option>
                 {hotels.map(h => (
                   <option key={h._id} value={h._id}>{h.name}</option>
                 ))}
@@ -196,9 +196,9 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
               <select
                 value={flight}
                 onChange={e => setFlight(e.target.value)}
-                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-amber-300 text-gray-700"
+                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-300 text-gray-700"
               >
-                <option value="">✈️ Mention a flight</option>
+                <option value="">Mention a flight</option>
                 {flights.map(f => (
                   <option key={f._id} value={f._id}>{f.airline} {f.flightNumber} · {f.from} → {f.to}</option>
                 ))}
@@ -252,7 +252,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-amber-600 transition font-medium"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition font-medium"
           >
             <Image size={17} />
             Add Photos
@@ -268,7 +268,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-60 text-white text-sm font-semibold rounded-full shadow transition flex items-center gap-2"
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-full shadow transition flex items-center gap-2"
           >
             {loading && <Loader size={14} className="animate-spin" />}
             {loading ? 'Saving…' : editingPost ? 'Save Changes' : 'Post'}

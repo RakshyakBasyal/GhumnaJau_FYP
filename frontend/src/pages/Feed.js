@@ -8,10 +8,10 @@ import { getExploreFeed, getFollowingFeed } from '../services/feedApi';
 
 const CATEGORIES = [
   { value: '',       label: 'All' },
-  { value: 'story',  label: '✈️ Stories' },
-  { value: 'photo',  label: '📷 Photos' },
-  { value: 'review', label: '⭐ Reviews' },
-  { value: 'tip',    label: '💡 Tips' },
+  { value: 'story',  label: 'Stories' },
+  { value: 'photo',  label: 'Photos' },
+  { value: 'review', label: 'Reviews' },
+  { value: 'tip',    label: 'Tips' },
 ];
 
 const EmptyFollowing = ({ onExplore }) => (
@@ -23,7 +23,7 @@ const EmptyFollowing = ({ onExplore }) => (
     </p>
     <button
       onClick={onExplore}
-      className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-full transition shadow"
+      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full transition shadow"
     >
       Explore Posts
     </button>
@@ -175,16 +175,16 @@ export default function Feed() {
     <div className="min-h-screen bg-gray-50">
 
       {/* Top bar */}
-      <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm">
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
         <div className="max-w-2xl mx-auto px-4">
           <div className="flex items-center justify-between py-3">
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-              <span className="text-amber-500">Travel</span> Feed
+              <span className="text-blue-600">Travel</span> Feed
             </h1>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowFilter(p => !p)}
-                className={`p-2 rounded-full transition ${showFilter ? 'bg-amber-100 text-amber-600' : 'hover:bg-gray-100 text-gray-500'}`}
+                className={`p-2 rounded-full transition ${showFilter ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500'}`}
               >
                 <SlidersHorizontal size={18} />
               </button>
@@ -196,7 +196,7 @@ export default function Feed() {
               </button>
               <button
                 onClick={() => { setEditingPost(null); setShowCreate(true); }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-sm font-semibold rounded-full shadow transition"
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full shadow transition"
               >
                 <PenSquare size={15} />
                 Post
@@ -215,7 +215,7 @@ export default function Feed() {
                 onClick={() => setTab(key)}
                 className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full transition ${
                   tab === key
-                    ? 'text-amber-600 bg-amber-50'
+                    ? 'text-blue-700 bg-blue-50'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }`}
               >
@@ -234,7 +234,7 @@ export default function Feed() {
                   onClick={() => { setCategory(cat.value); setShowFilter(false); }}
                   className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
                     category === cat.value
-                      ? 'bg-amber-500 text-white border-amber-500'
+                      ? 'bg-blue-600 text-white border-blue-600'
                       : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                   }`}
                 >
@@ -256,10 +256,16 @@ export default function Feed() {
 
       {/* Feed content */}
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
+        <button
+          onClick={() => { setEditingPost(null); setShowCreate(true); }}
+          className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 text-left hover:border-blue-300 hover:shadow-sm transition"
+        >
+          <p className="text-sm text-gray-500">Share your travel moments, tips, and reviews...</p>
+        </button>
 
         {loading ? (
           <div className="flex justify-center py-20">
-            <Loader size={24} className="animate-spin text-amber-500" />
+            <Loader size={24} className="animate-spin text-blue-600" />
           </div>
         ) : emptyFollowing ? (
           <EmptyFollowing onExplore={() => setTab('explore')} />
@@ -278,7 +284,7 @@ export default function Feed() {
 
             {/* Infinite scroll trigger */}
             <div ref={loaderRef} className="flex justify-center py-4">
-              {loadingMore && <Loader size={20} className="animate-spin text-amber-400" />}
+              {loadingMore && <Loader size={20} className="animate-spin text-blue-500" />}
               {!loadingMore && page >= totalPages && posts.length > 0 && (
                 <p className="text-xs text-gray-300">You've seen it all ✨</p>
               )}
