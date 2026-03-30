@@ -24,6 +24,7 @@ import AuthGoogleSuccess from './pages/AuthGoogleSuccess';
 import PaymentResult from './pages/PaymentResult';
 import Itinerary from './pages/Itinerary';
 import ItineraryDetail from './pages/ItineraryDetail';
+import Feed from './pages/Feed';
 
 
    
@@ -96,6 +97,7 @@ function App() {
             <Route path="/auth/google/success" element={<AuthGoogleSuccess />} />
             <Route path="/itinerary" element={<Itinerary />} />
             <Route path="/itinerary/:id" element={<ItineraryDetail />} />
+            <Route path="/feed" element={<Feed />} />
           </Route>
         </Routes>
       </Router>

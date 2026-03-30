@@ -33,5 +33,8 @@ app.use('/api/flights', flightRoutes);
 app.use('/api/itineraries', require('./routes/itineraryRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
 app.use('/api/password-reset', require('./routes/passwordResetRoutes'));
+app.use('/api/posts',    require('./routes/postRoutes'));
+app.use('/api/comments', require('./routes/commentRoutes.js'));
+app.use('/api/follows',  require('./routes/followRoutes'));
 
 module.exports = app;
