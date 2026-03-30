@@ -54,7 +54,7 @@ const Navbar = () => {
     { to: "/hotels", label: "Hotels" },
     { to: "/flights", label: "Flights" },
     { to: "/itinerary", label: "Itinerary" },          // ← no highlight class
-    { to: "/social-feed", label: "Social Feed" },
+    { to: "/feed", label: "Social Feed" },
     { to: "/travel-logs", label: "Travel Logs" },
     { to: "/buddy-matching", label: "Find Buddies" },
   ];
