@@ -38,8 +38,9 @@ const Avatar = ({ name, avatar }) => {
 export default function PostCard({ post, onUpdated, onDeleted }) {
   const myId = localStorage.getItem('userId');
   const isOwner = post.author?._id === myId;
+  const hasLiked = (likes) => Array.isArray(likes) && likes.some(id => String(id) === String(myId));
 
-  const [liked,        setLiked]        = useState(post.likes?.includes(myId));
+  const [liked,        setLiked]        = useState(hasLiked(post.likes));
   const [likeCount,    setLikeCount]    = useState(post.likes?.length || 0);
   const [commentCount, setCommentCount] = useState(post.commentCount || 0);
   const [showComments, setShowComments] = useState(false);
@@ -49,20 +50,18 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   const cat = CATEGORY_STYLES[post.category] || CATEGORY_STYLES.story;
 
   useEffect(() => {
-    setLiked(post.likes?.includes(myId));
+    setLiked(hasLiked(post.likes));
     setLikeCount(post.likes?.length || post.likeCount || 0);
     setCommentCount(post.commentCount || 0);
-  }, [post.likes, post.likeCount, post.commentCount, myId]);
+  }, [post.likes, post.likeCount, post.commentCount]);
 
   const handleLike = async () => {
-    // Optimistic
-    setLiked(prev => !prev);
-    setLikeCount(prev => liked ? prev - 1 : prev + 1);
     try {
-      await toggleLike(post._id);
+      const res = await toggleLike(post._id);
+      setLiked(Boolean(res.data?.liked));
+      setLikeCount(Number(res.data?.likeCount ?? 0));
     } catch (_) {
-      setLiked(prev => !prev);
-      setLikeCount(prev => liked ? prev + 1 : prev - 1);
+      // ignore
     }
   };
 

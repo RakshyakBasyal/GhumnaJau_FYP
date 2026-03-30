@@ -176,18 +176,12 @@ export default function Feed() {
 
       {/* Top bar */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4">
+        <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-between py-3">
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">
               <span className="text-blue-600">Travel</span> Feed
             </h1>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowFilter(p => !p)}
-                className={`p-2 rounded-full transition ${showFilter ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500'}`}
-              >
-                <SlidersHorizontal size={18} />
-              </button>
               <button
                 onClick={() => fetchPosts(true)}
                 className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition"
@@ -203,94 +197,108 @@ export default function Feed() {
               </button>
             </div>
           </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 pb-1">
-            {[
-              { key: 'explore',   label: 'Explore',   icon: Compass },
-              { key: 'following', label: 'Following',  icon: Users },
-            ].map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full transition ${
-                  tab === key
-                    ? 'text-blue-700 bg-blue-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <Icon size={15} />
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Category filter */}
-          {showFilter && (
-            <div className="py-2 pb-3 flex items-center gap-2 flex-wrap">
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat.value}
-                  onClick={() => { setCategory(cat.value); setShowFilter(false); }}
-                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
-                    category === cat.value
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-              {category && (
-                <button
-                  onClick={() => setCategory('')}
-                  className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition"
-                >
-                  <X size={12} /> Clear
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
       {/* Feed content */}
-      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
-        <button
-          onClick={() => { setEditingPost(null); setShowCreate(true); }}
-          className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 text-left hover:border-blue-300 hover:shadow-sm transition"
-        >
-          <p className="text-sm text-gray-500">Share your travel moments, tips, and reviews...</p>
-        </button>
+      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_320px] gap-6">
+        <div className="space-y-4">
+          <button
+            onClick={() => { setEditingPost(null); setShowCreate(true); }}
+            className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 text-left hover:border-blue-300 hover:shadow-sm transition"
+          >
+            <p className="text-sm text-gray-500">Share your travel moments, tips, and reviews...</p>
+          </button>
 
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader size={24} className="animate-spin text-blue-600" />
-          </div>
-        ) : emptyFollowing ? (
-          <EmptyFollowing onExplore={() => setTab('explore')} />
-        ) : posts.length === 0 ? (
-          <EmptyExplore />
-        ) : (
-          <>
-            {posts.map(post => (
-              <PostCard
-                key={post._id}
-                post={post}
-                onUpdated={handlePostAction}
-                onDeleted={handlePostDeleted}
-              />
-            ))}
-
-            {/* Infinite scroll trigger */}
-            <div ref={loaderRef} className="flex justify-center py-4">
-              {loadingMore && <Loader size={20} className="animate-spin text-blue-500" />}
-              {!loadingMore && page >= totalPages && posts.length > 0 && (
-                <p className="text-xs text-gray-300">You've seen it all ✨</p>
-              )}
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <Loader size={24} className="animate-spin text-blue-600" />
             </div>
-          </>
-        )}
+          ) : emptyFollowing ? (
+            <EmptyFollowing onExplore={() => setTab('explore')} />
+          ) : posts.length === 0 ? (
+            <EmptyExplore />
+          ) : (
+            <>
+              {posts.map(post => (
+                <PostCard
+                  key={post._id}
+                  post={post}
+                  onUpdated={handlePostAction}
+                  onDeleted={handlePostDeleted}
+                />
+              ))}
+
+              <div ref={loaderRef} className="flex justify-center py-4">
+                {loadingMore && <Loader size={20} className="animate-spin text-blue-500" />}
+                {!loadingMore && page >= totalPages && posts.length > 0 && (
+                  <p className="text-xs text-gray-300">You've seen it all ✨</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <aside className="hidden lg:block">
+          <div className="sticky top-24 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-800">Feed Controls</p>
+              <button
+                onClick={() => setShowFilter(v => !v)}
+                className={`p-2 rounded-full transition ${showFilter ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500'}`}
+                title="Toggle filters"
+              >
+                <SlidersHorizontal size={16} />
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              {[
+                { key: 'explore', label: 'Explore', icon: Compass },
+                { key: 'following', label: 'Following', icon: Users },
+              ].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl transition ${
+                    tab === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <Icon size={14} /> {label}
+                </button>
+              ))}
+            </div>
+
+            {showFilter && (
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Category</p>
+                <div className="flex gap-2 flex-wrap">
+                  {CATEGORIES.map(cat => (
+                    <button
+                      key={cat.value}
+                      onClick={() => setCategory(cat.value)}
+                      className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
+                        category === cat.value
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                  {category && (
+                    <button
+                      onClick={() => setCategory('')}
+                      className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition"
+                    >
+                      <X size={12} /> Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
       </div>
 
       {/* Create / Edit modal */}

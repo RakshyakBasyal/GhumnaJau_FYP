@@ -98,20 +98,20 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-5">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-gray-100 max-h-[92vh] flex flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900">
-            {editingPost ? 'Edit Post' : 'Create Post'}
+            {editingPost ? 'Edit post' : 'Create new post'}
           </h2>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 transition">
             <X size={18} className="text-gray-500" />
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+        <div className="overflow-y-auto flex-1 p-5 sm:p-6 space-y-4 bg-gray-50/40">
 
           {/* Author row */}
           <div className="flex items-center gap-3">
@@ -248,7 +248,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between bg-white">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
