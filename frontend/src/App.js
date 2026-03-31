@@ -14,6 +14,7 @@ import ManageDestinations from './pages/ManageDestinations';
 import ManageHotels from './pages/ManageHotels';
 import ProtectedRoute from './components/ProtectedRoute';
 import Profile from './pages/Profile';
+import UserProfile from './pages/UserProfile';
 import Hotels from './pages/Hotels';
 import HotelDetail from './pages/HotelDetail';
 import MyBookings from './pages/MyBookings';
@@ -91,6 +92,7 @@ function App() {
             <Route path="/hotels" element={<Hotels />} />
             <Route path="/hotels/:id" element={<HotelDetail />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/:userId" element={<UserProfile />} />
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/flights" element={<Flights />} />
             <Route path="/payment/result" element={<PaymentResult />} />

@@ -45,10 +45,10 @@ router.get('/user/:userId', auth, getUserPosts);
 router.get('/:id', auth, getPost);
 
 // Create
-router.post('/', auth, uploadPost.array('images', 5), createPost);
+router.post('/', auth, uploadPost.array('images', 20), createPost);
 
 // Edit
-router.put('/:id', auth, uploadPost.array('images', 5), editPost);
+router.put('/:id', auth, uploadPost.array('images', 20), editPost);
 
 // Delete (owner or admin)
 router.delete('/:id', auth, deletePost);

@@ -42,7 +42,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
   const handleImages = (e) => {
     const files = Array.from(e.target.files);
     const total = keepImages.length + images.length + files.length;
-    if (total > 5) { setError('Maximum 5 images per post'); return; }
+    if (total > 20) { setError('Maximum 20 images per post'); return; }
     setImages(prev => [...prev, ...files]);
     files.forEach(f => {
       const reader = new FileReader();

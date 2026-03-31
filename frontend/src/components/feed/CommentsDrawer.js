@@ -38,7 +38,13 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
   const inputRef = useRef();
   const bottomRef = useRef();
 
-  const myId = localStorage.getItem('userId');
+  const token = localStorage.getItem('token');
+  let decoded = null;
+  try {
+    decoded = token ? JSON.parse(atob(token.split('.')[1])) : null;
+  } catch (_) {}
+
+  const myId = localStorage.getItem('userId') || decoded?.id || decoded?._id;
   const BASE_URL = 'http://localhost:5000';
 
   useEffect(() => {

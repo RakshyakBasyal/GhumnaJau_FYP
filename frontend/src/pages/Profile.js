@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   User,
+  Users,
   Mail,
   Phone,
   Edit2,
@@ -19,6 +20,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import io from "socket.io-client";
+import { getUserPosts, getFollowStats } from "../services/feedApi";
 
 const BASE_URL = "http://localhost:5000";
 
@@ -48,6 +50,26 @@ const Profile = () => {
   // Bookings preview
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
+
+  const [myPostCount, setMyPostCount] = useState(0);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+
+  const [followStats, setFollowStats] = useState({
+    followersCount: 0,
+    followingCount: 0,
+  });
+  const [loadingFollowStats, setLoadingFollowStats] = useState(true);
+
+  const myId = (() => {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    try {
+      const decoded = JSON.parse(atob(token.split(".")[1]));
+      return decoded?.id || decoded?._id || null;
+    } catch (_) {
+      return null;
+    }
+  })();
 
   const [loading, setLoading] = useState(true);
 
@@ -157,12 +179,35 @@ const Profile = () => {
 
         const bookingsData = await bookingsRes.json();
         setBookings(bookingsData);
+
+        // Fetch post count for dashboard-style profile
+        try {
+          const decoded = JSON.parse(atob(token.split('.')[1]));
+          const idForPosts = decoded?.id || decoded?._id;
+          if (idForPosts) {
+            const postsRes = await getUserPosts(idForPosts, { page: 1, limit: 1 });
+            setMyPostCount(postsRes.data.total ?? 0);
+          }
+        } catch (_) {}
+
+        // Fetch followers / following counts
+        try {
+          if (myId) {
+            const statsRes = await getFollowStats(myId);
+            setFollowStats({
+              followersCount: statsRes.data.followersCount ?? 0,
+              followingCount: statsRes.data.followingCount ?? 0,
+            });
+          }
+        } catch (_) {}
       } catch (err) {
         console.error("Profile load error:", err);
         showToast("Failed to load profile", "error");
       } finally {
         setLoading(false);
         setLoadingBookings(false);
+        setLoadingPosts(false);
+        setLoadingFollowStats(false);
       }
     };
 
@@ -427,6 +472,32 @@ const Profile = () => {
             </div>
           </div>
 
+          {/* Followers / Following */}
+          <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-700">
+            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
+              <Users className="h-4 w-4 text-blue-600" />
+              {loadingFollowStats ? (
+                <span className="text-gray-500">Loading...</span>
+              ) : (
+                <>
+                  <span className="font-bold text-gray-900">{followStats.followersCount}</span>
+                  <span>Followers</span>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
+              <Users className="h-4 w-4 text-gray-600" />
+              {loadingFollowStats ? (
+                <span className="text-gray-500">Loading...</span>
+              ) : (
+                <>
+                  <span className="font-bold text-gray-900">{followStats.followingCount}</span>
+                  <span>Following</span>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Recent Bookings */}
           <div className="p-6 sm:p-10 border-t">
             <div className="flex items-center justify-between mb-6">
@@ -518,6 +589,35 @@ const Profile = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* My Posts (dashboard summary) */}
+        <div className="p-6 sm:p-10 border-t">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+              <Plane className="h-6 w-6 text-blue-600" />
+              My Posts
+            </h3>
+            <button
+              onClick={() => myId && navigate(`/profile/${myId}`)}
+              disabled={!myId}
+              className={`text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2 transition ${
+                !myId ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              View all →
+            </button>
+          </div>
+
+          {loadingPosts ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <div className="text-center py-4 text-gray-600">
+              You have {myPostCount} post{myPostCount === 1 ? '' : 's'} on your travel profile.
+            </div>
+          )}
         </div>
 
         {/* Actions */}

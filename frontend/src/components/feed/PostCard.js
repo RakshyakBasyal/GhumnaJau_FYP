@@ -1,6 +1,19 @@
 // frontend/src/components/feed/PostCard.jsx
 import { useEffect, useState } from 'react';
-import { Heart, MessageCircle, MapPin, Building2, Plane, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import {
+  Heart,
+  MessageCircle,
+  MapPin,
+  Building2,
+  Plane,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { toggleLike, deletePost } from '../../services/feedApi';
 import CommentsDrawer from './CommentsDrawer';
 
@@ -36,9 +49,18 @@ const Avatar = ({ name, avatar }) => {
 };
 
 export default function PostCard({ post, onUpdated, onDeleted }) {
-  const myId = localStorage.getItem('userId');
-  const isOwner = post.author?._id === myId;
-  const hasLiked = (likes) => Array.isArray(likes) && likes.some(id => String(id) === String(myId));
+  const token = localStorage.getItem('token');
+  let decoded = null;
+  try {
+    decoded = token ? JSON.parse(atob(token.split('.')[1])) : null;
+  } catch (_) {}
+
+  const myId = localStorage.getItem('userId') || decoded?.id || decoded?._id;
+  const authorId = post.author?._id;
+  const isOwner = authorId && authorId === myId;
+  const authorProfileHref = isOwner ? '/profile' : authorId ? `/profile/${authorId}` : '/profile';
+  const hasLiked = (likes) =>
+    myId ? Array.isArray(likes) && likes.some(id => String(id) === String(myId)) : false;
 
   const [liked,        setLiked]        = useState(hasLiked(post.likes));
   const [likeCount,    setLikeCount]    = useState(post.likes?.length || 0);
@@ -46,6 +68,8 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   const [showComments, setShowComments] = useState(false);
   const [showMenu,     setShowMenu]     = useState(false);
   const [imgIdx,       setImgIdx]       = useState(0);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
 
   const cat = CATEGORY_STYLES[post.category] || CATEGORY_STYLES.story;
 
@@ -53,6 +77,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     setLiked(hasLiked(post.likes));
     setLikeCount(post.likes?.length || post.likeCount || 0);
     setCommentCount(post.commentCount || 0);
+    setImgIdx(0);
   }, [post.likes, post.likeCount, post.commentCount]);
 
   const handleLike = async () => {
@@ -81,11 +106,26 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         {/* Header */}
         <div className="flex items-start justify-between px-4 pt-4 pb-3">
           <div className="flex items-center gap-3">
-            <Avatar name={post.author?.fullName} avatar={post.author?.avatar} />
+            {authorId ? (
+              <Link to={authorProfileHref} className="flex-shrink-0" aria-label="View profile">
+                <Avatar name={post.author?.fullName} avatar={post.author?.avatar} />
+              </Link>
+            ) : (
+              <Avatar name={post.author?.fullName} avatar={post.author?.avatar} />
+            )}
             <div>
-              <p className="text-sm font-semibold text-gray-900 leading-tight">
-                {post.author?.fullName || 'Traveller'}
-              </p>
+              {authorId ? (
+                <Link
+                  to={authorProfileHref}
+                  className="text-sm font-semibold text-gray-900 leading-tight hover:underline"
+                >
+                  {post.author?.fullName || 'Traveller'}
+                </Link>
+              ) : (
+                <p className="text-sm font-semibold text-gray-900 leading-tight">
+                  {post.author?.fullName || 'Traveller'}
+                </p>
+              )}
               <p className="text-xs text-gray-400">{timeAgo(post.createdAt)}</p>
             </div>
           </div>
@@ -161,12 +201,30 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         {/* Images */}
         {post.images?.length > 0 && (
           <div className="relative bg-gray-50">
-            <img
-              src={`http://localhost:5000${post.images[imgIdx]}`}
-              alt="post"
-              className="w-full max-h-80 object-cover"
-            />
-            {post.images.length > 1 && (
+            <button
+              type="button"
+              onClick={() => { setViewerIdx(imgIdx); setShowImageViewer(true); }}
+              className="relative w-full block text-left"
+              aria-label="View photo in fullscreen"
+            >
+              <img
+                src={`http://localhost:5000${post.images[imgIdx]}`}
+                alt="post"
+                className="w-full max-h-[420px] object-cover"
+              />
+              {post.images.length > 1 && (
+                <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center pointer-events-none">
+                  <p className="text-xs bg-black/40 text-white px-2 py-1 rounded-full">
+                    {imgIdx + 1} of {post.images.length}
+                  </p>
+                  <p className="text-xs bg-black/40 text-white px-2 py-1 rounded-full">
+                    Click to enlarge
+                  </p>
+                </div>
+              )}
+            </button>
+
+            {post.images.length > 1 && post.images.length <= 8 && (
               <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
                 {post.images.map((_, i) => (
                   <button
@@ -175,10 +233,12 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
                     className={`w-1.5 h-1.5 rounded-full transition-all ${
                       i === imgIdx ? 'bg-white w-3' : 'bg-white/60'
                     }`}
+                    aria-label={`Show image ${i + 1}`}
                   />
                 ))}
               </div>
             )}
+
             {post.images.length > 1 && imgIdx > 0 && (
               <button
                 onClick={() => setImgIdx(p => p - 1)}
@@ -194,15 +254,83 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
           </div>
         )}
 
+        {/* Fullscreen image viewer */}
+        {showImageViewer && post.images?.length > 0 && (
+          <div
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+            onClick={() => setShowImageViewer(false)}
+          >
+            <button
+              type="button"
+              className="absolute top-6 right-6 z-10 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition text-white"
+              onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); }}
+              aria-label="Close image viewer"
+            >
+              <X className="h-7 w-7" />
+            </button>
+
+            {post.images.length > 1 && (
+              <button
+                type="button"
+                className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewerIdx((prev) => {
+                    const next = (prev - 1 + post.images.length) % post.images.length;
+                    setImgIdx(next);
+                    return next;
+                  });
+                }}
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="h-8 w-8" />
+              </button>
+            )}
+
+            {post.images.length > 1 && (
+              <button
+                type="button"
+                className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewerIdx((prev) => {
+                    const next = (prev + 1) % post.images.length;
+                    setImgIdx(next);
+                    return next;
+                  });
+                }}
+                aria-label="Next image"
+              >
+                <ChevronRight className="h-8 w-8" />
+              </button>
+            )}
+
+            <div className="relative max-w-5xl w-full px-4" onClick={(e) => e.stopPropagation()}>
+              <img
+                src={`http://localhost:5000${post.images[viewerIdx]}`}
+                alt="post fullscreen"
+                className="w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
+              />
+              <p className="text-white text-center mt-5 text-lg font-medium">
+                {viewerIdx + 1} / {post.images.length}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50">
           <button
             onClick={handleLike}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium transition-all ${
-              liked ? 'text-red-500 bg-red-50' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
+              liked ? 'text-red-600 bg-red-50' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
             }`}
           >
-            <Heart size={18} className={liked ? 'fill-current' : ''} />
+            <Heart
+              size={18}
+              strokeWidth={liked ? 2.5 : 2}
+              fill={liked ? 'currentColor' : 'none'}
+            />
             <span>{likeCount}</span>
           </button>
 

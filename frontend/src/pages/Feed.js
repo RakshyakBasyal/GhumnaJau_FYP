@@ -52,6 +52,7 @@ export default function Feed() {
   const [editingPost,   setEditingPost]  = useState(null);
   const [emptyFollowing, setEmptyFollowing] = useState(false);
   const [showFilter,    setShowFilter]   = useState(false);
+  const [hasNewActivity,setHasNewActivity] = useState(false);
 
   const loaderRef = useRef();
 
@@ -115,6 +116,7 @@ export default function Feed() {
     };
 
     socket.on('postCreated', (post) => {
+      setHasNewActivity(true);
       if (tab === 'explore') {
         setPosts(prev => {
           if (prev.some(p => p._id === post._id)) {
@@ -128,24 +130,29 @@ export default function Feed() {
     });
 
     socket.on('postUpdated', (updatedPost) => {
+      setHasNewActivity(true);
       setPosts(prev => prev.map(p => (p._id === updatedPost._id ? updatedPost : p)));
     });
 
     socket.on('postDeleted', ({ postId }) => {
+      setHasNewActivity(true);
       setPosts(prev => prev.filter(p => p._id !== postId));
     });
 
     socket.on('postLiked', ({ postId, likes, likeCount }) => {
+      setHasNewActivity(true);
       setPosts(prev =>
         prev.map(p => (p._id === postId ? { ...p, likes, likeCount } : p))
       );
     });
 
     socket.on('commentAdded', ({ postId, commentCount }) => {
+      setHasNewActivity(true);
       setPosts(prev => prev.map(p => (p._id === postId ? { ...p, commentCount } : p)));
     });
 
     socket.on('commentDeleted', ({ postId, commentCount }) => {
+      setHasNewActivity(true);
       setPosts(prev => prev.map(p => (p._id === postId ? { ...p, commentCount } : p)));
     });
 
@@ -182,12 +189,17 @@ export default function Feed() {
               <span className="text-blue-600">Travel</span> Feed
             </h1>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => fetchPosts(true)}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition"
-              >
-                <RefreshCw size={17} />
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => { setHasNewActivity(false); fetchPosts(true); }}
+                  className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition"
+                >
+                  <RefreshCw size={17} />
+                </button>
+                {hasNewActivity && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
+                )}
+              </div>
               <button
                 onClick={() => { setEditingPost(null); setShowCreate(true); }}
                 className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-full shadow transition"
@@ -201,7 +213,7 @@ export default function Feed() {
       </div>
 
       {/* Feed content */}
-      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_320px] gap-6">
+      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 gap-6">
         <div className="space-y-4">
           <button
             onClick={() => { setEditingPost(null); setShowCreate(true); }}
@@ -210,39 +222,9 @@ export default function Feed() {
             <p className="text-sm text-gray-500">Share your travel moments, tips, and reviews...</p>
           </button>
 
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <Loader size={24} className="animate-spin text-blue-600" />
-            </div>
-          ) : emptyFollowing ? (
-            <EmptyFollowing onExplore={() => setTab('explore')} />
-          ) : posts.length === 0 ? (
-            <EmptyExplore />
-          ) : (
-            <>
-              {posts.map(post => (
-                <PostCard
-                  key={post._id}
-                  post={post}
-                  onUpdated={handlePostAction}
-                  onDeleted={handlePostDeleted}
-                />
-              ))}
-
-              <div ref={loaderRef} className="flex justify-center py-4">
-                {loadingMore && <Loader size={20} className="animate-spin text-blue-500" />}
-                {!loadingMore && page >= totalPages && posts.length > 0 && (
-                  <p className="text-xs text-gray-300">You've seen it all ✨</p>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        <aside className="hidden lg:block">
-          <div className="sticky top-24 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-800">Feed Controls</p>
+              <p className="text-sm font-semibold text-gray-800">Feed</p>
               <button
                 onClick={() => setShowFilter(v => !v)}
                 className={`p-2 rounded-full transition ${showFilter ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500'}`}
@@ -298,7 +280,36 @@ export default function Feed() {
               </div>
             )}
           </div>
-        </aside>
+
+          {loading ? (
+            <div className="flex justify-center py-20">
+              <Loader size={24} className="animate-spin text-blue-600" />
+            </div>
+          ) : emptyFollowing ? (
+            <EmptyFollowing onExplore={() => setTab('explore')} />
+          ) : posts.length === 0 ? (
+            <EmptyExplore />
+          ) : (
+            <>
+              {posts.map(post => (
+                <PostCard
+                  key={post._id}
+                  post={post}
+                  onUpdated={handlePostAction}
+                  onDeleted={handlePostDeleted}
+                />
+              ))}
+
+              <div ref={loaderRef} className="flex justify-center py-4">
+                {loadingMore && <Loader size={20} className="animate-spin text-blue-500" />}
+                {!loadingMore && page >= totalPages && posts.length > 0 && (
+                  <p className="text-xs text-gray-300">You've seen it all ✨</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
       </div>
 
       {/* Create / Edit modal */}
