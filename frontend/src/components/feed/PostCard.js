@@ -207,11 +207,14 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
               className="relative w-full block text-left"
               aria-label="View photo in fullscreen"
             >
-              <img
-                src={`http://localhost:5000${post.images[imgIdx]}`}
-                alt="post"
-                className="w-full max-h-[420px] object-cover"
-              />
+              <div className="w-full h-[340px] overflow-hidden bg-black">
+                <img
+                  src={`http://localhost:5000${post.images[imgIdx]}`}
+                  alt="post"
+                  className="w-full h-full object-contain"
+                  loading="lazy"
+                />
+              </div>
               {post.images.length > 1 && (
                 <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center pointer-events-none">
                   <p className="text-xs bg-black/40 text-white px-2 py-1 rounded-full">
@@ -239,13 +242,13 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
               </div>
             )}
 
-            {post.images.length > 1 && imgIdx > 0 && (
+            {post.images.length > 1 && post.images.length <= 8 && imgIdx > 0 && (
               <button
                 onClick={() => setImgIdx(p => p - 1)}
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs transition"
               >‹</button>
             )}
-            {post.images.length > 1 && imgIdx < post.images.length - 1 && (
+            {post.images.length > 1 && post.images.length <= 8 && imgIdx < post.images.length - 1 && (
               <button
                 onClick={() => setImgIdx(p => p + 1)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs transition"

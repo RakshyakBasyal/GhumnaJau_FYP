@@ -32,6 +32,13 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
 
   const fileRef = useRef();
 
+  const addPhotosLabel =
+    category === 'story' ? 'Add Story Photos' :
+    category === 'photo' ? 'Add Trip Photos' :
+    category === 'review' ? 'Add Review Photos (optional)' :
+    category === 'tip' ? 'Add Tip Photos (optional)' :
+    'Add Photos';
+
   useEffect(() => {
     // Load tag options
     axios.get(`${BASE}/destinations`, authHeaders()).then(r => setDestinations(r.data)).catch(() => {});
@@ -255,7 +262,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition font-medium"
           >
             <Image size={17} />
-            Add Photos
+            {addPhotosLabel}
           </button>
           <input
             ref={fileRef}

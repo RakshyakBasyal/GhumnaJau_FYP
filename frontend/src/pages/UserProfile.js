@@ -7,6 +7,8 @@ import CreatePostModal from '../components/feed/CreatePostModal';
 import {
   getUserPosts,
   getFollowStats,
+  getFollowers,
+  getFollowing,
   followUser,
   unfollowUser,
 } from '../services/feedApi';
@@ -70,6 +72,11 @@ export default function UserProfile() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
 
+  const [followListTab, setFollowListTab] = useState('followers'); // 'followers' | 'following'
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [loadingFollowLists, setLoadingFollowLists] = useState(false);
+
   const fetchPosts = async () => {
     if (!userId) return;
     const res = await getUserPosts(userId, { page: 1, limit: 12 });
@@ -114,6 +121,27 @@ export default function UserProfile() {
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!userId) return;
+      setLoadingFollowLists(true);
+      try {
+        const [followersRes, followingRes] = await Promise.all([
+          getFollowers(userId),
+          getFollowing(userId),
+        ]);
+        setFollowers(followersRes.data.followers || []);
+        setFollowing(followingRes.data.following || []);
+      } catch (_) {
+        setFollowers([]);
+        setFollowing([]);
+      } finally {
+        setLoadingFollowLists(false);
+      }
+    };
+    run();
   }, [userId]);
 
   const handlePostAction = (post, action) => {
@@ -210,6 +238,76 @@ export default function UserProfile() {
               <Users className="h-4 w-4 text-gray-600" />
               <span><span className="font-semibold text-gray-900">{stats.followingCount}</span> Following</span>
             </span>
+          </div>
+
+          {/* Followers / Following lists (Instagram-style tabs) */}
+          <div className="mt-5 bg-gray-50 rounded-2xl border border-gray-100 p-4">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setFollowListTab('followers')}
+                className={`flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                  followListTab === 'followers'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Followers ({stats.followersCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFollowListTab('following')}
+                className={`flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                  followListTab === 'following'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Following ({stats.followingCount})
+              </button>
+            </div>
+
+            <div className="mt-3 max-h-52 overflow-y-auto">
+              {loadingFollowLists ? (
+                <div className="py-6 flex justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                </div>
+              ) : followListTab === 'followers' ? (
+                followers.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-2 text-center">No followers yet</div>
+                ) : (
+                  followers.slice(0, 10).map((u) => (
+                    <button
+                      key={u._id}
+                      type="button"
+                      onClick={() => navigate(`/profile/${u._id}`)}
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white transition"
+                    >
+                      <Avatar name={u.fullName} avatar={u.avatar} size={10} />
+                      <div className="min-w-0 text-left">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{u.fullName || 'User'}</p>
+                      </div>
+                    </button>
+                  ))
+                )
+              ) : following.length === 0 ? (
+                <div className="text-sm text-gray-500 py-2 text-center">Not following anyone yet</div>
+              ) : (
+                following.slice(0, 10).map((u) => (
+                  <button
+                    key={u._id}
+                    type="button"
+                    onClick={() => navigate(`/profile/${u._id}`)}
+                    className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white transition"
+                  >
+                    <Avatar name={u.fullName} avatar={u.avatar} size={10} />
+                    <div className="min-w-0 text-left">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{u.fullName || 'User'}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
 

@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import {
   User,
-  Users,
   Mail,
   Phone,
   Edit2,
@@ -20,7 +19,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import io from "socket.io-client";
-import { getUserPosts, getFollowStats } from "../services/feedApi";
+import { getUserPosts, getFollowStats, getFollowers, getFollowing } from "../services/feedApi";
 
 const BASE_URL = "http://localhost:5000";
 
@@ -60,6 +59,11 @@ const Profile = () => {
   });
   const [loadingFollowStats, setLoadingFollowStats] = useState(true);
 
+  const [followListTab, setFollowListTab] = useState('followers'); // 'followers' | 'following'
+  const [followersList, setFollowersList] = useState([]);
+  const [followingList, setFollowingList] = useState([]);
+  const [loadingFollowLists, setLoadingFollowLists] = useState(false);
+
   const myId = (() => {
     const token = localStorage.getItem("token");
     if (!token) return null;
@@ -70,6 +74,28 @@ const Profile = () => {
       return null;
     }
   })();
+
+  const SmallAvatar = ({ name, avatar, size = 10 }) => {
+    const sizePx = size * 4;
+    if (avatar) {
+      return (
+        <img
+          src={`${BASE_URL}${avatar}`}
+          alt={name}
+          className="rounded-full object-cover flex-shrink-0 ring-2 ring-white"
+          style={{ width: sizePx, height: sizePx }}
+        />
+      );
+    }
+    return (
+      <div
+        className="rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0 ring-2 ring-white"
+        style={{ width: sizePx, height: sizePx }}
+      >
+        {name?.charAt(0).toUpperCase() || 'U'}
+      </div>
+    );
+  };
 
   const [loading, setLoading] = useState(true);
 
@@ -198,6 +224,17 @@ const Profile = () => {
               followersCount: statsRes.data.followersCount ?? 0,
               followingCount: statsRes.data.followingCount ?? 0,
             });
+
+            // Also load follower/following lists (Instagram-like tabs)
+            try {
+              setLoadingFollowLists(true);
+              const [followersRes, followingRes] = await Promise.all([
+                getFollowers(myId),
+                getFollowing(myId),
+              ]);
+              setFollowersList(followersRes.data.followers || []);
+              setFollowingList(followingRes.data.following || []);
+            } catch (_) {}
           }
         } catch (_) {}
       } catch (err) {
@@ -208,6 +245,7 @@ const Profile = () => {
         setLoadingBookings(false);
         setLoadingPosts(false);
         setLoadingFollowStats(false);
+        setLoadingFollowLists(false);
       }
     };
 
@@ -472,28 +510,72 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Followers / Following */}
-          <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-700">
-            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
-              <Users className="h-4 w-4 text-blue-600" />
-              {loadingFollowStats ? (
-                <span className="text-gray-500">Loading...</span>
-              ) : (
-                <>
-                  <span className="font-bold text-gray-900">{followStats.followersCount}</span>
-                  <span>Followers</span>
-                </>
-              )}
+          {/* Followers / Following (Instagram-like) */}
+          <div className="mt-6 bg-gray-50 rounded-2xl border border-gray-100 p-4">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setFollowListTab('followers')}
+                className={`flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                  followListTab === 'followers'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Followers ({followStats.followersCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFollowListTab('following')}
+                className={`flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                  followListTab === 'following'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Following ({followStats.followingCount})
+              </button>
             </div>
-            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
-              <Users className="h-4 w-4 text-gray-600" />
-              {loadingFollowStats ? (
-                <span className="text-gray-500">Loading...</span>
+
+            <div className="mt-3 max-h-52 overflow-y-auto">
+              {loadingFollowLists ? (
+                <div className="py-6 flex justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                </div>
+              ) : followListTab === 'followers' ? (
+                followersList.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-2 text-center">No followers yet</div>
+                ) : (
+                  followersList.slice(0, 10).map((u) => (
+                    <button
+                      key={u._id}
+                      type="button"
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white transition"
+                      onClick={() => navigate(`/profile/${u._id}`)}
+                    >
+                      <SmallAvatar name={u.fullName} avatar={u.avatar} size={10} />
+                      <div className="min-w-0 text-left">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{u.fullName || 'User'}</p>
+                      </div>
+                    </button>
+                  ))
+                )
+              ) : followingList.length === 0 ? (
+                <div className="text-sm text-gray-500 py-2 text-center">Not following anyone yet</div>
               ) : (
-                <>
-                  <span className="font-bold text-gray-900">{followStats.followingCount}</span>
-                  <span>Following</span>
-                </>
+                followingList.slice(0, 10).map((u) => (
+                  <button
+                    key={u._id}
+                    type="button"
+                    className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white transition"
+                    onClick={() => navigate(`/profile/${u._id}`)}
+                  >
+                    <SmallAvatar name={u.fullName} avatar={u.avatar} size={10} />
+                    <div className="min-w-0 text-left">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{u.fullName || 'User'}</p>
+                    </div>
+                  </button>
+                ))
               )}
             </div>
           </div>
