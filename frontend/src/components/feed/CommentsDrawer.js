@@ -4,11 +4,17 @@ import { X, Send, Loader, Pencil, Trash2 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { getComments, addComment, editComment, deleteComment } from '../../services/feedApi';
 
+const avatarUrl = (value) => {
+  if (!value) return '';
+  if (String(value).startsWith('http://') || String(value).startsWith('https://')) return value;
+  return `http://localhost:5000${value}`;
+};
+
 const Avatar = ({ name, avatar, size = 8 }) => {
   const sizeClass = `w-${size} h-${size}`;
   if (avatar) return (
     <img
-      src={`http://localhost:5000${avatar}`}
+      src={avatarUrl(avatar)}
       alt={name}
       className={`${sizeClass} rounded-full object-cover flex-shrink-0`}
     />

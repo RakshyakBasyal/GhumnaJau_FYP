@@ -57,6 +57,16 @@ export const getAdminStats = () => API.get("/admin/stats");
 export const deleteMyAccount = () => API.delete("/users/me");
 export const getMe = () => API.get("/users/me");
 export const updateMe = (formData) => API.patch("/users/profile", formData);
+export const getUserProfileById = (id) => API.get(`/users/${id}`);
+export const getDiscoverUsers = (params = {}) => API.get("/users/discover", { params });
+export const sendBuddyRequest = (userId) => API.post("/buddies/requests", { userId });
+export const getBuddyRequests = () => API.get("/buddies/requests");
+export const respondBuddyRequest = (requestId, action) =>
+  API.patch(`/buddies/requests/${requestId}`, { action });
+export const getBuddyConnections = () => API.get("/buddies/connections");
+export const getBuddyStatus = (userId) => API.get(`/buddies/status/${userId}`);
+export const getBuddyMessages = (userId) => API.get(`/buddies/messages/${userId}`);
+export const sendBuddyMessage = (userId, text) => API.post("/buddies/messages", { userId, text });
 
 // Hotels
 export const getHotels = () => API.get('/hotels');

@@ -14,9 +14,9 @@ const CATEGORIES = [
   { value: 'tip',    label: 'Travel Tip',         color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 ];
 
-export default function CreatePostModal({ onClose, onCreated, editingPost = null }) {
+export default function CreatePostModal({ onClose, onCreated, editingPost = null, initialCategory = '' }) {
   const [content,     setContent]     = useState(editingPost?.content || '');
-  const [category,    setCategory]    = useState(editingPost?.category || '');
+  const [category,    setCategory]    = useState(editingPost?.category || initialCategory || '');
   const [images,      setImages]      = useState([]);
   const [previews,    setPreviews]    = useState([]);
   const [keepImages,  setKeepImages]  = useState(editingPost?.images || []);
@@ -45,6 +45,10 @@ export default function CreatePostModal({ onClose, onCreated, editingPost = null
     axios.get(`${BASE}/hotels`,       authHeaders()).then(r => setHotels(r.data)).catch(() => {});
     axios.get(`${BASE}/flights`,      authHeaders()).then(r => setFlights(r.data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!editingPost && initialCategory) setCategory(initialCategory);
+  }, [initialCategory, editingPost]);
 
   const handleImages = (e) => {
     const files = Array.from(e.target.files);

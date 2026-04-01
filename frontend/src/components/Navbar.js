@@ -54,9 +54,8 @@ const Navbar = () => {
     { to: "/hotels", label: "Hotels" },
     { to: "/flights", label: "Flights" },
     { to: "/itinerary", label: "Itinerary" },          // ← no highlight class
-    { to: "/feed", label: "Social Feed" },
+    { to: "/community", label: "Community" },
     { to: "/travel-logs", label: "Travel Logs" },
-    { to: "/buddy-matching", label: "Find Buddies" },
   ];
 
   // First name for normal users, "Admin" for admin

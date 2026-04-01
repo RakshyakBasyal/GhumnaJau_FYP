@@ -4,6 +4,10 @@ import { Loader2, Users } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import PostCard from '../components/feed/PostCard';
 import CreatePostModal from '../components/feed/CreatePostModal';
+import TravelProfileSection from '../components/profile/TravelProfileSection';
+import ProfileHeader from '../components/profile/ProfileHeader';
+import StatsSection from '../components/profile/StatsSection';
+import { getBuddyStatus, getMe, getUserProfileById, sendBuddyRequest } from '../services/api';
 import {
   getUserPosts,
   getFollowStats,
@@ -14,13 +18,17 @@ import {
 } from '../services/feedApi';
 
 const BASE_URL = 'http://localhost:5000';
+const normalizeList = (arr) => (Array.isArray(arr) ? arr : []);
 
 const Avatar = ({ name, avatar, size = 16 }) => {
   const sizePxNum = size * 4; // ~ Tailwind-like sizing (e.g. 16 -> 64px)
   if (avatar) {
+    const src = String(avatar).startsWith("http://") || String(avatar).startsWith("https://")
+      ? avatar
+      : `${BASE_URL}${avatar}`;
     return (
       <img
-        src={`${BASE_URL}${avatar}`}
+        src={src}
         alt={name}
         className="rounded-full object-cover flex-shrink-0 ring-2 ring-white"
         style={{ width: sizePxNum, height: sizePxNum }}
@@ -61,6 +69,24 @@ export default function UserProfile() {
   const [postCount, setPostCount] = useState(0);
 
   const [header, setHeader] = useState({ fullName: 'Traveler', avatar: '' });
+  const [travelProfile, setTravelProfile] = useState({
+    travelStyle: '',
+    preferredDestinations: [],
+    travelInterests: [],
+    travelPace: '',
+    bio: '',
+    languages: [],
+    travelStats: { tripsCount: 0, countriesVisited: 0, totalPosts: 0 },
+  });
+  const [myTravelProfile, setMyTravelProfile] = useState({
+    travelStyle: '',
+    preferredDestinations: [],
+    travelInterests: [],
+    travelPace: '',
+    bio: '',
+    languages: [],
+    travelStats: { tripsCount: 0, countriesVisited: 0, totalPosts: 0 },
+  });
 
   const [stats, setStats] = useState({
     followersCount: 0,
@@ -69,6 +95,8 @@ export default function UserProfile() {
   });
 
   const [followingBusy, setFollowingBusy] = useState(false);
+  const [buddyStatus, setBuddyStatus] = useState("none");
+  const [buddyBusy, setBuddyBusy] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
 
@@ -93,6 +121,39 @@ export default function UserProfile() {
     }
   };
 
+  const fetchProfile = async () => {
+    if (!userId) return;
+    const res = await getUserProfileById(userId);
+    const user = res.data;
+    setHeader({
+      fullName: user.fullName || 'Traveler',
+      avatar: user.avatar || '',
+    });
+    setTravelProfile({
+      travelStyle: user.travelStyle || '',
+      preferredDestinations: normalizeList(user.preferredDestinations),
+      travelInterests: normalizeList(user.travelInterests),
+      travelPace: user.travelPace || '',
+      bio: user.bio || '',
+      languages: normalizeList(user.languages),
+      travelStats: user.travelStats || { tripsCount: 0, countriesVisited: 0, totalPosts: 0 },
+    });
+  };
+
+  const fetchMyProfile = async () => {
+    const res = await getMe();
+    const me = res.data;
+    setMyTravelProfile({
+      travelStyle: me.travelStyle || '',
+      preferredDestinations: normalizeList(me.preferredDestinations),
+      travelInterests: normalizeList(me.travelInterests),
+      travelPace: me.travelPace || '',
+      bio: me.bio || '',
+      languages: normalizeList(me.languages),
+      travelStats: me.travelStats || { tripsCount: 0, countriesVisited: 0, totalPosts: 0 },
+    });
+  };
+
   const fetchStats = async () => {
     if (!userId) return;
     const res = await getFollowStats(userId);
@@ -111,7 +172,11 @@ export default function UserProfile() {
       }
       setLoading(true);
       try {
-        await Promise.all([fetchPosts(), fetchStats()]);
+        await Promise.all([fetchPosts(), fetchStats(), fetchProfile(), fetchMyProfile()]);
+        if (!isSelf) {
+          const statusRes = await getBuddyStatus(userId);
+          setBuddyStatus(statusRes.data.status || "none");
+        }
       } catch (err) {
         showToast(err?.response?.data?.msg || 'Failed to load profile', 'error');
       } finally {
@@ -121,7 +186,33 @@ export default function UserProfile() {
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, isSelf]);
+
+  const compatibilityScore = useMemo(() => {
+    const myInterests = new Set((myTravelProfile.travelInterests || []).map((i) => String(i).toLowerCase()));
+    const otherInterests = (travelProfile.travelInterests || []).map((i) => String(i).toLowerCase());
+    const overlap = otherInterests.filter((i) => myInterests.has(i)).length;
+
+    let score = 40;
+    if (otherInterests.length > 0) {
+      score += Math.min(35, Math.round((overlap / otherInterests.length) * 35));
+    }
+    if (
+      myTravelProfile.travelStyle &&
+      travelProfile.travelStyle &&
+      myTravelProfile.travelStyle.toLowerCase() === travelProfile.travelStyle.toLowerCase()
+    ) {
+      score += 15;
+    }
+    if (
+      myTravelProfile.travelPace &&
+      travelProfile.travelPace &&
+      myTravelProfile.travelPace.toLowerCase() === travelProfile.travelPace.toLowerCase()
+    ) {
+      score += 10;
+    }
+    return Math.max(0, Math.min(100, score));
+  }, [myTravelProfile, travelProfile]);
 
   useEffect(() => {
     const run = async () => {
@@ -184,6 +275,25 @@ export default function UserProfile() {
     }
   };
 
+  const handleConnectBuddy = async () => {
+    if (isSelf || !userId || buddyBusy) return;
+    if (buddyStatus === "sent" || buddyStatus === "connected") return;
+    if (buddyStatus === "received") {
+      showToast("This user already sent you a request. Check your profile dashboard.", "info");
+      return;
+    }
+    setBuddyBusy(true);
+    try {
+      await sendBuddyRequest(userId);
+      setBuddyStatus("sent");
+      showToast('Travel buddy request sent', 'success');
+    } catch (err) {
+      showToast(err?.response?.data?.msg || 'Failed to send buddy request', 'error');
+    } finally {
+      setBuddyBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center py-16">
@@ -196,17 +306,24 @@ export default function UserProfile() {
     <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-            <div className="flex items-center gap-4">
-              <Avatar name={header.fullName} avatar={header.avatar} />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 leading-tight">
-                  {header.fullName}
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">{postCount} post{postCount === 1 ? '' : 's'}</p>
-              </div>
+          <ProfileHeader
+            name={header.fullName}
+            bio={travelProfile.bio}
+            avatar={header.avatar}
+            editable={false}
+          >
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => navigate('/find-buddy')}
+                className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition"
+              >
+                Find Travel Buddies
+              </button>
             </div>
+          </ProfileHeader>
 
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-5">
+            <p className="text-sm text-gray-500">{postCount} post{postCount === 1 ? '' : 's'}</p>
             {isSelf ? (
               <button
                 onClick={() => { setEditingPost(null); setShowCreate(true); }}
@@ -215,19 +332,53 @@ export default function UserProfile() {
                 Post
               </button>
             ) : (
-              <button
-                onClick={handleToggleFollow}
-                disabled={followingBusy}
-                className={`px-5 py-2.5 text-sm font-semibold rounded-full shadow transition flex items-center gap-2 justify-center ${
-                  stats.isFollowing
-                    ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                } ${followingBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
-              >
-                {followingBusy ? 'Working…' : stats.isFollowing ? 'Unfollow' : 'Follow'}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleToggleFollow}
+                  disabled={followingBusy}
+                  className={`px-5 py-2.5 text-sm font-semibold rounded-full shadow transition flex items-center gap-2 justify-center ${
+                    stats.isFollowing
+                      ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  } ${followingBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  {followingBusy ? 'Working…' : stats.isFollowing ? 'Unfollow' : 'Follow'}
+                </button>
+                <button
+                  onClick={handleConnectBuddy}
+                  disabled={buddyBusy || buddyStatus === "sent" || buddyStatus === "connected"}
+                  className={`px-5 py-2.5 text-sm font-semibold rounded-full shadow transition ${
+                    buddyStatus === "connected"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : buddyStatus === "sent"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  } ${buddyBusy ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  {buddyBusy
+                    ? "Sending..."
+                    : buddyStatus === "connected"
+                    ? "Connected"
+                    : buddyStatus === "sent"
+                    ? "Request Sent"
+                    : buddyStatus === "received"
+                    ? "Check Requests"
+                    : "Connect as Travel Buddy"}
+                </button>
+              </div>
             )}
           </div>
+
+          {!isSelf && (
+            <div className="mt-5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-900">
+                Travel Compatibility: {compatibilityScore}%
+              </p>
+              <p className="text-xs text-emerald-700 mt-1">
+                Preview based on travel interests, style, and pace (mock logic).
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 flex flex-wrap gap-4 text-sm text-gray-600">
             <span className="inline-flex items-center gap-2">
@@ -308,6 +459,19 @@ export default function UserProfile() {
                 ))
               )}
             </div>
+          </div>
+
+          <div className="mt-6">
+            <TravelProfileSection profile={travelProfile} editable={false} />
+          </div>
+
+          <div className="mt-6">
+            <StatsSection
+              stats={{
+                ...(travelProfile.travelStats || {}),
+                totalPosts: travelProfile.travelStats?.totalPosts || postCount,
+              }}
+            />
           </div>
         </div>
 
