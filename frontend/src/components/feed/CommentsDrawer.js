@@ -4,10 +4,11 @@ import { X, Send, Loader, Pencil, Trash2 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { getComments, addComment, editComment, deleteComment } from '../../services/feedApi';
 
-const avatarUrl = (value) => {
-  if (!value) return '';
-  if (String(value).startsWith('http://') || String(value).startsWith('https://')) return value;
-  return `http://localhost:5000${value}`;
+const avatarUrl = (v) => {
+  if (!v) return '';
+  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
+  if (String(v).includes('googleusercontent.com')) return '';
+  return String(v).startsWith('http') ? v : `http://localhost:5000${v}`;
 };
 
 const Avatar = ({ name, avatar, size = 8 }) => {

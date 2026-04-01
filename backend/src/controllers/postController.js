@@ -65,6 +65,12 @@ exports.getExploreFeed = async (req, res) => {
     if (category)    filter.category    = category;
     if (destination) filter.destination = destination;
 
+    // Stories expire in 24 hours
+    if (category === 'story') {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      filter.createdAt = { $gte: twentyFourHoursAgo };
+    }
+
     const [posts, total] = await Promise.all([
       Post.find(filter)
         .populate('author',      'fullName avatar')
@@ -107,6 +113,14 @@ exports.getFollowingFeed = async (req, res) => {
     }
 
     const filter = { author: { $in: followingIds }, isDeleted: false };
+    const { category } = req.query;
+    if (category) filter.category = category;
+
+    // Stories expire in 24 hours
+    if (category === 'story') {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      filter.createdAt = { $gte: twentyFourHoursAgo };
+    }
 
     const [posts, total] = await Promise.all([
       Post.find(filter)

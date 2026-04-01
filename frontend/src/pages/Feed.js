@@ -25,6 +25,8 @@ const CATEGORIES = [
 
 const avatarUrl = (v) => {
   if (!v) return '';
+  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
+  if (String(v).includes('googleusercontent.com')) return '';
   return String(v).startsWith('http') ? v : `${BASE_URL}${v}`;
 };
 
@@ -76,7 +78,10 @@ export default function Feed({ isCommunityView = false }) {
   const [showStory,       setShowStory]       = useState(false);
   const [storyIdx,        setStoryIdx]        = useState(0);
   const [storyImgIdx,     setStoryImgIdx]     = useState(0);
+  const [storyTimer,      setStoryTimer]      = useState(0);
   const [currentUser,     setCurrentUser]     = useState(null);
+
+  const STORY_DURATION = 5000; // 5 seconds per story image
 
   const [suggested,       setSuggested]       = useState([]);
   const [connectMap,      setConnectMap]      = useState({});
@@ -139,12 +144,19 @@ export default function Feed({ isCommunityView = false }) {
           return [post, ...prev];
         });
       } else {
-        if (tab === 'explore' || (tab === 'following' && post.author?._id !== myId)) {
-          setPosts(prev => {
-            if (prev.some(p => p._id === post._id)) return prev;
-            return [post, ...prev];
-          });
-        }
+        // Only add to posts state if not already there (prevents duplicates)
+        setPosts(prev => {
+          if (prev.some(p => p._id === post._id)) return prev;
+
+          // Logic for which tab the post should appear in:
+          // 1. Explore tab: Add everything (if it matches category)
+           // 2. Following tab: Add if it's my own post OR if it's someone I follow (if it matches category)
+           const matchesCategory = !category || post.category === category;
+           if (matchesCategory && (tab === 'explore' || (tab === 'following' && (post.author?._id === myId || connectMap[post.author?._id] === 'connected')))) {
+             return [post, ...prev];
+           }
+          return prev;
+        });
       }
     });
 
@@ -171,7 +183,7 @@ export default function Feed({ isCommunityView = false }) {
     });
 
     return () => socket.disconnect();
-  }, [tab, category, myId]);
+  }, [tab, category, myId, connectMap]);
 
   // ── Stories strip ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -223,9 +235,13 @@ export default function Feed({ isCommunityView = false }) {
   };
 
   const handlePostCreated = (newPost, isEdit) => {
-    if (isEdit) setPosts(prev => prev.map(p => p._id === newPost._id ? newPost : p));
-    else setPosts(prev => [newPost, ...prev]);
+    if (isEdit) {
+      setPosts(prev => prev.map(p => p._id === newPost._id ? newPost : p));
+      setStories(prev => prev.map(s => s._id === newPost._id ? newPost : s));
+    }
+    // New posts are handled by the Socket.io 'postCreated' listener to avoid duplicates
     setEditingPost(null);
+    setShowCreate(false);
   };
 
   const storyCurrent = stories[storyIdx];
@@ -274,30 +290,58 @@ export default function Feed({ isCommunityView = false }) {
   const storyCurrentGrouped = groupedStories[storyIdx];
   const storyImagesGrouped = storyCurrentGrouped?.images || [];
 
+  const nextStory = useCallback(() => {
+    if (storyImgIdx < storyImagesGrouped.length - 1) {
+      setStoryImgIdx(p => p + 1);
+    } else if (storyIdx < groupedStories.length - 1) {
+      setStoryIdx(i => i + 1);
+      setStoryImgIdx(0);
+    } else {
+      setShowStory(false);
+    }
+    setStoryTimer(0);
+  }, [storyImgIdx, storyIdx, storyImagesGrouped.length, groupedStories.length]);
+
+  const prevStory = useCallback(() => {
+    if (storyImgIdx > 0) {
+      setStoryImgIdx(p => p - 1);
+    } else if (storyIdx > 0) {
+      const prevIdx = storyIdx - 1;
+      setStoryIdx(prevIdx);
+      setStoryImgIdx(groupedStories[prevIdx].images.length - 1);
+    }
+    setStoryTimer(0);
+  }, [storyImgIdx, storyIdx, groupedStories]);
+
+  // ── Story Auto-advance Timer ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!showStory) {
+      setStoryTimer(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setStoryTimer(prev => {
+        if (prev >= 100) {
+          nextStory();
+          return 0;
+        }
+        return prev + (100 / (STORY_DURATION / 100)); // Update every 100ms
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [showStory, nextStory]);
+
   // ── Keyboard Navigation for Story ──────────────────────────────────────────
   useEffect(() => {
     if (!showStory) return;
 
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowRight') {
-        // Next image or next story
-        if (storyImgIdx < storyImagesGrouped.length - 1) {
-          setStoryImgIdx(p => p + 1);
-        } else if (storyIdx < groupedStories.length - 1) {
-          setStoryIdx(i => i + 1);
-          setStoryImgIdx(0);
-        } else {
-          setShowStory(false);
-        }
+        nextStory();
       } else if (e.key === 'ArrowLeft') {
-        // Previous image or previous story
-        if (storyImgIdx > 0) {
-          setStoryImgIdx(p => p - 1);
-        } else if (storyIdx > 0) {
-          const prevIdx = storyIdx - 1;
-          setStoryIdx(prevIdx);
-          setStoryImgIdx(groupedStories[prevIdx].images.length - 1);
-        }
+        prevStory();
       } else if (e.key === 'Escape') {
         setShowStory(false);
       }
@@ -305,7 +349,7 @@ export default function Feed({ isCommunityView = false }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showStory, storyImgIdx, storyIdx, storyImagesGrouped.length, groupedStories.length, groupedStories]);
+  }, [showStory, nextStory, prevStory]);
 
   return (
     <div className={`${isCommunityView ? '' : 'min-h-screen bg-slate-50'}`}>
@@ -653,9 +697,16 @@ export default function Feed({ isCommunityView = false }) {
 
           <div className="relative w-full max-w-md mx-auto h-full flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
             {/* Progress bars */}
-            <div className="absolute top-3 left-3 right-3 flex gap-1 z-20">
+            <div className="absolute top-3 left-3 right-3 flex gap-1.5 z-20">
               {storyImagesGrouped.map((_, i) => (
-                <div key={i} className={`h-1 flex-1 rounded-full ${i < storyImgIdx ? 'bg-white' : i === storyImgIdx ? 'bg-white/80' : 'bg-white/30'}`} />
+                <div key={i} className="h-1 flex-1 rounded-full bg-white/30 overflow-hidden">
+                  <div 
+                    className="h-full bg-white transition-all duration-100 ease-linear"
+                    style={{ 
+                      width: i < storyImgIdx ? '100%' : i === storyImgIdx ? `${storyTimer}%` : '0%' 
+                    }}
+                  />
+                </div>
               ))}
             </div>
 
@@ -688,23 +739,12 @@ export default function Feed({ isCommunityView = false }) {
             {storyImagesGrouped.length > 0 ? (
               <div className="relative w-full h-full flex items-center justify-center px-2">
                 <button 
-                  onClick={() => {
-                    if (storyImgIdx > 0) setStoryImgIdx(p => p - 1);
-                    else if (storyIdx > 0) {
-                      const prevIdx = storyIdx - 1;
-                      setStoryIdx(prevIdx);
-                      setStoryImgIdx(groupedStories[prevIdx].images.length - 1);
-                    }
-                  }}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-4 text-white/40 hover:text-white transition-colors text-3xl font-light">‹</button>
+                  onClick={prevStory}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-4 text-white hover:text-blue-400 transition-colors text-4xl font-bold drop-shadow-lg">‹</button>
                 
                 <button 
-                  onClick={() => {
-                    if (storyImgIdx < storyImagesGrouped.length - 1) setStoryImgIdx(p => p + 1);
-                    else if (storyIdx < groupedStories.length - 1) { setStoryIdx(i => i + 1); setStoryImgIdx(0); }
-                    else setShowStory(false);
-                  }} 
-                  className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-4 text-white/40 hover:text-white transition-colors text-3xl font-light">›</button>
+                  onClick={nextStory}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-4 text-white hover:text-blue-400 transition-colors text-4xl font-bold drop-shadow-lg">›</button>
                 
                 <img 
                   src={`${BASE_URL}${storyImagesGrouped[storyImgIdx]}`} 

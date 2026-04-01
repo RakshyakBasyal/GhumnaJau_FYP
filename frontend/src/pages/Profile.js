@@ -6,7 +6,7 @@ import {
   TrendingUp, LayoutDashboard, Plus, Search, Bell, Check, Globe,
   MessageSquare, UserCheck, Clock, Star, Compass, Heart
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { getUserPosts } from "../services/feedApi";
 import { getBuddyRequests, respondBuddyRequest } from "../services/api";
@@ -17,7 +17,10 @@ const BASE_URL = "http://localhost:5000";
 
 const avatarUrl = (v) => {
   if (!v) return "";
-  return String(v).startsWith("http") ? v : `${BASE_URL}${v}`;
+  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
+  const s = String(v);
+  if (s.includes('googleusercontent.com') || s.includes('lh3.googleusercontent.com')) return '';
+  return s.startsWith("http") ? s : `${BASE_URL}${s}`;
 };
 
 const TRAVEL_STYLES = ["Adventure Seeker","Cultural Explorer","Backpacker","Luxury Traveler","Budget Traveler","Eco Traveler"];
@@ -26,6 +29,7 @@ const INTEREST_PRESETS = ["Trekking","Food","Culture","Nightlife","Photography",
 
 export default function Profile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState("overview"); // overview | posts | requests
@@ -34,6 +38,7 @@ export default function Profile() {
   const [isEditingDestinations, setIsEditingDestinations] = useState(false);
   const [loading, setLoading]   = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [showSetupModal, setShowSetupModal] = useState(false);
 
   const [userData, setUserData] = useState({
     fullName: "", email: "", phone: "", avatar: "", coverImage: "",
@@ -64,6 +69,7 @@ export default function Profile() {
   // buddy requests
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [respondingId, setRespondingId]         = useState(null);
+  const [showPhotoView, setShowPhotoView]       = useState(false);
 
   // delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -120,8 +126,17 @@ export default function Profile() {
       const list = Array.isArray(itinData) ? itinData : [];
       setActiveTrips(list.filter((t) => t.status === "active").length);
       setCompletedTrips(list.filter((t) => t.status === "completed").length);
+
+      // Auto-open edit mode and show dialogue if profile is incomplete
+      if (!user.bio || !user.travelStyle) {
+        setIsEditingBasic(true);
+        if (location.state?.fromCommunityRedirect) {
+          setShowSetupModal(true);
+        }
+      }
     } catch (err) {
-      showToast("Failed to load profile", "error");
+      showToast("Session expired. Please login again.", "error");
+      navigate("/login");
     } finally {
       setLoading(false);
     }
@@ -257,14 +272,25 @@ export default function Profile() {
           <div className="flex flex-col md:flex-row gap-6 items-start">
 
             {/* Avatar */}
-            <div className="relative flex-shrink-0 mx-auto md:mx-0">
-              <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl overflow-hidden border-4 border-white shadow-xl bg-gray-100">
-                {avatarPreview
-                  ? <img src={avatarPreview} className="w-full h-full object-cover" alt={userData.fullName} />
-                  : <User className="w-full h-full p-6 text-gray-300" />}
+            <div className="relative flex-shrink-0 mx-auto md:mx-0 w-28 h-28 md:w-32 md:h-32">
+              <div 
+                className="w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-xl bg-gray-100 cursor-pointer flex items-center justify-center"
+                onClick={() => (avatarPreview || avatarUrl(userData.avatar)) && setShowPhotoView(true)}
+              >
+                {avatarPreview ? (
+                  <img src={avatarPreview} className="w-full h-full object-cover hover:opacity-90 transition" alt={userData.fullName} />
+                ) : avatarUrl(userData.avatar) ? (
+                  <img 
+                    src={avatarUrl(userData.avatar)} 
+                    className="w-full h-full object-cover hover:opacity-90 transition" 
+                    alt={userData.fullName} 
+                  />
+                ) : (
+                  <User className="w-full h-full p-6 text-gray-300" />
+                )}
               </div>
               {isEditingBasic && (
-                <label className="absolute -bottom-2 -right-2 w-9 h-9 bg-blue-600 text-white rounded-xl flex items-center justify-center cursor-pointer hover:bg-blue-700 shadow-lg border-2 border-white transition">
+                <label className="absolute -bottom-2 -right-2 w-9 h-9 bg-blue-600 text-white rounded-xl flex items-center justify-center cursor-pointer hover:bg-blue-700 shadow-lg border-2 border-white transition z-20">
                   <Camera size={16} />
                   <input type="file" className="hidden" accept="image/*" onChange={e => {
                     const f = e.target.files[0];
@@ -706,7 +732,12 @@ export default function Profile() {
       {(showCreate || editingPost) && (
         <CreatePostModal
           onClose={() => { setShowCreate(false); setEditingPost(null); }}
-          onCreated={handlePostCreated}
+          onCreated={(np, edit) => {
+            if (edit) setPosts(prev => prev.map(p => p._id === np._id ? np : p));
+            else { setPosts(prev => [np, ...prev]); setPostCount(c => c + 1); }
+            setEditingPost(null);
+            setShowCreate(false);
+          }}
           editingPost={editingPost}
         />
       )}
@@ -729,6 +760,47 @@ export default function Profile() {
                 {deleting ? "Deleting..." : "Delete Forever"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Photo Viewer Modal */}
+      {showPhotoView && (avatarPreview || avatarUrl(userData.avatar)) && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-300"
+          onClick={() => setShowPhotoView(false)}
+        >
+          <button 
+            className="absolute top-6 right-6 p-2 text-white/70 hover:text-white transition"
+            onClick={() => setShowPhotoView(false)}
+          >
+            <X size={32} />
+          </button>
+          <img 
+            src={avatarPreview || avatarUrl(userData.avatar)} 
+            alt={userData.fullName} 
+            className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {/* Profile Setup Dialogue */}
+      {showSetupModal && (
+        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[32px] max-w-md w-full p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-6 mx-auto">
+              <Compass size={32} className="animate-pulse" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 text-center mb-3">Complete Your Profile</h3>
+            <p className="text-gray-500 text-center mb-8 leading-relaxed">
+              To join the **Ghumna Jau** community, please take a moment to add a bio and set your travel style. This helps fellow travelers connect with you!
+            </p>
+            <button 
+              onClick={() => setShowSetupModal(false)}
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100"
+            >
+              Let's Go
+            </button>
           </div>
         </div>
       )}

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Filter, Heart, LayoutDashboard, MessageCircle, MessageSquare, Search, Users } from 'lucide-react';
 import { io } from 'socket.io-client';
-import { getBuddyConnections, getBuddyMessages, getBuddyRequests, sendBuddyMessage } from '../services/api';
+import { getBuddyConnections, getBuddyMessages, getBuddyRequests, getMe, sendBuddyMessage } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import Feed from './Feed';
 import FindBuddy from './FindBuddy';
@@ -80,6 +80,20 @@ const Community = () => {
 
   useEffect(() => {
     if (!myId) return;
+
+    // ── Check Profile Completion ────────────────────────────────────────────
+    const checkProfile = async () => {
+      try {
+        const res = await getMe();
+        const u = res.data;
+        // If bio or travel style is missing, consider it a new/incomplete profile
+        if (!u.bio || !u.travelStyle) {
+          navigate('/profile', { state: { fromCommunityRedirect: true } });
+        }
+      } catch (_) {}
+    };
+    checkProfile();
+
     loadBuddyRequestsAsNotifications();
 
     const socket = io(BASE_URL, { withCredentials: true });

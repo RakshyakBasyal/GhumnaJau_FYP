@@ -292,9 +292,17 @@ const Login = () => {
       localStorage.setItem('username', res.data.fullName || 'User');
       localStorage.setItem('userRole', res.data.role);
       localStorage.setItem('userEmail', res.data.email);
+
+      // Check if user has completed their profile
+      const isProfileIncomplete = !res.data.bio || !res.data.avatar || !res.data.travelStyle;
       const intendedPath = localStorage.getItem('intendedPath') || '/';
       localStorage.removeItem('intendedPath');
-      navigate(intendedPath);
+
+      if (isProfileIncomplete) {
+        navigate('/profile');
+      } else {
+        navigate(intendedPath === '/' ? '/community' : intendedPath);
+      }
     } catch (err) {
       const serverMsg = err.response?.data?.msg || 'Invalid email or password';
       if (err.response?.data?.googleOnly) {

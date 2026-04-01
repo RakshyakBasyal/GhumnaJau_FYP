@@ -26,8 +26,9 @@ const BASE_URL = "http://localhost:5000";
 
 const avatarUrl = (value) => {
   if (!value) return "";
-  if (String(value).startsWith("http://") || String(value).startsWith("https://")) return value;
-  return `http://localhost:5000${value}`;
+  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
+  if (String(value).includes('googleusercontent.com')) return '';
+  return String(value).startsWith("http") ? value : `http://localhost:5000${value}`;
 };
 
 export default function FindBuddy({ isCommunityView = false }) {
