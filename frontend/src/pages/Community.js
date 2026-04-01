@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Filter, Heart, LayoutDashboard, MessageCircle, MessageSquare, Search, Users } from 'lucide-react';
 import { io } from 'socket.io-client';
@@ -21,6 +21,24 @@ const Community = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatText, setChatText] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
+  const chatContainerRef = useRef(null);
+
+  const scrollToBottom = (instant = false) => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: instant ? 'auto' : 'smooth'
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'messages' && chatMessages.length > 0) {
+      // Use instant scroll for initial load, smooth for new messages
+      const isInitialLoad = chatMessages.length <= 200 && !chatContainerRef.current?.scrollTop;
+      scrollToBottom(isInitialLoad);
+    }
+  }, [chatMessages, activeTab]);
 
   const myId = (() => {
     const token = localStorage.getItem('token');
@@ -69,6 +87,39 @@ const Community = () => {
 
     socket.on('buddy:request:new', () => {
       loadBuddyRequestsAsNotifications();
+      showToast('You have a new buddy request!', 'info');
+    });
+
+    socket.on('buddy:message:new', ({ conversationKey, message }) => {
+      // 1. If we are in messages tab and this is the active chat, add to messages
+      setChatMessages((prev) => {
+        if (prev.some(m => m._id === message._id)) return prev;
+        // Only append if the message belongs to the active conversation
+        const currentOtherId = activeChatBuddy?._id;
+        if (currentOtherId) {
+          const expectedKey = [String(myId), String(currentOtherId)].sort().join('_');
+          if (conversationKey === expectedKey) {
+            return [...prev, message];
+          }
+        }
+        return prev;
+      });
+
+      // 2. Add to notifications if not active chat
+      const isCurrentChat = activeChatBuddy && conversationKey === [String(myId), String(activeChatBuddy._id)].sort().join('_');
+      if (!isCurrentChat) {
+        setNotifications((prev) => [
+          {
+            id: `msg-${message._id || Date.now()}`,
+            type: 'message',
+            text: `New message from ${message.sender?.fullName || 'Buddy'}`,
+            read: false,
+            createdAt: message.createdAt || new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+        showToast(`New message from ${message.sender?.fullName || 'Buddy'}`, 'info');
+      }
     });
     socket.on('follow:new', (p) => {
       setNotifications((prev) => [
@@ -108,7 +159,7 @@ const Community = () => {
     });
 
     return () => socket.disconnect();
-  }, [myId]);
+  }, [myId, activeChatBuddy]);
 
   useEffect(() => {
     if (activeTab !== 'messages') return;
@@ -132,8 +183,7 @@ const Community = () => {
     if (!activeChatBuddy || !chatText.trim() || sendingChat) return;
     try {
       setSendingChat(true);
-      const res = await sendBuddyMessage(activeChatBuddy._id, chatText.trim());
-      setChatMessages((prev) => [...prev, res.data.message]);
+      await sendBuddyMessage(activeChatBuddy._id, chatText.trim());
       setChatText('');
     } catch (_) {
       showToast('Failed to send message', 'error');
@@ -283,7 +333,10 @@ const Community = () => {
                           </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/20">
+                        <div 
+                          ref={chatContainerRef}
+                          className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/20"
+                        >
                           {chatMessages.map((msg, idx) => {
                             const isMine = String(msg.sender?._id || msg.sender) === String(myId);
                             return (

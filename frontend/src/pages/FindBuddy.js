@@ -10,7 +10,8 @@ import {
   CheckCircle2, 
   Zap, 
   User,
-  Heart
+  Heart,
+  X
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import {
@@ -260,18 +261,24 @@ export default function FindBuddy({ isCommunityView = false }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-          {/* Grid Area */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
+          {/* Main Content Area */}
           <div>
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                {visibleUsers.length} {visibleUsers.length === 1 ? 'Buddy' : 'Buddies'} Found
+              </h2>
+            </div>
+
             {loading ? (
               <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
             ) : visibleUsers.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
-                <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">
+              <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
                   <Search size={32} />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-1">No travelers found</h3>
-                <p className="text-sm text-gray-500">Try adjusting your filters or search terms.</p>
+                <p className="text-sm text-gray-500">Try adjusting your filters.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -279,64 +286,59 @@ export default function FindBuddy({ isCommunityView = false }) {
                   const status = connectMap[user._id] || "none";
                   const src = avatarUrl(user.avatar);
                   return (
-                    <div key={user._id} className="bg-white rounded-2xl hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col h-full group border border-gray-100">
+                    <div key={user._id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group border border-gray-100">
                       <div className="relative h-32 flex-shrink-0 overflow-hidden">
                         {src ? (
-                          <img src={src} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                          <img src={src} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         ) : (
-                          <div className="w-full h-full bg-blue-50 flex items-center justify-center"><User size={56} className="text-blue-200" /></div>
+                          <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-200"><User size={56} /></div>
                         )}
-                        <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-2xl text-[11px] font-bold text-blue-600 flex items-center gap-1.5 shadow-md">
-                          <Zap size={12} className="fill-blue-600" />
+                        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-blue-600 flex items-center gap-1 shadow-sm">
+                          <Zap size={10} className="fill-blue-600" />
                           {user.compatibilityScore || 85}% Match
                         </div>
                       </div>
                       
                       <div className="p-4 flex flex-col flex-1">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-1.5">
                           <h3 className="text-base font-bold text-gray-900 truncate flex items-center gap-1.5 group-hover:text-blue-600 transition-colors">
                             {user.fullName}
-                            <CheckCircle2 size={18} className="text-blue-500" />
+                            <CheckCircle2 size={16} className="text-blue-500" />
                           </h3>
                         </div>
                         
                         <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-3">
-                          <MapPin size={14} className="text-blue-500" />
-                          <span className="font-medium">{(user.preferredDestinations || [])[0] || 'Nepal'}</span>
-                          <span className="text-gray-300 mx-1">•</span>
+                          <MapPin size={12} className="text-blue-500" />
+                          <span className="font-bold">{(user.preferredDestinations || [])[0] || 'Nepal'}</span>
+                          <span className="text-gray-300">•</span>
                           <span>{user.travelStyle || 'Explorer'}</span>
-                          <span className="text-gray-300 mx-1">•</span>
-                          <span>{user.travelPace || 'moderate pace'}</span>
                         </p>
 
                         <div className="flex flex-wrap gap-1.5 mb-4">
                           {(user.travelInterests || []).slice(0, 3).map(tag => (
-                            <span key={tag} className="px-2.5 py-1 bg-gray-50 text-gray-600 text-[10px] font-bold rounded-lg border border-gray-100 uppercase tracking-wider">
+                            <span key={tag} className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[10px] font-bold rounded-md border border-gray-100 uppercase tracking-wider">
                               {tag}
                             </span>
                           ))}
                         </div>
-                        {(user.preferredDestinations || []).length > 1 && (
-                          <p className="text-[11px] text-gray-500 mb-4">
-                            Also exploring {(user.preferredDestinations || []).slice(1, 3).join(", ")}
-                          </p>
-                        )}
 
-                        <div className="mt-auto flex gap-3">
+                        <div className="mt-auto flex gap-2">
                           <button 
                             onClick={() => navigate(`/profile/${user._id}`)} 
-                            className="flex-1 py-2.5 bg-white text-gray-700 rounded-xl text-[12px] font-bold hover:bg-gray-50 transition-all border border-gray-200"
+                            className="flex-1 py-2 bg-white text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition border border-gray-200"
                           >
-                            View Profile
+                            Profile
                           </button>
                           <button 
                             onClick={() => handleConnect(user._id)}
                             disabled={status !== 'none' && status !== 'received'}
-                            className={`flex-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${
-                              status === 'none' || status === 'received' ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100' : 'bg-gray-100 text-gray-400'
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${
+                              status === 'none' || status === 'received' 
+                                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                : 'bg-gray-100 text-gray-400'
                             }`}
                           >
-                            {status === 'none' ? 'Connect' : status === 'sent' ? 'Pending' : status === 'connected' ? 'Buddy' : 'Accept'}
+                            {status === 'none' ? 'Connect' : status === 'sent' ? 'Sent' : status === 'connected' ? 'Buddy' : 'Accept'}
                           </button>
                         </div>
                       </div>
@@ -347,50 +349,50 @@ export default function FindBuddy({ isCommunityView = false }) {
             )}
           </div>
 
-          {/* Clean Sidebar */}
+          {/* Sidebar */}
           <aside className="space-y-6">
-            {/* Safety Tips - Light Background */}
+            {/* Safety Tips */}
             <div className="bg-[#f6fbfb] rounded-2xl p-5 border border-[#e8f4f4]">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-[#0d9488]">
+                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-[#0d9488] shadow-sm">
                   <ShieldCheck size={20} />
                 </div>
-                <h4 className="text-lg font-bold text-gray-900">Safety Tips</h4>
+                <h4 className="text-base font-bold text-gray-900">Safety Tips</h4>
               </div>
               <ul className="space-y-3">
                 {[
-                  "Always meet in public places first",
-                  "Share your itinerary with family",
-                  "Verify travel buddy credentials",
+                  "Meet in public places",
+                  "Share itinerary with family",
+                  "Verify buddy credentials",
                   "Trust your instincts"
                 ].map((tip, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600 leading-tight">
-                    <Check size={16} className="text-[#0d9488] mt-0.5 flex-shrink-0" />
+                  <li key={i} className="flex items-start gap-2.5 text-xs text-gray-600 leading-snug">
+                    <Check size={14} className="text-[#0d9488] mt-0.5 flex-shrink-0" />
                     {tip}
                   </li>
                 ))}
               </ul>
             </div>
 
-            {/* How Matching Works - Light Blue Background */}
+            {/* Matching */}
             <div className="bg-[#f5f9ff] rounded-2xl p-5 border border-[#e7f0ff]">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-blue-600">
+                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm">
                   <Heart size={20} className="fill-blue-600" />
                 </div>
-                <h4 className="text-lg font-bold text-gray-900">How Matching Works</h4>
+                <h4 className="text-base font-bold text-gray-900">Smart Match</h4>
               </div>
-              <p className="text-sm text-gray-500 mb-4 leading-relaxed">Our algorithm considers:</p>
+              <p className="text-xs text-gray-500 mb-4">Matching based on:</p>
               <ul className="space-y-3">
                 {[
-                  { label: "Travel interests", color: "bg-[#1e3a8a]" },
-                  { label: "Budget preferences", color: "bg-[#10b981]" },
-                  { label: "Travel pace", color: "bg-[#0ea5e9]" },
-                  { label: "Destination overlap", color: "bg-[#f59e0b]" }
+                  "Travel interests",
+                  "Budget preferences",
+                  "Travel pace",
+                  "Destination overlap"
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-4 text-sm font-medium text-gray-600">
-                    <div className={`w-2 h-2 rounded-full ${item.color} flex-shrink-0`} />
-                    {item.label}
+                  <li key={i} className="flex items-center gap-3 text-xs font-bold text-gray-600">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    {item}
                   </li>
                 ))}
               </ul>
