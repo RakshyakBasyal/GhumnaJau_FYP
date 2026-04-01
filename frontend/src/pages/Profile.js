@@ -44,7 +44,7 @@ export default function Profile() {
     fullName: "", email: "", phone: "", avatar: "", coverImage: "",
     travelStyle: "", preferredDestinations: [], travelInterests: [],
     travelPace: "", bio: "", languages: [],
-    travelStats: { tripsCount: 0, countriesVisited: 0, totalPosts: 0 },
+    travelStats: { followersCount: 0, followingCount: 0, buddiesCount: 0, totalPosts: 0 },
   });
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [avatarFile, setAvatarFile]       = useState(null);
@@ -65,6 +65,10 @@ export default function Profile() {
   const [completedTrips, setCompletedTrips] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
+
+  // bookings
+  const [recentBookings, setRecentBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
 
   // buddy requests
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -89,12 +93,15 @@ export default function Profile() {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("No token");
 
-      const [userRes, destRes, postsRes, reqRes, itinRes] = await Promise.all([
+      const [userRes, destRes, postsRes, reqRes, itinRes, followRes, buddyRes, bookingRes] = await Promise.all([
         fetch(`${BASE_URL}/api/users/me`,     { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/destinations`),
         fetch(`${BASE_URL}/api/posts/user/${myId}?page=1&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/buddies/requests`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${BASE_URL}/api/itineraries`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/follows/${myId}/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/buddies/connections`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/bookings/my`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       const user  = await userRes.json();
@@ -102,6 +109,11 @@ export default function Profile() {
       const postsData = postsRes.ok ? await postsRes.json() : { posts: [], total: 0 };
       const reqData   = reqRes.ok  ? await reqRes.json()   : { incoming: [] };
       const itinData  = itinRes.ok ? await itinRes.json()  : [];
+      const followData = followRes.ok ? await followRes.json() : { followersCount: 0, followingCount: 0 };
+      const buddyData = buddyRes.ok ? await buddyRes.json() : { connections: [] };
+      const bookingsData = bookingRes.ok ? await bookingRes.json() : [];
+
+      setRecentBookings(Array.isArray(bookingsData) ? bookingsData.slice(0, 3) : []);
 
       setAllDestinations(Array.isArray(dests) ? dests : dests.destinations || []);
       setUserData({
@@ -116,7 +128,12 @@ export default function Profile() {
         travelPace: user.travelPace || "",
         bio: user.bio || "",
         languages: user.languages || [],
-        travelStats: user.travelStats || { tripsCount: 0, countriesVisited: 0, totalPosts: 0 },
+        travelStats: {
+          followersCount: followData.followersCount || 0,
+          followingCount: followData.followingCount || 0,
+          buddiesCount: buddyData.connections?.length || 0,
+          totalPosts: postsData.total || 0,
+        },
       });
       if (user.avatar) setAvatarPreview(avatarUrl(user.avatar));
 
@@ -190,7 +207,6 @@ export default function Profile() {
   };
 
   // ── Destinations helpers ───────────────────────────────────────────────────
-  const selectedDests = allDestinations.filter(d => userData.preferredDestinations.includes(d.name));
   const filteredDests = allDestinations.filter(d =>
     d.name.toLowerCase().includes(destQuery.toLowerCase()) &&
     !userData.preferredDestinations.includes(d.name)
@@ -234,8 +250,6 @@ export default function Profile() {
       <Loader2 className="animate-spin text-blue-600" size={40} />
     </div>
   );
-
-  const firstName = userData.fullName.split(" ")[0] || "Traveler";
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -359,18 +373,16 @@ export default function Profile() {
           </div>
 
           {/* Stats row */}
-          <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-gray-100">
+          <div className="grid grid-cols-4 gap-2 mt-6 pt-6 border-t border-gray-50">
             {[
-              { label: "Trips", val: userData.travelStats.tripsCount, icon: Plane, color: "text-blue-600", bg: "bg-blue-50" },
-              { label: "Countries", val: userData.travelStats.countriesVisited, icon: Globe, color: "text-indigo-600", bg: "bg-indigo-50" },
-              { label: "Posts", val: postCount, icon: TrendingUp, color: "text-violet-600", bg: "bg-violet-50" },
+              { label: "Posts", val: postCount },
+              { label: "Followers", val: userData.travelStats.followersCount },
+              { label: "Following", val: userData.travelStats.followingCount },
+              { label: "Buddies", val: userData.travelStats.buddiesCount },
             ].map(s => (
-              <div key={s.label} className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <div className={`w-8 h-8 rounded-lg ${s.bg} ${s.color} flex items-center justify-center mb-1`}>
-                  <s.icon size={16} />
-                </div>
-                <p className="text-xl font-bold text-gray-900">{s.val}</p>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">{s.label}</p>
+              <div key={s.label} className="flex flex-col items-center justify-center py-2 rounded-xl hover:bg-gray-50 transition duration-200">
+                <p className="text-lg font-bold text-gray-900 leading-none">{s.val}</p>
+                <p className="text-xs text-gray-500 mt-1">{s.label}</p>
               </div>
             ))}
           </div>
@@ -527,51 +539,51 @@ export default function Profile() {
             </div>
 
             {/* Preferred Destinations — WITH PHOTOS */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-5">
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
+              <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                  <MapPin size={16} className="text-blue-600" /> Dream Destinations
+                  <MapPin size={18} className="text-blue-600" /> Preferred Destinations
                 </h3>
                 <div className="flex gap-2">
                   {isEditingDestinations ? (
                     <>
-                      <button onClick={handleSave} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold">Save</button>
-                      <button onClick={() => { setIsEditingDestinations(false); setShowDestSearch(false); }} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold">Cancel</button>
+                      <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-2xl text-xs font-bold shadow-lg shadow-blue-100">Save</button>
+                      <button onClick={() => { setIsEditingDestinations(false); setShowDestSearch(false); }} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-2xl text-xs font-bold">Cancel</button>
                     </>
                   ) : (
-                    <button onClick={() => setIsEditingDestinations(true)} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-200">
+                    <button onClick={() => setIsEditingDestinations(true)} className="px-4 py-2 bg-gray-50 text-gray-700 rounded-2xl text-xs font-bold hover:bg-gray-100 transition">
                       Edit
                     </button>
                   )}
                   {isEditingDestinations && (
                     <button onClick={() => setShowDestSearch(v => !v)}
-                      className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-100 transition">
-                      <Plus size={16} />
+                      className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center hover:bg-blue-100 transition">
+                      <Plus size={20} />
                     </button>
                   )}
                 </div>
               </div>
 
               {isEditingDestinations && showDestSearch && (
-                <div className="mb-4 relative">
+                <div className="mb-6 relative animate-in slide-in-from-top-2 duration-300">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input type="text" value={destQuery} onChange={e => setDestQuery(e.target.value)}
                       placeholder="Search destinations..."
-                      className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-300 outline-none" />
+                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-[20px] text-sm focus:ring-2 focus:ring-blue-300 outline-none transition" />
                   </div>
                   {destQuery && filteredDests.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-[24px] shadow-2xl z-20 max-h-60 overflow-y-auto p-2">
                       {filteredDests.map(d => (
                         <button key={d._id} onClick={() => { addDest(d.name); setDestQuery(""); setShowDestSearch(false); }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 border-b border-gray-50 last:border-0 transition">
-                          {d.image && (
-                            <img src={d.image.startsWith("http") ? d.image : `${BASE_URL}${d.image}`}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-blue-50 rounded-xl transition">
+                          {d.images?.[0] && (
+                            <img src={d.images[0].startsWith("http") ? d.images[0] : `${BASE_URL}${d.images[0]}`}
                               alt={d.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
                           )}
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">{d.name}</p>
-                            {d.country && <p className="text-xs text-gray-400">{d.country}</p>}
+                            <p className="text-xs font-bold text-gray-800">{d.name}</p>
+                            {d.country && <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight">{d.country}</p>}
                           </div>
                         </button>
                       ))}
@@ -580,53 +592,109 @@ export default function Profile() {
                 </div>
               )}
 
-              {/* Selected destinations with photo */}
-              <div className="space-y-3">
-                {selectedDests.length === 0 ? (
-                  <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
-                    <MapPin size={24} className="text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-400">No destinations added yet</p>
-                    {isEditingDestinations && <p className="text-xs text-gray-400 mt-1">Click + to add your dream spots</p>}
+              {/* Selected destinations list with photo */}
+              <div className="space-y-1.5">
+                {userData.preferredDestinations.length === 0 ? (
+                  <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-2xl">
+                    <MapPin size={20} className="text-gray-200 mx-auto mb-1.5" />
+                    <p className="text-sm text-gray-500">No destinations added</p>
                   </div>
                 ) : (
-                  selectedDests.map(d => {
-                    const imgSrc = d.image ? (d.image.startsWith("http") ? d.image : `${BASE_URL}${d.image}`) : null;
+                  userData.preferredDestinations.map(destName => {
+                    const d = allDestinations.find(dest => dest.name === destName);
+                    // Use images[0] from the destination object
+                    const img = d?.images?.[0];
+                    const imgSrc = img ? (img.startsWith("http") ? img : `${BASE_URL}${img}`) : null;
+                    
                     return (
-                      <div key={d._id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 group hover:border-blue-200 transition">
-                        {imgSrc ? (
-                          <img src={imgSrc} alt={d.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <MapPin size={18} className="text-blue-400" />
-                          </div>
-                        )}
+                      <div key={destName} className="group flex items-center gap-2.5 p-1.5 bg-gray-50/50 rounded-xl border border-gray-100 hover:border-blue-100 transition duration-200">
+                        <div className="w-9 h-9 rounded-lg overflow-hidden shadow-sm flex-shrink-0 bg-white border border-gray-50">
+                          {imgSrc ? (
+                            <img src={imgSrc} alt={destName} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <MapPin size={14} />
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{d.name}</p>
-                          {d.country && <p className="text-xs text-gray-400">{d.country}</p>}
+                          <p className="text-sm font-semibold text-gray-800 truncate">{destName}</p>
+                          {d?.country && (
+                            <p className="text-xs text-gray-500">
+                              {d.country}
+                            </p>
+                          )}
                         </div>
                         {isEditingDestinations && (
-                          <button onClick={() => removeDest(d.name)} className="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100">
-                            <X size={14} />
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); removeDest(destName); }}
+                            className="w-6 h-6 bg-white text-gray-400 rounded-lg flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition opacity-0 group-hover:opacity-100 border border-gray-100"
+                          >
+                            <X size={10} />
                           </button>
                         )}
                       </div>
                     );
                   })
                 )}
-                {/* Also show names that don't have a matching dest object */}
-                {userData.preferredDestinations.filter(n => !selectedDests.some(d => d.name === n)).map(n => (
-                  <div key={n} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 group">
-                    <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <MapPin size={18} className="text-blue-400" />
-                    </div>
-                    <p className="flex-1 text-sm font-semibold text-gray-800">{n}</p>
-                    {isEditingDestinations && (
-                      <button onClick={() => removeDest(n)} className="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100">
-                        <X size={14} />
-                      </button>
-                    )}
+              </div>
+            </div>
+
+            {/* Recent Bookings — WITH COMPACT LIST */}
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <Calendar size={18} className="text-blue-600" /> Recent Bookings
+                </h3>
+                <button 
+                  onClick={() => navigate('/my-bookings')}
+                  className="px-4 py-2 bg-gray-50 text-gray-700 rounded-2xl text-xs font-bold hover:bg-gray-100 transition flex items-center gap-1.5"
+                >
+                  View All <ChevronRight size={14} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {recentBookings.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-2xl">
+                    <Calendar size={24} className="text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No recent bookings</p>
                   </div>
-                ))}
+                ) : (
+                  recentBookings.map(booking => (
+                    <div key={booking._id} className="flex items-center gap-3 p-2 bg-gray-50/50 rounded-xl border border-gray-100 hover:border-blue-100 transition duration-200">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm flex-shrink-0 bg-white border border-gray-50">
+                        {booking.type === 'flight' ? (
+                          <div className="w-full h-full bg-blue-50 flex items-center justify-center">
+                            <Plane size={20} className="text-blue-500" />
+                          </div>
+                        ) : (
+                          <img 
+                            src={booking.hotel?.images?.[0] ? `${BASE_URL}${booking.hotel.images[0]}` : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'} 
+                            alt="" 
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-800 truncate">
+                          {booking.type === 'flight' ? `${booking.flight?.airline || 'Flight'} ${booking.flight?.flightNumber || ''}` : booking.hotel?.name || 'Hotel Booking'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tighter ${
+                            booking.status === 'confirmed' ? 'bg-green-50 text-green-600' : 
+                            booking.status === 'cancelled' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-600'
+                          }`}>
+                            {booking.status}
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {booking.type === 'hotel' ? new Date(booking.checkIn).toLocaleDateString() : new Date(booking.flight?.departureDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

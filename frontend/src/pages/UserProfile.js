@@ -54,6 +54,7 @@ export default function UserProfile() {
     isFollowing: false,
   });
 
+  const [allDestinations, setAllDestinations] = useState([]);
   const [followingBusy, setFollowingBusy] = useState(false);
   const [buddyStatus, setBuddyStatus] = useState("none");
   const [buddyBusy, setBuddyBusy] = useState(false);
@@ -65,10 +66,11 @@ export default function UserProfile() {
     if (!userId) return;
     setLoading(true);
     try {
-      const [profileRes, postsRes, statsRes] = await Promise.all([
+      const [profileRes, postsRes, statsRes, destsRes] = await Promise.all([
         getUserProfileById(userId),
         getUserPosts(userId, { page: 1, limit: 20 }),
-        getFollowStats(userId)
+        getFollowStats(userId),
+        fetch(`${BASE_URL}/api/destinations`).then(r => r.json())
       ]);
 
       setUser(profileRes.data);
@@ -79,6 +81,7 @@ export default function UserProfile() {
         followingCount: statsRes.data.followingCount ?? 0,
         isFollowing: Boolean(statsRes.data.isFollowing),
       });
+      setAllDestinations(Array.isArray(destsRes) ? destsRes : destsRes.destinations || []);
 
       if (!isSelf) {
         const buddyRes = await getBuddyStatus(userId);
@@ -261,12 +264,31 @@ export default function UserProfile() {
                 {user.bio || "Adventuring through Nepal, one moment at a time. 🏔️"}
               </p>
               {user.preferredDestinations?.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {user.preferredDestinations.map(dest => (
-                    <span key={dest} className="px-3 py-1 bg-gray-50 text-gray-500 text-xs font-bold rounded-lg border border-gray-100 flex items-center gap-1.5">
-                      <MapPin size={12} className="text-blue-500" /> {dest}
-                    </span>
-                  ))}
+                <div className="mt-6">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-tight mb-3">Preferred Destinations</p>
+                  <div className="flex flex-wrap gap-3">
+                    {user.preferredDestinations.map(destName => {
+                      const destObj = allDestinations.find(d => d.name === destName);
+                      const img = destObj?.images?.[0];
+                      return (
+                        <div key={destName} className="group relative w-20 h-20 md:w-24 md:h-24 rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+                          {img ? (
+                            <img src={avatarUrl(img)} alt={destName} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+                          ) : (
+                            <div className="w-full h-full bg-gray-50 flex items-center justify-center text-gray-300">
+                              <MapPin size={20} />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
+                          <div className="absolute bottom-1 left-1 right-1">
+                            <p className="text-[9px] md:text-[10px] font-bold text-white truncate text-center drop-shadow-md">
+                              {destName}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

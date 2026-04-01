@@ -30,7 +30,7 @@ API.interceptors.response.use(
         msg.includes('No token')
       )) {
         console.warn('401 detected - session invalidated, logging out');
-        localStorage.removeItem('token');
+        localStorage.clear(); // Clear all user data
         window.location.href = '/login?sessionExpired=true';
       }
     }

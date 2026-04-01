@@ -24,6 +24,9 @@ import {
 
 const BASE_URL = "http://localhost:5000";
 
+const TRAVEL_STYLES = ["Adventure Seeker", "Cultural Explorer", "Backpacker", "Luxury Traveler", "Budget Traveler", "Eco Traveler"];
+const TRAVEL_PACES = ["Slow", "Moderate", "Fast"];
+
 const avatarUrl = (value) => {
   if (!value) return "";
   // Only show photo if it's NOT from Google (meaning it's an uploaded one)
@@ -50,6 +53,9 @@ export default function FindBuddy({ isCommunityView = false }) {
   const [connectMap, setConnectMap] = useState({});
   const [incomingMap, setIncomingMap] = useState({}); // userId -> requestId
   const [showFilters, setShowFilters] = useState(false);
+  const [allDestinations, setAllDestinations] = useState([]);
+  const [destQuery, setDestQuery] = useState("");
+  const [showDestSuggestions, setShowDestSuggestions] = useState(false);
 
   const [filters, setFilters] = useState({
     q: "",
@@ -71,17 +77,20 @@ export default function FindBuddy({ isCommunityView = false }) {
       };
       if (queryParams.q) queryParams.q = queryParams.q.trim();
       
-      const [usersRes, reqRes, connRes] = await Promise.all([
+      const [usersRes, reqRes, connRes, destRes] = await Promise.all([
         getDiscoverUsers(queryParams),
         getBuddyRequests(),
         getBuddyConnections(),
+        fetch(`${BASE_URL}/api/destinations`).then(r => r.json())
       ]);
 
       const incomingData = reqRes.data.incoming || [];
       const connectedData = connRes.data.buddies || [];
       const discoverUsers = usersRes.data.users || [];
+      const dests = Array.isArray(destRes) ? destRes : destRes.destinations || [];
 
       setUsers(discoverUsers);
+      setAllDestinations(dests);
 
       const statusMap = {};
       const reqMap = {};
@@ -156,8 +165,16 @@ export default function FindBuddy({ isCommunityView = false }) {
   const clearFilters = () => {
     const cleared = { q: "", place: "", interest: "", language: "", style: "", pace: "" };
     setFilters(cleared);
+    setDestQuery("");
     refreshAll(cleared);
   };
+
+  const filteredDests = useMemo(() => {
+    if (!destQuery.trim()) return [];
+    return allDestinations
+      .filter(d => d.name.toLowerCase().includes(destQuery.toLowerCase()))
+      .slice(0, 5);
+  }, [allDestinations, destQuery]);
 
   return (
     <div className={`${isCommunityView ? '' : 'min-h-screen bg-gray-50 py-6 px-4'}`}>
@@ -193,72 +210,128 @@ export default function FindBuddy({ isCommunityView = false }) {
 
         {/* Filters Panel */}
         {showFilters && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-6 flex flex-wrap items-center gap-3 animate-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Destination:</span>
-              <input
-                value={filters.place}
-                onChange={(e) => handleFilterChange('place', e.target.value)}
-                placeholder="Pokhara, Mustang..."
-                className="px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 w-44"
-              />
-            </div>
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6 animate-in slide-in-from-top-2 duration-300 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Destination Search with Suggestions */}
+              <div className="flex flex-col gap-2 relative">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Preferred Destination</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    value={destQuery || filters.place}
+                    onChange={(e) => {
+                      setDestQuery(e.target.value);
+                      setShowDestSuggestions(true);
+                      if (!e.target.value) handleFilterChange('place', '');
+                    }}
+                    onFocus={() => setShowDestSuggestions(true)}
+                    placeholder="Where to?"
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 transition-all font-medium text-gray-700"
+                  />
+                  {(destQuery || filters.place) && (
+                    <button 
+                      onClick={() => { setDestQuery(""); handleFilterChange('place', ''); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Style:</span>
-              <select 
-                value={filters.style}
-                onChange={(e) => handleFilterChange('style', e.target.value)}
-                className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700"
-              >
-                <option value="">Any Style</option>
-                <option value="budget">Budget</option>
-                <option value="mid-range">Mid-range</option>
-                <option value="luxury">Luxury</option>
-                <option value="backpacker">Backpacker</option>
-              </select>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Pace:</span>
-              <select 
-                value={filters.pace}
-                onChange={(e) => handleFilterChange('pace', e.target.value)}
-                className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700"
-              >
-                <option value="">Any Pace</option>
-                <option value="slow">Slow</option>
-                <option value="moderate">Moderate</option>
-                <option value="fast">Fast</option>
-              </select>
-            </div>
+                {/* Destination Suggestions Dropdown */}
+                {showDestSuggestions && filteredDests.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-[60] overflow-hidden p-1 animate-in fade-in zoom-in-95 duration-200">
+                    {filteredDests.map(d => (
+                      <button
+                        key={d._id}
+                        onClick={() => {
+                          handleFilterChange('place', d.name);
+                          setDestQuery(d.name);
+                          setShowDestSuggestions(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-2 hover:bg-blue-50 rounded-xl transition-all text-left group"
+                      >
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                          {d.images?.[0] ? (
+                            <img 
+                              src={d.images[0].startsWith('http') ? d.images[0] : `${BASE_URL}${d.images[0]}`} 
+                              alt="" 
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <MapPin size={16} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-800">{d.name}</p>
+                          <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">{d.country || 'Nepal'}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Interest:</span>
-              <input
-                value={filters.interest}
-                onChange={(e) => handleFilterChange('interest', e.target.value)}
-                placeholder="trekking, food..."
-                className="px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 w-40"
-              />
-            </div>
+              {/* Travel Style */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Travel Style</label>
+                <select 
+                  value={filters.style}
+                  onChange={(e) => handleFilterChange('style', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 transition-all appearance-none"
+                >
+                  <option value="">All Styles</option>
+                  {TRAVEL_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              
+              {/* Travel Pace */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Travel Pace</label>
+                <select 
+                  value={filters.pace}
+                  onChange={(e) => handleFilterChange('pace', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 transition-all appearance-none"
+                >
+                  <option value="">All Paces</option>
+                  {TRAVEL_PACES.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Language:</span>
-              <input
-                value={filters.language}
-                onChange={(e) => setFilters((prev) => ({ ...prev, language: e.target.value }))}
-                placeholder="english..."
-                className="px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 w-36"
-              />
-            </div>
+              {/* Interest */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Special Interests</label>
+                <input
+                  value={filters.interest}
+                  onChange={(e) => handleFilterChange('interest', e.target.value)}
+                  placeholder="e.g. Trekking, Food"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 transition-all"
+                />
+              </div>
 
-            <button 
-              onClick={clearFilters}
-              className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-wider ml-auto bg-gray-50 rounded-xl border border-transparent hover:border-red-100"
-            >
-              Clear All
-            </button>
+              {/* Language */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Language Spoken</label>
+                <input
+                  value={filters.language}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, language: e.target.value }))}
+                  placeholder="e.g. English, Nepali"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 transition-all"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-end gap-3">
+                <button 
+                  onClick={clearFilters}
+                  className="flex-1 py-2.5 text-xs font-bold text-gray-500 hover:text-red-500 transition-all uppercase tracking-wider bg-gray-50 rounded-xl border border-gray-100 hover:border-red-100"
+                >
+                  Reset Filters
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

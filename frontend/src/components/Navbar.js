@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Plane, LogOut, Menu, X, User } from "lucide-react";
+import { getMe } from "../services/api";
 
 const Navbar = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -13,6 +14,26 @@ const Navbar = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Session verification on route change & periodic check
+  useEffect(() => {
+    const checkSession = () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        getMe().catch((err) => {
+          // Interceptor in api.js handles 401 and redirect
+          console.warn("Session check failed in Navbar:", err);
+        });
+      }
+    };
+
+    // Check on mount and route change
+    checkSession();
+
+    // Check every 30 seconds for "immediate" logout if deleted from Compass
+    const interval = setInterval(checkSession, 30000);
+    return () => clearInterval(interval);
+  }, [location.pathname]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");

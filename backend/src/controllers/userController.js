@@ -6,21 +6,20 @@ const Comment = require("../models/Comment");
 const Follow = require("../models/Follow");
 const BuddyRequest = require("../models/BuddyRequest");
 const BuddyMessage = require("../models/BuddyMessage");
+const Itinerary = require("../models/Itinerary");
+const ItineraryItem = require("../models/ItineraryItem");
+const ItineraryPlan = require("../models/ItineraryPlan");
 
 const cleanupUserSocialData = async (userId, io = null) => {
-  // 1) Remove/soft-delete user's posts
-  const authoredPosts = await Post.find({ author: userId, isDeleted: false }).select("_id");
+  // 1) Hard delete user's posts
+  const authoredPosts = await Post.find({ author: userId }).select("_id");
   const authoredPostIds = authoredPosts.map((p) => p._id);
 
   if (authoredPostIds.length) {
-    await Post.updateMany(
-      { _id: { $in: authoredPostIds } },
-      { $set: { isDeleted: true, commentCount: 0 } }
-    );
-    await Comment.updateMany(
-      { post: { $in: authoredPostIds }, isDeleted: false },
-      { $set: { isDeleted: true } }
-    );
+    // Delete all comments on these posts
+    await Comment.deleteMany({ post: { $in: authoredPostIds } });
+    // Delete the posts themselves
+    await Post.deleteMany({ _id: { $in: authoredPostIds } });
 
     if (io) {
       authoredPostIds.forEach((postId) => {
@@ -32,7 +31,6 @@ const cleanupUserSocialData = async (userId, io = null) => {
   // 2) Delete user's comments on other posts and fix comment counts
   const ownComments = await Comment.find({
     author: userId,
-    isDeleted: false,
     post: { $nin: authoredPostIds },
   }).select("_id post");
 
@@ -43,10 +41,8 @@ const cleanupUserSocialData = async (userId, io = null) => {
       return acc;
     }, {});
 
-    await Comment.updateMany(
-      { _id: { $in: ownComments.map((c) => c._id) } },
-      { $set: { isDeleted: true } }
-    );
+    // Delete own comments
+    await Comment.deleteMany({ _id: { $in: ownComments.map((c) => c._id) } });
 
     await Promise.all(
       Object.entries(decrementByPost).map(async ([postId, count]) => {
@@ -73,6 +69,11 @@ const cleanupUserSocialData = async (userId, io = null) => {
   // 5) Remove buddy graph and chat messages
   await BuddyRequest.deleteMany({ $or: [{ requester: userId }, { recipient: userId }] });
   await BuddyMessage.deleteMany({ participants: userId });
+
+  // 6) Remove itineraries and their items/plans
+  await ItineraryItem.deleteMany({ user: userId });
+  await ItineraryPlan.deleteMany({ user: userId });
+  await Itinerary.deleteMany({ user: userId });
 };
 
 exports.getMe = async (req, res) => {
@@ -296,8 +297,8 @@ exports.deleteMe = async (req, res) => {
     user.lastLogout = new Date();
     await user.save();
 
-    // Anonymize bookings (good for audit trail)
-    await Booking.updateMany({ user: req.user.id }, { $set: { user: null } });
+    // Hard delete all bookings for this user
+    await Booking.deleteMany({ user: req.user.id });
 
     // Clean up social graph/content for this user
     await cleanupUserSocialData(req.user.id, req.app.get("io"));
@@ -342,8 +343,8 @@ exports.deleteUser = async (req, res) => {
     user.lastLogout = new Date();
     await user.save();
 
-    // Anonymize bookings
-    await Booking.updateMany({ user: userId }, { $set: { user: null } });
+    // Hard delete all bookings for this user
+    await Booking.deleteMany({ user: userId });
 
     // Clean up social graph/content for this user
     await cleanupUserSocialData(userId, req.app.get("io"));
