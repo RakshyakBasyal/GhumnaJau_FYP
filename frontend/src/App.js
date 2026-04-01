@@ -25,7 +25,9 @@ import AuthGoogleSuccess from './pages/AuthGoogleSuccess';
 import PaymentResult from './pages/PaymentResult';
 import Itinerary from './pages/Itinerary';
 import ItineraryDetail from './pages/ItineraryDetail';
+import Community from './pages/Community';
 import Feed from './pages/Feed';
+import FindBuddy from './pages/FindBuddy';
 
 
    
@@ -99,7 +101,9 @@ function App() {
             <Route path="/auth/google/success" element={<AuthGoogleSuccess />} />
             <Route path="/itinerary" element={<Itinerary />} />
             <Route path="/itinerary/:id" element={<ItineraryDetail />} />
-            <Route path="/feed" element={<Feed />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/community/buddies" element={<Community />} />
+            <Route path="/community/messages" element={<Community />} />
           </Route>
         </Routes>
       </Router>

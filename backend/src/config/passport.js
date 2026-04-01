@@ -26,7 +26,7 @@ module.exports = function (passport) {
             // Link Google account to existing email
             user.googleId = profile.id;
             user.fullName = user.fullName || profile.displayName;
-            user.avatar = user.avatar || profile.photos?.[0]?.value;
+            // Removed automatic Google avatar sync
             await user.save();
             return done(null, user);
           }
@@ -36,7 +36,7 @@ module.exports = function (passport) {
             googleId: profile.id,
             email: profile.emails[0].value,
             fullName: profile.displayName,
-            avatar: profile.photos?.[0]?.value || '',
+            avatar: '', // No avatar by default for Google users
             // No password needed for Google users
             role: 'USER',
           });

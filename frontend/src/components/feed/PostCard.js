@@ -33,10 +33,16 @@ const timeAgo = (date) => {
   return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
+const mediaUrl = (value) => {
+  if (!value) return '';
+  if (String(value).startsWith('http://') || String(value).startsWith('https://')) return value;
+  return `http://localhost:5000${value}`;
+};
+
 const Avatar = ({ name, avatar }) => {
   if (avatar) return (
     <img
-      src={`http://localhost:5000${avatar}`}
+      src={mediaUrl(avatar)}
       alt={name}
       className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-white"
     />
@@ -57,7 +63,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
 
   const myId = localStorage.getItem('userId') || decoded?.id || decoded?._id;
   const authorId = post.author?._id;
-  const isOwner = authorId && authorId === myId;
+  const isOwner = Boolean(authorId && myId && String(authorId) === String(myId));
   const authorProfileHref = isOwner ? '/profile' : authorId ? `/profile/${authorId}` : '/profile';
   const hasLiked = (likes) =>
     myId ? Array.isArray(likes) && likes.some(id => String(id) === String(myId)) : false;
@@ -200,59 +206,82 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
 
         {/* Images */}
         {post.images?.length > 0 && (
-          <div className="relative bg-gray-50">
-            <button
-              type="button"
-              onClick={() => { setViewerIdx(imgIdx); setShowImageViewer(true); }}
-              className="relative w-full block text-left"
-              aria-label="View photo in fullscreen"
-            >
-              <div className="w-full h-[340px] overflow-hidden bg-black">
-                <img
-                  src={`http://localhost:5000${post.images[imgIdx]}`}
-                  alt="post"
-                  className="w-full h-full object-contain"
-                  loading="lazy"
-                />
-              </div>
-              {post.images.length > 1 && (
-                <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center pointer-events-none">
-                  <p className="text-xs bg-black/40 text-white px-2 py-1 rounded-full">
-                    {imgIdx + 1} of {post.images.length}
-                  </p>
-                  <p className="text-xs bg-black/40 text-white px-2 py-1 rounded-full">
-                    Click to enlarge
-                  </p>
-                </div>
-              )}
-            </button>
+          <div className="bg-gray-50">
+            {/* Facebook-style photo blocks */}
+            {post.images.length === 1 && (
+              <button
+                type="button"
+                onClick={() => { setViewerIdx(0); setShowImageViewer(true); }}
+                className="relative w-full h-[360px] overflow-hidden bg-black"
+                aria-label="Open photo"
+              >
+                <img src={mediaUrl(post.images[0])} alt="post" className="w-full h-full object-contain" loading="lazy" />
+              </button>
+            )}
 
-            {post.images.length > 1 && post.images.length <= 8 && (
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
-                {post.images.map((_, i) => (
+            {post.images.length === 2 && (
+              <div className="grid grid-cols-2 gap-0.5 h-[360px] bg-white">
+                {post.images.slice(0, 2).map((img, i) => (
                   <button
-                    key={i}
-                    onClick={() => setImgIdx(i)}
-                    className={`w-1.5 h-1.5 rounded-full transition-all ${
-                      i === imgIdx ? 'bg-white w-3' : 'bg-white/60'
-                    }`}
-                    aria-label={`Show image ${i + 1}`}
-                  />
+                    key={img}
+                    type="button"
+                    onClick={() => { setViewerIdx(i); setShowImageViewer(true); }}
+                    className="relative overflow-hidden bg-black"
+                    aria-label={`Open photo ${i + 1}`}
+                  >
+                    <img src={mediaUrl(img)} alt="post" className="w-full h-full object-contain" loading="lazy" />
+                  </button>
                 ))}
               </div>
             )}
 
-            {post.images.length > 1 && post.images.length <= 8 && imgIdx > 0 && (
-              <button
-                onClick={() => setImgIdx(p => p - 1)}
-                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs transition"
-              >‹</button>
+            {post.images.length === 3 && (
+              <div className="grid grid-cols-2 gap-0.5 h-[360px] bg-white">
+                <button
+                  type="button"
+                  onClick={() => { setViewerIdx(0); setShowImageViewer(true); }}
+                  className="row-span-2 relative overflow-hidden bg-black"
+                  aria-label="Open photo 1"
+                >
+                  <img src={mediaUrl(post.images[0])} alt="post" className="w-full h-full object-contain" loading="lazy" />
+                </button>
+                {[1, 2].map((i) => (
+                  <button
+                    key={post.images[i]}
+                    type="button"
+                    onClick={() => { setViewerIdx(i); setShowImageViewer(true); }}
+                    className="relative overflow-hidden bg-black"
+                    aria-label={`Open photo ${i + 1}`}
+                  >
+                    <img src={mediaUrl(post.images[i])} alt="post" className="w-full h-full object-contain" loading="lazy" />
+                  </button>
+                ))}
+              </div>
             )}
-            {post.images.length > 1 && post.images.length <= 8 && imgIdx < post.images.length - 1 && (
-              <button
-                onClick={() => setImgIdx(p => p + 1)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs transition"
-              >›</button>
+
+            {post.images.length >= 4 && (
+              <div className="grid grid-cols-2 gap-0.5 h-[360px] bg-white">
+                {[0, 1, 2, 3].map((i) => {
+                  const extra = post.images.length - 4;
+                  const isLast = i === 3 && extra > 0;
+                  return (
+                    <button
+                      key={`${post.images[i]}-${i}`}
+                      type="button"
+                      onClick={() => { setViewerIdx(i); setShowImageViewer(true); }}
+                      className="relative overflow-hidden bg-black"
+                      aria-label={`Open photo ${i + 1}`}
+                    >
+                      <img src={mediaUrl(post.images[i])} alt="post" className="w-full h-full object-contain" loading="lazy" />
+                      {isLast && (
+                        <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                          <span className="text-white text-3xl font-bold">+{extra}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -310,7 +339,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
 
             <div className="relative max-w-5xl w-full px-4" onClick={(e) => e.stopPropagation()}>
               <img
-                src={`http://localhost:5000${post.images[viewerIdx]}`}
+                src={mediaUrl(post.images[viewerIdx])}
                 alt="post fullscreen"
                 className="w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
               />
@@ -344,6 +373,25 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
             <MessageCircle size={18} />
             <span>{commentCount}</span>
           </button>
+
+          {isOwner && (
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onUpdated?.(post, 'edit')}
+                className="text-xs px-2.5 py-1.5 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 transition"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="text-xs px-2.5 py-1.5 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition"
+              >
+                Delete
+              </button>
+            </div>
+          )}
         </div>
       </article>
 

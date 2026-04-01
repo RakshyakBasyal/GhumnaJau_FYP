@@ -1,6 +1,7 @@
 // backend/src/controllers/commentController.js
 const Comment = require('../models/Comment');
 const Post    = require('../models/Post');
+const User    = require('../models/User');
 
 // ── Add Comment ───────────────────────────────────────────────────────────────
 exports.addComment = async (req, res) => {
@@ -25,6 +26,17 @@ exports.addComment = async (req, res) => {
 
     const populated = await Comment.findById(comment._id)
       .populate('author', 'fullName avatar');
+
+    if (String(post.author) !== String(req.user.id)) {
+      const actor = await User.findById(req.user.id).select('fullName avatar');
+      req.app.get('io')?.to(`user:${String(post.author)}`).emit('post:commented:owner', {
+        postId: post._id.toString(),
+        actorId: req.user.id,
+        actorName: actor?.fullName || 'Traveler',
+        actorAvatar: actor?.avatar || '',
+        content: content.trim(),
+      });
+    }
 
     req.app.get('io')?.emit('commentAdded', {
       postId: post._id.toString(),

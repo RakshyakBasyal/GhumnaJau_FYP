@@ -1,6 +1,15 @@
 // backend/src/controllers/postController.js
 const Post = require('../models/Post');
 const Follow = require('../models/Follow');
+const User = require('../models/User');
+
+const removeOrphanPosts = async (posts) => {
+  const orphanIds = posts.filter((p) => !p.author).map((p) => p._id);
+  if (orphanIds.length) {
+    await Post.updateMany({ _id: { $in: orphanIds } }, { $set: { isDeleted: true } });
+  }
+  return posts.filter((p) => p.author);
+};
 
 // ── Create Post ───────────────────────────────────────────────────────────────
 exports.createPost = async (req, res) => {
@@ -56,6 +65,12 @@ exports.getExploreFeed = async (req, res) => {
     if (category)    filter.category    = category;
     if (destination) filter.destination = destination;
 
+    // Stories expire in 24 hours
+    if (category === 'story') {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      filter.createdAt = { $gte: twentyFourHoursAgo };
+    }
+
     const [posts, total] = await Promise.all([
       Post.find(filter)
         .populate('author',      'fullName avatar')
@@ -68,8 +83,10 @@ exports.getExploreFeed = async (req, res) => {
       Post.countDocuments(filter),
     ]);
 
+    const visiblePosts = await removeOrphanPosts(posts);
+
     res.json({
-      posts,
+      posts: visiblePosts,
       currentPage: page,
       totalPages:  Math.ceil(total / limit),
       total,
@@ -96,6 +113,14 @@ exports.getFollowingFeed = async (req, res) => {
     }
 
     const filter = { author: { $in: followingIds }, isDeleted: false };
+    const { category } = req.query;
+    if (category) filter.category = category;
+
+    // Stories expire in 24 hours
+    if (category === 'story') {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      filter.createdAt = { $gte: twentyFourHoursAgo };
+    }
 
     const [posts, total] = await Promise.all([
       Post.find(filter)
@@ -109,8 +134,10 @@ exports.getFollowingFeed = async (req, res) => {
       Post.countDocuments(filter),
     ]);
 
+    const visiblePosts = await removeOrphanPosts(posts);
+
     res.json({
-      posts,
+      posts: visiblePosts,
       currentPage: page,
       totalPages:  Math.ceil(total / limit),
       total,
@@ -131,6 +158,10 @@ exports.getPost = async (req, res) => {
       .populate('flight',      'airline flightNumber from to');
 
     if (!post) return res.status(404).json({ msg: 'Post not found' });
+    if (!post.author) {
+      await Post.findByIdAndUpdate(post._id, { $set: { isDeleted: true } });
+      return res.status(404).json({ msg: 'Post not found' });
+    }
     res.json(post);
   } catch (err) {
     console.error('Get post error:', err);
@@ -159,7 +190,8 @@ exports.getUserPosts = async (req, res) => {
       Post.countDocuments(filter),
     ]);
 
-    res.json({ posts, currentPage: page, totalPages: Math.ceil(total / limit), total });
+    const visiblePosts = await removeOrphanPosts(posts);
+    res.json({ posts: visiblePosts, currentPage: page, totalPages: Math.ceil(total / limit), total });
   } catch (err) {
     console.error('User posts error:', err);
     res.status(500).json({ msg: 'Server error' });
@@ -255,6 +287,16 @@ exports.toggleLike = async (req, res) => {
     }
 
     await post.save();
+
+    if (!alreadyLiked && String(post.author) !== String(userId)) {
+      const actor = await User.findById(userId).select('fullName avatar');
+      req.app.get('io')?.to(`user:${String(post.author)}`).emit('post:liked:owner', {
+        postId: post._id.toString(),
+        actorId: userId,
+        actorName: actor?.fullName || 'Traveler',
+        actorAvatar: actor?.avatar || '',
+      });
+    }
 
     req.app.get('io')?.emit('postLiked', {
       postId: post._id.toString(),

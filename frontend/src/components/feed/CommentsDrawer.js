@@ -4,11 +4,18 @@ import { X, Send, Loader, Pencil, Trash2 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { getComments, addComment, editComment, deleteComment } from '../../services/feedApi';
 
+const avatarUrl = (v) => {
+  if (!v) return '';
+  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
+  if (String(v).includes('googleusercontent.com')) return '';
+  return String(v).startsWith('http') ? v : `http://localhost:5000${v}`;
+};
+
 const Avatar = ({ name, avatar, size = 8 }) => {
   const sizeClass = `w-${size} h-${size}`;
   if (avatar) return (
     <img
-      src={`http://localhost:5000${avatar}`}
+      src={avatarUrl(avatar)}
       alt={name}
       className={`${sizeClass} rounded-full object-cover flex-shrink-0`}
     />
@@ -36,7 +43,16 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
   const [editingId,   setEditingId]   = useState(null);
   const [editContent, setEditContent] = useState('');
   const inputRef = useRef();
-  const bottomRef = useRef();
+  const scrollContainerRef = useRef();
+
+  const scrollToBottom = (instant = false) => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: instant ? 'auto' : 'smooth'
+      });
+    }
+  };
 
   const token = localStorage.getItem('token');
   let decoded = null;
@@ -76,6 +92,12 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
     return () => socket.disconnect();
   }, [post._id]);
 
+  useEffect(() => {
+    if (!loading && comments.length > 0) {
+      scrollToBottom();
+    }
+  }, [comments.length, loading]);
+
   const fetchComments = async () => {
     setLoading(true);
     try {
@@ -90,11 +112,9 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
     if (!input.trim() || submitting) return;
     setSubmitting(true);
     try {
-      const res = await addComment(post._id, input.trim());
-      setComments(prev => [...prev, res.data]);
+      await addComment(post._id, input.trim());
       setInput('');
       onCommentCountChange?.(1);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (_) {}
     setSubmitting(false);
   };
@@ -133,7 +153,10 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
         </div>
 
         {/* Comments list */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 bg-gray-50/50">
+        <div 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-5 py-4 space-y-4 bg-gray-50/50"
+        >
           {loading ? (
             <div className="flex justify-center pt-8">
               <Loader size={20} className="animate-spin text-blue-600" />
@@ -197,7 +220,6 @@ export default function CommentsDrawer({ post, onClose, onCommentCountChange }) 
               </div>
             ))
           )}
-          <div ref={bottomRef} />
         </div>
 
         {/* Input */}

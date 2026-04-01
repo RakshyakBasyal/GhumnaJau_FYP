@@ -36,5 +36,6 @@ app.use('/api/password-reset', require('./routes/passwordResetRoutes'));
 app.use('/api/posts',    require('./routes/postRoutes'));
 app.use('/api/comments', require('./routes/commentRoutes.js'));
 app.use('/api/follows',  require('./routes/followRoutes'));
+app.use('/api/buddies', require('./routes/buddyRoutes'));
 
 module.exports = app;

@@ -18,6 +18,12 @@ exports.followUser = async (req, res) => {
     if (existing) return res.status(400).json({ msg: 'Already following this user' });
 
     await Follow.create({ follower: req.user.id, following: userId });
+    const follower = await User.findById(req.user.id).select('fullName avatar');
+    req.app.get('io')?.to(`user:${String(userId)}`).emit('follow:new', {
+      followerId: req.user.id,
+      followerName: follower?.fullName || 'Traveler',
+      followerAvatar: follower?.avatar || '',
+    });
 
     res.json({ msg: 'Followed successfully', following: true });
   } catch (err) {

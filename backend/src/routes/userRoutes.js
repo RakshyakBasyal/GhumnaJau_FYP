@@ -12,19 +12,26 @@ const {
   getMe,
   deleteMe,
   updateMe,
+  getUserPublicProfile,
+  getDiscoverUsers,
 } = require("../controllers/userController");
 
 // PATCH /api/users/profile - update name/phone + avatar
 router.patch(
   "/profile",
   auth,
-  uploadAvatar.single("avatar"), // Handles file upload → req.file available
+  uploadAvatar.fields([
+    { name: "avatar", maxCount: 1 },
+    { name: "coverImage", maxCount: 1 },
+  ]),
   updateMe                       // Calls controller with full req.body + req.file support
 );
 
 // Self routes
 router.get("/me", auth, getMe);
 router.delete("/me", auth, deleteMe);
+router.get("/discover", auth, getDiscoverUsers);
+router.get("/:id", auth, getUserPublicProfile);
 
 // Admin routes
 router.get("/", auth, admin, getAllUsers);

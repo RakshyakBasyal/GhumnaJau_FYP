@@ -17,12 +17,49 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '', // empty = no picture → frontend shows default icon
   },
+  coverImage: {
+    type: String,
+    default: '',
+  },
 
   // already present — good for token invalidation
   lastLogout: { type: Date, default: null },
 
   // Optional: add googleId if you want to store it separately (recommended)
   googleId: { type: String },  // ← optional but very useful for linking/merging
+
+  // Travel-buddy preparation fields (all optional)
+  travelStyle: {
+    type: String,
+    default: '',
+  },
+  preferredDestinations: {
+    type: [String],
+    default: [],
+  },
+  travelInterests: {
+    type: [String],
+    default: [],
+  },
+  travelPace: {
+    type: String,
+    default: '',
+  },
+  bio: {
+    type: String,
+    trim: true,
+    maxlength: 300,
+    default: '',
+  },
+  languages: {
+    type: [String],
+    default: [],
+  },
+  travelStats: {
+    tripsCount: { type: Number, default: 0 },
+    countriesVisited: { type: Number, default: 0 },
+    totalPosts: { type: Number, default: 0 },
+  },
 
 }, { timestamps: true });
 
