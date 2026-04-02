@@ -68,6 +68,26 @@ export const getBuddyStatus = (userId) => API.get(`/buddies/status/${userId}`);
 export const getBuddyMessages = (userId) => API.get(`/buddies/messages/${userId}`);
 export const sendBuddyMessage = (userId, text) => API.post("/buddies/messages", { userId, text });
 
+// Trips
+export const createTrip = (tripData) => API.post("/trips", tripData);
+export const getTrips = () => API.get("/trips");
+export const deleteTrip = (id) => API.delete(`/trips/${id}`);
+export const getDiscoverTrips = (params = {}) => API.get("/trips/discover", { params });
+export const getGeneralDiscoveryTrips = (params = {}) => API.get("/trips/general-discovery", { params });
+
+// Trip Rooms
+export const getTripRooms = (params = {}) => API.get("/trips/rooms", { params });
+export const createTripRoom = (roomData) => API.post("/trips/rooms", roomData);
+export const getTripRoomById = (id) => API.get(`/trips/rooms/${id}`);
+export const joinTripRoom = (id) => API.post(`/trips/rooms/${id}/join`);
+export const leaveTripRoom = (id) => API.post(`/trips/rooms/${id}/leave`);
+export const sendRoomMessage = (id, text) => API.post(`/trips/rooms/${id}/messages`, { text });
+export const updateRoomItinerary = (id, itinerary) => API.patch(`/trips/rooms/${id}/itinerary`, { itinerary });
+export const updateRoomNotes = (id, notes) => API.patch(`/trips/rooms/${id}/notes`, { notes });
+export const respondToRoomRequest = (data) => API.post(`/trips/rooms/respond-request`, data);
+export const inviteBuddyToRoom = (data) => API.post(`/trips/rooms/invite`, data);
+export const acceptRoomInvite = (roomId) => API.post(`/trips/rooms/${roomId}/accept-invite`);
+
 // Hotels
 export const getHotels = () => API.get('/hotels');
 export const getHotel = (id) => API.get(`/hotels/${id}`);
