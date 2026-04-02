@@ -20,9 +20,8 @@ const BASE_URL = 'http://localhost:5000';
 
 const avatarUrl = (v) => {
   if (!v) return '';
-  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
   const s = String(v);
-  if (s.includes('googleusercontent.com') || s.includes('lh3.googleusercontent.com')) return '';
+  // Support both local uploads and external (Google) photos
   return s.startsWith('http') ? s : `${BASE_URL}${s}`;
 };
 
@@ -125,7 +124,7 @@ export default function UserProfile() {
     try {
       await sendBuddyRequest(userId);
       setBuddyStatus("sent");
-      showToast('Travel buddy request sent', 'success');
+      showToast('Connection request sent', 'success');
     } catch (err) {
       showToast('Failed to send request', 'error');
     } finally {
@@ -172,41 +171,49 @@ export default function UserProfile() {
           {/* Profile Details Container */}
           <div className="px-6 pb-8 -mt-16 md:-mt-20 relative z-10">
             <div className="flex flex-col md:flex-row items-end md:items-center gap-6 mb-8">
+              {/* Avatar */}
+            <div className="relative flex-shrink-0 mx-auto md:mx-0 w-32 h-32 md:w-40 md:h-40">
               <div 
-            className="relative flex-shrink-0 ml-4 md:ml-0 cursor-pointer w-32 h-32 md:w-44 md:h-44" 
-            onClick={() => avatarUrl(user.avatar) && setShowPhotoView(true)}
-          >
-            <div className="w-full h-full rounded-[40px] overflow-hidden border-[6px] border-white shadow-2xl bg-gray-50 flex items-center justify-center">
-              {avatarUrl(user.avatar) ? (
-                <img 
-                  src={avatarUrl(user.avatar)} 
-                  alt={user.fullName} 
-                  className="w-full h-full object-cover hover:opacity-90 transition"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-5xl font-bold">
-                  {user.fullName?.charAt(0).toUpperCase()}
-                </div>
-              )}
+                className="w-full h-full rounded-[32px] md:rounded-[40px] overflow-hidden border-4 border-white shadow-xl bg-gray-100 cursor-pointer flex items-center justify-center"
+                onClick={() => avatarUrl(user.avatar) && setShowPhotoView(true)}
+              >
+                {avatarUrl(user.avatar) ? (
+                  <img src={avatarUrl(user.avatar)} className="w-full h-full object-cover hover:opacity-90 transition" alt={user.fullName} />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-5xl font-bold">
+                    {user.fullName?.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="absolute bottom-2 right-2 bg-green-500 w-5 h-5 md:w-6 md:h-6 rounded-full border-4 border-white shadow-sm z-20" />
-          </div>
 
               {/* Main Info Area */}
-              <div className="flex-1 pt-4 md:pt-16">
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h1 className="text-3xl font-bold text-gray-900">{user.fullName}</h1>
-                      <CheckCircle2 size={22} className="text-blue-500 fill-blue-50 flex-shrink-0" />
+              <div className="flex-1 pt-6 md:pt-20">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">{user.fullName}</h1>
+                        <CheckCircle2 size={24} className="text-blue-500 fill-blue-50 flex-shrink-0" />
+                      </div>
+                      
+                      {user.city && (
+                        <div className="flex items-center gap-1.5 text-blue-600">
+                          <MapPin size={14} className="fill-blue-50" />
+                          <span className="text-sm font-bold uppercase tracking-widest">{user.city}</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm font-semibold text-blue-600 flex items-center gap-1.5">
-                      <Zap size={14} className="fill-blue-600" /> {user.travelStyle || 'Traveler'}
-                    </p>
+
+                    <div className="max-w-2xl">
+                      <p className="text-gray-600 text-base leading-relaxed">
+                        {user.bio || "Adventuring through Nepal, one moment at a time. 🏔️"}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Actions - Grouped pill buttons */}
-                  <div className="flex items-center gap-2 mt-2 md:mt-0">
+                  <div className="flex items-center gap-3 mt-2 md:mt-2">
                     {isSelf ? (
                       <button onClick={() => navigate('/settings')} 
                         className="px-8 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100">
@@ -241,198 +248,64 @@ export default function UserProfile() {
               </div>
             </div>
 
-            {/* Travel Stats Grid - Unique layout */}
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-4 border-t border-gray-50 pt-8">
+            {/* Travel Stats Grid - Simple and focused */}
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-4 border-t border-gray-50 pt-8">
               {[
                 { label: 'Posts', value: postCount },
                 { label: 'Followers', value: stats.followersCount },
                 { label: 'Following', value: stats.followingCount },
                 { label: 'Trips', value: user.travelStats?.tripsCount || 0 },
-                { label: 'Countries', value: user.travelStats?.countriesVisited || 0 },
-                { label: 'Score', value: '85%' },
+                { label: 'Connected', value: user.travelStats?.buddyCount || 0 },
               ].map((stat, i) => (
                 <div key={i} className="text-center group cursor-default">
                   <p className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{stat.value}</p>
-                  <p className="text-xs text-gray-400 font-bold mt-1">{stat.label}</p>
+                  <p className="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">{stat.label}</p>
                 </div>
               ))}
-            </div>
-
-            {/* Bio Section - Simple and clean */}
-            <div className="mt-8 max-w-2xl">
-              <p className="text-gray-700 text-base leading-relaxed whitespace-pre-wrap">
-                {user.bio || "Adventuring through Nepal, one moment at a time. 🏔️"}
-              </p>
-              {user.preferredDestinations?.length > 0 && (
-                <div className="mt-6">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-tight mb-3">Preferred Destinations</p>
-                  <div className="flex flex-wrap gap-3">
-                    {user.preferredDestinations.map(destName => {
-                      const destObj = allDestinations.find(d => d.name === destName);
-                      const img = destObj?.images?.[0];
-                      return (
-                        <div key={destName} className="group relative w-20 h-20 md:w-24 md:h-24 rounded-2xl overflow-hidden shadow-sm border border-gray-100">
-                          {img ? (
-                            <img src={avatarUrl(img)} alt={destName} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
-                          ) : (
-                            <div className="w-full h-full bg-gray-50 flex items-center justify-center text-gray-300">
-                              <MapPin size={20} />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
-                          <div className="absolute bottom-1 left-1 right-1">
-                            <p className="text-[9px] md:text-[10px] font-bold text-white truncate text-center drop-shadow-md">
-                              {destName}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Tabs - Pill-style Navigation ──────────────────────────────────── */}
+      {/* ── Tabs - Posts ──────────────────────────────────── */}
       <div className="max-w-5xl mx-auto px-4 mt-10">
         <div className="flex justify-center md:justify-start gap-4 mb-8">
-          <button onClick={() => setActiveTab('posts')}
-            className={`flex items-center gap-2.5 px-8 py-3 rounded-2xl text-xs font-bold transition-all ${
-              activeTab === 'posts' 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
-                : 'bg-white text-gray-400 hover:text-gray-600 border border-gray-100 shadow-sm'
-            }`}>
-            <Grid size={14} /> My Moments
-          </button>
-          <button onClick={() => setActiveTab('about')}
-            className={`flex items-center gap-2.5 px-8 py-3 rounded-2xl text-xs font-bold transition-all ${
-              activeTab === 'about' 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
-                : 'bg-white text-gray-400 hover:text-gray-600 border border-gray-100 shadow-sm'
-            }`}>
-            <Info size={14} /> Travel Profile
-          </button>
+          <div className="flex items-center gap-2.5 px-8 py-3 rounded-2xl text-xs font-bold bg-blue-600 text-white shadow-lg shadow-blue-100">
+            <Grid size={14} /> {isSelf ? 'My Posts' : 'Posts'}
+          </div>
         </div>
       </div>
 
       {/* ── Content Area ──────────────────────────────────────────────────── */}
       <div className="max-w-5xl mx-auto px-4">
-        {activeTab === 'posts' ? (
-          posts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-              {posts.map(post => (
-                <PostCard 
-                  key={post._id} 
-                  post={post}
-                  onUpdated={(p, a) => { if (a === 'edit') setEditingPost(p); }}
-                  onDeleted={id => setPosts(prev => prev.filter(p => p._id !== id))} 
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="py-24 text-center bg-white rounded-[32px] border border-gray-100 shadow-sm">
-              <div className="w-20 h-20 bg-gray-50 rounded-[24px] flex items-center justify-center mx-auto mb-6 text-gray-300">
-                <Grid size={40} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Share your journey</h3>
-              <p className="text-gray-500 max-w-xs mx-auto">
-                {isSelf ? 'Post your first travel moment and inspire others!' : 'This traveler is still preparing their logs.'}
-              </p>
-              {isSelf && (
-                <button onClick={() => setShowCreate(true)}
-                  className="mt-8 px-8 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100">
-                  Create First Post
-                </button>
-              )}
-            </div>
-          )
+        {posts.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+            {posts.map(post => (
+              <PostCard 
+                key={post._id} 
+                post={post}
+                onUpdated={(p, a) => { if (a === 'edit') setEditingPost(p); }}
+                onDeleted={id => setPosts(prev => prev.filter(p => p._id !== id))} 
+              />
+            ))}
+          </div>
         ) : (
-          /* Travel Identity - Unique Design */
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Travel Identity Details */}
-            <div className="md:col-span-8 space-y-8">
-              <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
-                <h3 className="text-base font-bold text-gray-900 mb-8 flex items-center gap-2">
-                  <Globe size={18} className="text-blue-500" /> Travel Persona
-                </h3>
-                
-                <div className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-gray-400">Travel Style</p>
-                      <p className="text-lg font-bold text-gray-800">{user.travelStyle || 'Explorer'}</p>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-gray-400">Pace Preference</p>
-                      <p className="text-lg font-bold text-gray-800">{user.travelPace || 'Moderate'} Pace</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <p className="text-xs font-bold text-gray-400">Passions & Interests</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(user.travelInterests || ['Adventure', 'Nature', 'Local Food']).map(tag => (
-                        <span key={tag} className="px-4 py-2 bg-blue-50 text-blue-600 text-xs font-bold rounded-xl border border-blue-100">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <p className="text-xs font-bold text-gray-400">Languages Spoken</p>
-                    <div className="flex flex-wrap gap-4">
-                      {(user.languages || ['English', 'Nepali']).map(lang => (
-                        <div key={lang} className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500" />
-                          <span className="text-sm font-bold text-gray-700">{lang}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="py-24 text-center bg-white rounded-[32px] border border-gray-100 shadow-sm">
+            <div className="w-20 h-20 bg-gray-50 rounded-[24px] flex items-center justify-center mx-auto mb-6 text-gray-300">
+              <Grid size={40} />
             </div>
-
-            {/* Side Stats/Achievements */}
-            <div className="md:col-span-4 space-y-8">
-              <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-8 rounded-[32px] text-white shadow-xl shadow-blue-100 relative overflow-hidden">
-                <Star className="absolute -bottom-4 -right-4 w-24 h-24 opacity-20 rotate-12" />
-                <h3 className="text-base font-bold mb-6">Achievements</h3>
-                <div className="space-y-6 relative z-10">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner">
-                      {user.travelStats?.tripsCount || 0}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-blue-100">Total Trips</p>
-                      <p className="text-sm font-bold">Adventure Logged</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner">
-                      {user.travelStats?.countriesVisited || 1}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-blue-100">Countries</p>
-                      <p className="text-sm font-bold">Regions Explored</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner">
-                      85
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-blue-100">Trust Score</p>
-                      <p className="text-sm font-bold">Community Verified</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              {isSelf ? 'Share your journey' : 'No posts yet'}
+            </h3>
+            <p className="text-gray-500 max-w-xs mx-auto">
+              {isSelf ? 'Post your first travel moment and inspire others!' : 'This traveler has not posted any travel logs yet.'}
+            </p>
+            {isSelf && (
+              <button onClick={() => setShowCreate(true)}
+                className="mt-8 px-8 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100">
+                Create First Post
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -452,7 +325,7 @@ export default function UserProfile() {
       )}
 
       {/* Photo Viewer Modal */}
-      {showPhotoView && (avatarUrl(user.avatar) || avatarPreview) && (
+      {showPhotoView && avatarUrl(user.avatar) && (
         <div 
           className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={() => setShowPhotoView(false)}
@@ -464,7 +337,7 @@ export default function UserProfile() {
             <X size={32} />
           </button>
           <img 
-            src={avatarPreview || avatarUrl(user.avatar)} 
+            src={avatarUrl(user.avatar)} 
             alt={user.fullName} 
             className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}

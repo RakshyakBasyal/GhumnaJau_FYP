@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  travelBudget: {
+    type: String,
+    default: '',
+  },
   preferredDestinations: {
     type: [String],
     default: [],
@@ -42,6 +46,10 @@ const userSchema = new mongoose.Schema({
     default: [],
   },
   travelPace: {
+    type: String,
+    default: '',
+  },
+  city: {
     type: String,
     default: '',
   },

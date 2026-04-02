@@ -81,7 +81,20 @@ exports.getMe = async (req, res) => {
     // Returns full user including new 'avatar' field (once model is updated)
     const user = await User.findById(req.user.id).select("-password");
     if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json(user);
+
+    // Calculate buddy count (accepted requests where user is requester or recipient)
+    const buddyCount = await BuddyRequest.countDocuments({
+      $or: [{ requester: req.user.id }, { recipient: req.user.id }],
+      status: 'accepted'
+    });
+
+    res.json({
+      ...user.toObject(),
+      travelStats: {
+        ...(user.travelStats || {}),
+        buddyCount
+      }
+    });
   } catch (err) {
     console.error("Get me error:", err);
     res.status(500).json({ msg: "Server error" });
@@ -94,9 +107,11 @@ exports.updateMe = async (req, res) => {
       fullName,
       phone,
       travelStyle,
+      travelBudget,
       preferredDestinations,
       travelInterests,
       travelPace,
+      city,
       bio,
       languages,
       travelStats,
@@ -127,7 +142,9 @@ exports.updateMe = async (req, res) => {
       ...(fullName !== undefined ? { fullName } : {}),
       ...(phone !== undefined ? { phone } : {}),
       ...(travelStyle !== undefined ? { travelStyle: String(travelStyle).trim() } : {}),
+      ...(travelBudget !== undefined ? { travelBudget: String(travelBudget).trim() } : {}),
       ...(travelPace !== undefined ? { travelPace: String(travelPace).trim() } : {}),
+      ...(city !== undefined ? { city: String(city).trim() } : {}),
       ...(bio !== undefined ? { bio: String(bio) } : {}),
     };
 
@@ -179,7 +196,7 @@ exports.updateMe = async (req, res) => {
     const updated = await User.findByIdAndUpdate(
       req.user.id,
       updates,
-      { new: true, runValidators: true }
+      { new: true }
     ).select("-password");
 
     if (!updated) return res.status(404).json({ msg: "User not found" });
@@ -193,10 +210,23 @@ exports.updateMe = async (req, res) => {
 exports.getUserPublicProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select(
-      "fullName avatar travelStyle preferredDestinations travelInterests travelPace bio languages travelStats"
+      "fullName avatar travelStyle travelBudget preferredDestinations travelInterests travelPace city bio languages travelStats"
     );
     if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json(user);
+
+    // Calculate buddy count (accepted requests where user is requester or recipient)
+    const buddyCount = await BuddyRequest.countDocuments({
+      $or: [{ requester: req.params.id }, { recipient: req.params.id }],
+      status: 'accepted'
+    });
+
+    res.json({
+      ...user.toObject(),
+      travelStats: {
+        ...(user.travelStats || {}),
+        buddyCount
+      }
+    });
   } catch (err) {
     console.error("Get public profile error:", err);
     res.status(500).json({ msg: "Server error" });
@@ -206,54 +236,88 @@ exports.getUserPublicProfile = async (req, res) => {
 exports.getDiscoverUsers = async (req, res) => {
   try {
     const me = await User.findById(req.user.id).select(
-      "travelStyle travelPace travelInterests preferredDestinations"
+      "travelStyle travelPace travelBudget travelInterests preferredDestinations languages"
     );
     if (!me) return res.status(404).json({ msg: "User not found" });
 
     const { place = "", style = "", budget = "", pace = "", interest = "", limit } = req.query;
-    const styleFilter = String(style || budget || "").trim().toLowerCase();
-    const placeFilter = String(place || "").trim().toLowerCase();
-    const paceFilter = String(pace || "").trim().toLowerCase();
+    const styleFilter  = String(style  || "").trim().toLowerCase();
+    const budgetFilter = String(budget || "").trim().toLowerCase();
+    const placeFilter  = String(place  || "").trim().toLowerCase();
+    const paceFilter   = String(pace   || "").trim().toLowerCase();
     const interestFilter = String(interest || "").trim().toLowerCase();
 
     const users = await User.find({
       _id: { $ne: req.user.id },
       role: "USER",
     }).select(
-      "fullName avatar travelStyle travelPace travelInterests preferredDestinations languages bio travelStats"
+      "fullName avatar travelStyle travelPace travelBudget travelInterests preferredDestinations city languages bio travelStats"
     );
 
-    const myStyle = String(me.travelStyle || "").toLowerCase();
-    const myPace = String(me.travelPace || "").toLowerCase();
-    const myInterests = new Set((me.travelInterests || []).map((v) => String(v).toLowerCase()));
-    const myPlaces = new Set((me.preferredDestinations || []).map((v) => String(v).toLowerCase()));
+    // --- My profile data (normalised to lowercase sets) ---
+    const myStyle     = String(me.travelStyle  || "").toLowerCase().trim();
+    const myPace      = String(me.travelPace   || "").toLowerCase().trim();
+    const myBudget    = String(me.travelBudget || "").toLowerCase().trim();
+    const myInterests = new Set((me.travelInterests      || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean));
+    const myPlaces    = new Set((me.preferredDestinations || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean));
+    const myLanguages = new Set((me.languages             || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean));
 
+    // Jaccard similarity: |intersection| / |union|  (returns 0 if both sets empty)
+    const jaccard = (mySet, otherArr) => {
+      if (mySet.size === 0 && otherArr.length === 0) return 0;
+      const otherSet = new Set(otherArr);
+      const intersect = [...mySet].filter((v) => otherSet.has(v)).length;
+      const union = new Set([...mySet, ...otherSet]).size;
+      return union === 0 ? 0 : intersect / union;
+    };
+
+    /*
+     * Scoring weights (total = 100)
+     *  Travel Interests       → 35 pts  (most important — Jaccard)
+     *  Preferred Destinations → 20 pts  (Jaccard)
+     *  Travel Style           → 15 pts  (exact match)
+     *  Travel Pace            → 10 pts  (exact match)
+     *  Languages              → 10 pts  (any overlap)
+     *  Travel Budget          → 10 pts  (exact match)
+     */
     const scored = users
       .map((u) => {
-        const userStyle = String(u.travelStyle || "").toLowerCase();
-        const userPace = String(u.travelPace || "").toLowerCase();
-        const userInterests = (u.travelInterests || []).map((v) => String(v).toLowerCase());
-        const userPlaces = (u.preferredDestinations || []).map((v) => String(v).toLowerCase());
+        const userStyle     = String(u.travelStyle  || "").toLowerCase().trim();
+        const userPace      = String(u.travelPace   || "").toLowerCase().trim();
+        const userBudget    = String(u.travelBudget || "").toLowerCase().trim();
+        const userInterests = (u.travelInterests      || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean);
+        const userPlaces    = (u.preferredDestinations || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean);
+        const userLanguages = (u.languages             || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean);
 
-        const overlapInterests = userInterests.filter((v) => myInterests.has(v)).length;
-        const overlapPlaces = userPlaces.filter((v) => myPlaces.has(v)).length;
+        // Per-factor scores (each expressed as 0–100% of that dimension)
+        const interestsMatch     = Math.round(jaccard(myInterests, userInterests) * 100);
+        const destinationsMatch  = Math.round(jaccard(myPlaces, userPlaces) * 100);
+        const styleMatch         = (myStyle && userStyle && myStyle === userStyle) ? 100 : 0;
+        const paceMatch          = (myPace && userPace && myPace === userPace) ? 100 : 0;
+        const languagesMatch     = (myLanguages.size > 0 && userLanguages.some((l) => myLanguages.has(l))) ? 100 : 0;
+        const budgetMatch        = (myBudget && userBudget && myBudget === userBudget) ? 100 : 0;
 
-        let compatibility = 35;
-        if (userInterests.length > 0) {
-          compatibility += Math.min(35, Math.round((overlapInterests / userInterests.length) * 35));
-        }
-        if (userPlaces.length > 0) {
-          compatibility += Math.min(20, Math.round((overlapPlaces / userPlaces.length) * 20));
-        }
-        if (myStyle && userStyle && myStyle === userStyle) compatibility += 5;
-        if (myPace && userPace && myPace === userPace) compatibility += 5;
+        // Weighted total (max 100)
+        const score =
+          Math.round(interestsMatch    * 0.35) +
+          Math.round(destinationsMatch * 0.20) +
+          Math.round(styleMatch        * 0.15) +
+          Math.round(paceMatch         * 0.10) +
+          Math.round(languagesMatch    * 0.10) +
+          Math.round(budgetMatch       * 0.10);
 
-        compatibility = Math.max(0, Math.min(100, compatibility));
+        const compatibilityScore = Math.max(0, Math.min(100, score));
 
-        return {
-          ...u.toObject(),
-          compatibilityScore: compatibility,
+        const scoreBreakdown = {
+          interests:    interestsMatch,
+          destinations: destinationsMatch,
+          style:        styleMatch,
+          pace:         paceMatch,
+          languages:    languagesMatch,
+          budget:       budgetMatch,
         };
+
+        return { ...u.toObject(), compatibilityScore, scoreBreakdown };
       })
       .filter((u) => {
         if (styleFilter) {
@@ -263,6 +327,7 @@ exports.getDiscoverUsers = async (req, res) => {
           } else if (userStyle !== styleFilter) return false;
         }
         if (paceFilter && String(u.travelPace || "").toLowerCase() !== paceFilter) return false;
+        if (budgetFilter && String(u.travelBudget || "").toLowerCase() !== budgetFilter) return false;
         if (interestFilter) {
           const interests = (u.travelInterests || []).map((v) => String(v).toLowerCase());
           if (!interests.some((v) => v.includes(interestFilter))) return false;

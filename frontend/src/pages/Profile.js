@@ -17,14 +17,29 @@ const BASE_URL = "http://localhost:5000";
 
 const avatarUrl = (v) => {
   if (!v) return "";
-  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
   const s = String(v);
-  if (s.includes('googleusercontent.com') || s.includes('lh3.googleusercontent.com')) return '';
+  // Support both local uploads and external (Google) photos
   return s.startsWith("http") ? s : `${BASE_URL}${s}`;
 };
 
-const TRAVEL_STYLES = ["Adventure Seeker","Cultural Explorer","Backpacker","Luxury Traveler","Budget Traveler","Eco Traveler"];
-const TRAVEL_PACES  = ["Slow","Moderate","Fast"];
+const TRAVEL_STYLES = [
+  "Adventure Seeker",
+  "Cultural Explorer",
+  "Backpacker",
+  "Luxury Traveler",
+  "Eco Traveler",
+  "Solo Wanderer",
+  "Food Lover",
+  "Spiritual Seeker",
+  "Urban Explorer",
+  "Wildlife Enthusiast",
+];
+const TRAVEL_PACES   = ["Slow", "Moderate", "Fast"];
+const BUDGET_RANGES  = [
+  { value: "Budget Traveler",    label: "Budget Traveler",    desc: "NPR 1,000 – 2,000 / day" },
+  { value: "Mid-Range Traveler", label: "Mid-Range Traveler", desc: "NPR 2,500 – 5,000 / day" },
+  { value: "Luxury Traveler",    label: "Luxury Traveler",    desc: "NPR 6,000 – 15,000 / day" },
+];
 const INTEREST_PRESETS = ["Trekking","Food","Culture","Nightlife","Photography","Wildlife","History","Beach","Mountains","Spirituality","Architecture","Sports"];
 
 export default function Profile() {
@@ -42,9 +57,9 @@ export default function Profile() {
 
   const [userData, setUserData] = useState({
     fullName: "", email: "", phone: "", avatar: "", coverImage: "",
-    travelStyle: "", preferredDestinations: [], travelInterests: [],
-    travelPace: "", bio: "", languages: [],
-    travelStats: { followersCount: 0, followingCount: 0, buddiesCount: 0, totalPosts: 0 },
+    travelStyle: "", travelBudget: "", preferredDestinations: [], travelInterests: [],
+    travelPace: "", city: "", bio: "", languages: [],
+    travelStats: { followersCount: 0, followingCount: 0, buddyCount: 0, totalPosts: 0 },
   });
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [avatarFile, setAvatarFile]       = useState(null);
@@ -53,6 +68,8 @@ export default function Profile() {
   const [allDestinations, setAllDestinations] = useState([]);
   const [destQuery, setDestQuery]             = useState("");
   const [showDestSearch, setShowDestSearch]   = useState(false);
+  const [cityQuery, setCityQuery]             = useState("");
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
 
   // interests
   const [interestInput, setInterestInput]         = useState("");
@@ -116,6 +133,13 @@ export default function Profile() {
       setRecentBookings(Array.isArray(bookingsData) ? bookingsData.slice(0, 3) : []);
 
       setAllDestinations(Array.isArray(dests) ? dests : dests.destinations || []);
+      
+      // Sync localStorage with latest user data
+      if (user.fullName) {
+        localStorage.setItem("username", user.fullName);
+        window.dispatchEvent(new Event('userProfileUpdated'));
+      }
+
       setUserData({
         fullName: user.fullName || "",
         email: user.email || "",
@@ -123,15 +147,17 @@ export default function Profile() {
         avatar: user.avatar || "",
         coverImage: user.coverImage || "",
         travelStyle: user.travelStyle || "",
+        travelBudget: user.travelBudget || "",
         preferredDestinations: user.preferredDestinations || [],
         travelInterests: user.travelInterests || [],
         travelPace: user.travelPace || "",
+        city: user.city || "",
         bio: user.bio || "",
         languages: user.languages || [],
         travelStats: {
           followersCount: followData.followersCount || 0,
           followingCount: followData.followingCount || 0,
-          buddiesCount: buddyData.connections?.length || 0,
+          buddyCount: user.travelStats?.buddyCount || buddyData.buddies?.length || 0,
           totalPosts: postsData.total || 0,
         },
       });
@@ -144,8 +170,8 @@ export default function Profile() {
       setActiveTrips(list.filter((t) => t.status === "active").length);
       setCompletedTrips(list.filter((t) => t.status === "completed").length);
 
-      // Auto-open edit mode and show dialogue if profile is incomplete
-      if (!user.bio || !user.travelStyle) {
+      // Mandatory profile setup: must have travelStyle and city (bio is optional)
+      if (!user.city || !user.travelStyle) {
         setIsEditingBasic(true);
         if (location.state?.fromCommunityRedirect) {
           setShowSetupModal(true);
@@ -170,7 +196,9 @@ export default function Profile() {
         fullName: userData.fullName,
         phone: userData.phone,
         travelStyle: userData.travelStyle,
+        travelBudget: userData.travelBudget,
         travelPace: userData.travelPace,
+        city: userData.city,
         bio: userData.bio,
       }).forEach(([k,v]) => fd.append(k, v));
       fd.append("preferredDestinations", JSON.stringify(userData.preferredDestinations));
@@ -187,6 +215,14 @@ export default function Profile() {
       if (!res.ok) throw new Error("Failed");
       const updated = await res.json();
       setUserData(p => ({ ...p, ...updated }));
+      
+      // Update localStorage for Navbar and other components
+      if (updated.fullName) {
+        localStorage.setItem("username", updated.fullName);
+        // Dispatch custom event to notify Navbar
+        window.dispatchEvent(new Event('userProfileUpdated'));
+      }
+
       setIsEditingBasic(false);
       setIsEditingTravel(false);
       setIsEditingDestinations(false);
@@ -202,6 +238,16 @@ export default function Profile() {
       await respondBuddyRequest(requestId, action);
       setIncomingRequests(prev => prev.filter(r => r._id !== requestId));
       showToast(action === "accept" ? "Buddy request accepted!" : "Request declined", action === "accept" ? "success" : "info");
+      
+      if (action === "accept") {
+        setUserData(prev => ({
+          ...prev,
+          travelStats: {
+            ...prev.travelStats,
+            buddyCount: (prev.travelStats.buddyCount || 0) + 1
+          }
+        }));
+      }
     } catch { showToast("Failed to respond", "error"); }
     finally { setRespondingId(null); }
   };
@@ -286,9 +332,9 @@ export default function Profile() {
           <div className="flex flex-col md:flex-row gap-6 items-start">
 
             {/* Avatar */}
-            <div className="relative flex-shrink-0 mx-auto md:mx-0 w-28 h-28 md:w-32 md:h-32">
+            <div className="relative flex-shrink-0 mx-auto md:mx-0 w-32 h-32 md:w-40 md:h-40">
               <div 
-                className="w-full h-full rounded-2xl overflow-hidden border-4 border-white shadow-xl bg-gray-100 cursor-pointer flex items-center justify-center"
+                className="w-full h-full rounded-[32px] md:rounded-[40px] overflow-hidden border-4 border-white shadow-xl bg-gray-100 cursor-pointer flex items-center justify-center"
                 onClick={() => (avatarPreview || avatarUrl(userData.avatar)) && setShowPhotoView(true)}
               >
                 {avatarPreview ? (
@@ -300,12 +346,12 @@ export default function Profile() {
                     alt={userData.fullName} 
                   />
                 ) : (
-                  <User className="w-full h-full p-6 text-gray-300" />
+                  <User className="w-full h-full p-8 text-gray-300" />
                 )}
               </div>
               {isEditingBasic && (
-                <label className="absolute -bottom-2 -right-2 w-9 h-9 bg-blue-600 text-white rounded-xl flex items-center justify-center cursor-pointer hover:bg-blue-700 shadow-lg border-2 border-white transition z-20">
-                  <Camera size={16} />
+                <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center cursor-pointer hover:bg-blue-700 shadow-lg border-2 border-white transition z-20">
+                  <Camera size={18} />
                   <input type="file" className="hidden" accept="image/*" onChange={e => {
                     const f = e.target.files[0];
                     if (f) { setAvatarFile(f); setAvatarPreview(URL.createObjectURL(f)); }
@@ -331,6 +377,54 @@ export default function Profile() {
                   <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-500">
                     <span className="flex items-center gap-1"><Mail size={13} className="text-blue-400" />{userData.email}</span>
                     {userData.phone && <span className="flex items-center gap-1"><Phone size={13} className="text-blue-400" />{userData.phone}</span>}
+                    {isEditingBasic ? (
+                      <div className="relative">
+                        <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200 focus-within:ring-2 focus-within:ring-blue-300">
+                          <MapPin size={13} className="text-blue-400" />
+                          <input 
+                            value={cityQuery || userData.city} 
+                            onChange={e => {
+                              setCityQuery(e.target.value);
+                              setShowCitySuggestions(true);
+                            }}
+                            onFocus={() => setShowCitySuggestions(true)}
+                            placeholder="Your City" 
+                            className="bg-transparent outline-none text-xs font-semibold w-24" 
+                          />
+                        </div>
+
+                        {/* City Suggestions Dropdown */}
+                        {showCitySuggestions && allDestinations.filter(d => d.name.toLowerCase().includes((cityQuery || userData.city).toLowerCase())).length > 0 && (
+                          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-[60] overflow-hidden p-1 min-w-[150px] animate-in fade-in zoom-in-95 duration-200">
+                            {allDestinations
+                              .filter(d => d.name.toLowerCase().includes((cityQuery || userData.city).toLowerCase()))
+                              .slice(0, 5)
+                              .map(d => (
+                                <button
+                                  key={d._id}
+                                  onClick={() => {
+                                    setUserData(p => ({ ...p, city: d.name }));
+                                    setCityQuery(d.name);
+                                    setShowCitySuggestions(false);
+                                  }}
+                                  className="w-full flex items-center gap-2 p-2 hover:bg-blue-50 rounded-lg transition-all text-left"
+                                >
+                                  <div className="w-6 h-6 rounded bg-gray-100 overflow-hidden flex-shrink-0">
+                                    {d.images?.[0] ? (
+                                      <img src={d.images[0].startsWith('http') ? d.images[0] : `${BASE_URL}${d.images[0]}`} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <MapPin size={10} className="m-auto text-gray-300" />
+                                    )}
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-800 truncate">{d.name}</span>
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      userData.city && <span className="flex items-center gap-1"><MapPin size={13} className="text-blue-400" />{userData.city}</span>
+                    )}
                   </div>
                 </div>
 
@@ -378,7 +472,7 @@ export default function Profile() {
               { label: "Posts", val: postCount },
               { label: "Followers", val: userData.travelStats.followersCount },
               { label: "Following", val: userData.travelStats.followingCount },
-              { label: "Buddies", val: userData.travelStats.buddiesCount },
+              { label: "Connected", val: userData.travelStats.buddyCount },
             ].map(s => (
               <div key={s.label} className="flex flex-col items-center justify-center py-2 rounded-xl hover:bg-gray-50 transition duration-200">
                 <p className="text-lg font-bold text-gray-900 leading-none">{s.val}</p>
@@ -455,6 +549,32 @@ export default function Profile() {
                 ) : (
                   <span className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold border border-blue-100">
                     {userData.travelStyle || <span className="text-gray-400 italic text-xs">Not set</span>}
+                  </span>
+                )}
+              </div>
+
+              {/* Budget */}
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wider block mb-2">Travel Budget</label>
+                {isEditingTravel ? (
+                  <div className="flex flex-wrap gap-2">
+                    {BUDGET_RANGES.map(b => (
+                      <button key={b.value} onClick={() => setUserData(p => ({ ...p, travelBudget: b.value }))}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+                          userData.travelBudget === b.value
+                            ? "bg-green-600 text-white border-green-600"
+                            : "border-gray-200 text-gray-600 hover:border-green-300"
+                        }`}>
+                        <span>{b.label}</span>
+                        <span className={`text-[10px] ${userData.travelBudget === b.value ? "text-green-100" : "text-gray-400"}`}>{b.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-semibold border border-green-100">
+                    {userData.travelBudget
+                      ? <>{userData.travelBudget} — {BUDGET_RANGES.find(b => b.value === userData.travelBudget)?.desc}</>
+                      : <span className="text-gray-400 italic text-xs">Not set</span>}
                   </span>
                 )}
               </div>
@@ -861,7 +981,7 @@ export default function Profile() {
             </div>
             <h3 className="text-2xl font-bold text-gray-900 text-center mb-3">Complete Your Profile</h3>
             <p className="text-gray-500 text-center mb-8 leading-relaxed">
-              To join the **Ghumna Jau** community, please take a moment to add a bio and set your travel style. This helps fellow travelers connect with you!
+              To join the **Ghumna Jau** community, please take a moment to add your **location (city)** and set your **travel style**. This helps fellow travelers connect with you!
             </p>
             <button 
               onClick={() => setShowSetupModal(false)}

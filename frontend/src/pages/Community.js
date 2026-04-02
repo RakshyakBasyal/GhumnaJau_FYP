@@ -9,6 +9,12 @@ import FindBuddy from './FindBuddy';
 
 const BASE_URL = 'http://localhost:5000';
 
+const avatarUrl = (v) => {
+  if (!v) return '';
+  const s = String(v);
+  return s.startsWith('http') ? s : `${BASE_URL}${s}`;
+};
+
 const Community = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -86,8 +92,8 @@ const Community = () => {
       try {
         const res = await getMe();
         const u = res.data;
-        // If bio or travel style is missing, consider it a new/incomplete profile
-        if (!u.bio || !u.travelStyle) {
+        // Mandatory profile setup: must have travelStyle and city (bio is optional)
+        if (!u.city || !u.travelStyle) {
           navigate('/profile', { state: { fromCommunityRedirect: true } });
         }
       } catch (_) {}
@@ -220,7 +226,7 @@ const Community = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col lg:flex-row gap-6">
-          <aside className="lg:w-64 flex-shrink-0">
+          <aside className="lg:w-64 flex-shrink-0 relative z-40">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sticky top-24">
               <nav className="space-y-1">
                 {navItems.map((i) => {
@@ -245,26 +251,48 @@ const Community = () => {
                     className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
                   >
                     <span className="flex items-center gap-3">
-                      <Bell size={18} />
+                      <Bell size={18} className={unreadCount > 0 ? 'text-blue-600' : 'text-gray-500'} />
                       Notifications
                     </span>
-                    {unreadCount > 0 && <span className="w-2 h-2 rounded-full bg-red-500" />}
+                    {unreadCount > 0 && (
+                      <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </button>
                   {showNotifications && (
-                    <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-                      <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                        <p className="font-semibold text-gray-900">Activity</p>
-                        <button onClick={markAllRead} className="text-xs text-blue-600 font-semibold">Mark all read</button>
+                    <div className="absolute left-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[100] overflow-hidden animate-in slide-in-from-top-2 duration-200">
+                      <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                        <p className="font-bold text-gray-900">Activity</p>
+                        <button onClick={markAllRead} className="text-xs text-blue-600 font-bold hover:underline">Mark all read</button>
                       </div>
-                      <div className="max-h-96 overflow-y-auto">
+                      <div className="max-h-[500px] overflow-y-auto">
                         {notifications.length === 0 ? (
-                          <p className="text-sm text-gray-500 p-4">No notifications yet.</p>
+                          <div className="py-12 px-4 text-center">
+                            <Bell className="mx-auto text-gray-200 mb-2" size={32} />
+                            <p className="text-sm text-gray-500 font-medium">No notifications yet.</p>
+                          </div>
                         ) : (
                           notifications.map((n) => (
-                            <div key={n.id} className={`px-4 py-3 border-b border-gray-50 ${n.read ? 'bg-white' : 'bg-blue-50/30'}`}>
-                              <div className="flex items-start gap-2">
-                                {n.type === 'like' ? <Heart size={14} className="text-red-500 mt-0.5" /> : <MessageCircle size={14} className="text-blue-500 mt-0.5" />}
-                                <p className="text-xs text-gray-700">{n.text}</p>
+                            <div key={n.id} className={`px-4 py-4 border-b border-gray-50 transition-colors hover:bg-gray-50 ${n.read ? 'bg-white' : 'bg-blue-50/40'}`}>
+                              <div className="flex items-start gap-3">
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                  n.type === 'like' ? 'bg-red-50 text-red-500' : 
+                                  n.type === 'comment' ? 'bg-green-50 text-green-500' :
+                                  n.type === 'request' ? 'bg-purple-50 text-purple-500' :
+                                  'bg-blue-50 text-blue-500'
+                                }`}>
+                                  {n.type === 'like' ? <Heart size={16} className="fill-current" /> : 
+                                   n.type === 'request' ? <Users size={16} /> :
+                                   <MessageCircle size={16} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-800 leading-snug">{n.text}</p>
+                                  <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-tight">
+                                    {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                                {!n.read && <div className="w-2 h-2 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />}
                               </div>
                             </div>
                           ))
@@ -310,8 +338,14 @@ const Community = () => {
                               : 'hover:bg-gray-50'
                           }`}
                         >
-                          <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                            {buddy.fullName?.charAt(0).toUpperCase()}
+                          <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
+                            {avatarUrl(buddy.avatar) ? (
+                              <img src={avatarUrl(buddy.avatar)} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                                {buddy.fullName?.charAt(0).toUpperCase()}
+                              </div>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0 text-left">
                             <p className="font-semibold text-gray-900 truncate">{buddy.fullName}</p>
@@ -337,8 +371,14 @@ const Community = () => {
                       <>
                         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                              {activeChatBuddy.fullName?.charAt(0).toUpperCase()}
+                            <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
+                              {avatarUrl(activeChatBuddy.avatar) ? (
+                                <img src={avatarUrl(activeChatBuddy.avatar)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                                  {activeChatBuddy.fullName?.charAt(0).toUpperCase()}
+                                </div>
+                              )}
                             </div>
                             <div>
                               <p className="font-bold text-gray-900">{activeChatBuddy.fullName}</p>
