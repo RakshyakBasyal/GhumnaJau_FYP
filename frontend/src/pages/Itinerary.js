@@ -250,9 +250,9 @@ const TripCard = ({ itin, onOpen, onEdit, onDelete, onStatusChange }) => {
         {itin.destinationName && <p className="flex items-center gap-1.5 text-gray-400 text-xs mb-1"><MapPin className="h-3 w-3" />{itin.destinationName}</p>}
         <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">{itin.title}</h3>
         <div className="flex flex-wrap gap-2 mb-4">
-          {nights && <span className="text-xs border border-gray-200 text-gray-600 px-3 py-1 rounded-full">{nights} nights</span>}
-          <span className="text-xs border border-gray-200 text-gray-600 px-3 py-1 rounded-full">{total} items</span>
-          {total > 0 && <span className="text-xs border border-gray-200 text-gray-600 px-3 py-1 rounded-full">{pct}% done</span>}
+          {nights && <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{nights} nights</span>}
+          {nights && total > 0 && <span className="text-gray-200">•</span>}
+          {total > 0 && <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{total} items</span>}
         </div>
         {total > 0 && (
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-4">

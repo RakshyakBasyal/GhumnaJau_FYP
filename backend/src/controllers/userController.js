@@ -81,7 +81,20 @@ exports.getMe = async (req, res) => {
     // Returns full user including new 'avatar' field (once model is updated)
     const user = await User.findById(req.user.id).select("-password");
     if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json(user);
+
+    // Calculate buddy count (accepted requests where user is requester or recipient)
+    const buddyCount = await BuddyRequest.countDocuments({
+      $or: [{ requester: req.user.id }, { recipient: req.user.id }],
+      status: 'accepted'
+    });
+
+    res.json({
+      ...user.toObject(),
+      travelStats: {
+        ...(user.travelStats || {}),
+        buddyCount
+      }
+    });
   } catch (err) {
     console.error("Get me error:", err);
     res.status(500).json({ msg: "Server error" });
@@ -97,6 +110,7 @@ exports.updateMe = async (req, res) => {
       preferredDestinations,
       travelInterests,
       travelPace,
+      city,
       bio,
       languages,
       travelStats,
@@ -128,6 +142,7 @@ exports.updateMe = async (req, res) => {
       ...(phone !== undefined ? { phone } : {}),
       ...(travelStyle !== undefined ? { travelStyle: String(travelStyle).trim() } : {}),
       ...(travelPace !== undefined ? { travelPace: String(travelPace).trim() } : {}),
+      ...(city !== undefined ? { city: String(city).trim() } : {}),
       ...(bio !== undefined ? { bio: String(bio) } : {}),
     };
 
@@ -193,10 +208,23 @@ exports.updateMe = async (req, res) => {
 exports.getUserPublicProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select(
-      "fullName avatar travelStyle preferredDestinations travelInterests travelPace bio languages travelStats"
+      "fullName avatar travelStyle preferredDestinations travelInterests travelPace city bio languages travelStats"
     );
     if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json(user);
+
+    // Calculate buddy count (accepted requests where user is requester or recipient)
+    const buddyCount = await BuddyRequest.countDocuments({
+      $or: [{ requester: req.params.id }, { recipient: req.params.id }],
+      status: 'accepted'
+    });
+
+    res.json({
+      ...user.toObject(),
+      travelStats: {
+        ...(user.travelStats || {}),
+        buddyCount
+      }
+    });
   } catch (err) {
     console.error("Get public profile error:", err);
     res.status(500).json({ msg: "Server error" });
@@ -220,7 +248,7 @@ exports.getDiscoverUsers = async (req, res) => {
       _id: { $ne: req.user.id },
       role: "USER",
     }).select(
-      "fullName avatar travelStyle travelPace travelInterests preferredDestinations languages bio travelStats"
+      "fullName avatar travelStyle travelPace travelInterests preferredDestinations city languages bio travelStats"
     );
 
     const myStyle = String(me.travelStyle || "").toLowerCase();

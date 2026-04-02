@@ -293,8 +293,8 @@ const Login = () => {
       localStorage.setItem('userRole', res.data.role);
       localStorage.setItem('userEmail', res.data.email);
 
-      // Check if user has completed their profile
-      const isProfileIncomplete = !res.data.bio || !res.data.avatar || !res.data.travelStyle;
+      // Check if user has completed their profile: must have city and travelStyle (bio is optional)
+      const isProfileIncomplete = !res.data.city || !res.data.travelStyle;
       const intendedPath = localStorage.getItem('intendedPath') || '/';
       localStorage.removeItem('intendedPath');
 

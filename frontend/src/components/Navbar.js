@@ -36,24 +36,33 @@ const Navbar = () => {
   }, [location.pathname]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const storedUsername = localStorage.getItem("username") || "";
-    const storedRole = localStorage.getItem("userRole") || "";
+    const updateNav = () => {
+      const token = localStorage.getItem("token");
+      const storedUsername = localStorage.getItem("username") || "";
+      const storedRole = localStorage.getItem("userRole") || "";
 
-    if (token) {
-      setIsLoggedIn(true);
-      setUserName(storedUsername);
-      setUserRole(storedRole);
-    } else {
-      setIsLoggedIn(false);
-      setUserName("");
-      setUserRole("");
-    }
+      if (token) {
+        setIsLoggedIn(true);
+        setUserName(storedUsername);
+        setUserRole(storedRole);
+      } else {
+        setIsLoggedIn(false);
+        setUserName("");
+        setUserRole("");
+      }
+    };
+
+    updateNav();
+
+    // Listen for custom profile update event
+    window.addEventListener('userProfileUpdated', updateNav);
 
     // Close dropdowns on route change
     setProfileDropdownOpen(false);
     setSignInDropdownOpen(false);
     setMobileMenuOpen(false);
+
+    return () => window.removeEventListener('userProfileUpdated', updateNav);
   }, [location.pathname]);
 
   const handleLogout = () => {

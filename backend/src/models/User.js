@@ -45,6 +45,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  city: {
+    type: String,
+    default: '',
+  },
   bio: {
     type: String,
     trim: true,

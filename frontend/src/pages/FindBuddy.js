@@ -29,9 +29,9 @@ const TRAVEL_PACES = ["Slow", "Moderate", "Fast"];
 
 const avatarUrl = (value) => {
   if (!value) return "";
-  // Only show photo if it's NOT from Google (meaning it's an uploaded one)
-  if (String(value).includes('googleusercontent.com')) return '';
-  return String(value).startsWith("http") ? value : `http://localhost:5000${value}`;
+  const s = String(value);
+  // Support both local uploads and external (Google) photos
+  return s.startsWith("http") ? s : `${BASE_URL}${s}`;
 };
 
 export default function FindBuddy({ isCommunityView = false }) {
@@ -133,7 +133,7 @@ export default function FindBuddy({ isCommunityView = false }) {
           return (u.languages || []).some((l) => String(l).toLowerCase().includes(lang));
         })
         .sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0)),
-    [users, myId, filters.q, filters.language]
+    [users, myId, filters]
   );
 
   const handleConnect = async (userId) => {
@@ -328,7 +328,7 @@ export default function FindBuddy({ isCommunityView = false }) {
                   onClick={clearFilters}
                   className="flex-1 py-2.5 text-xs font-bold text-gray-500 hover:text-red-500 transition-all uppercase tracking-wider bg-gray-50 rounded-xl border border-gray-100 hover:border-red-100"
                 >
-                  Reset Filters
+                  Reset
                 </button>
               </div>
             </div>
@@ -355,65 +355,98 @@ export default function FindBuddy({ isCommunityView = false }) {
                 <p className="text-sm text-gray-500">Try adjusting your filters.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {visibleUsers.map((user) => {
                   const status = connectMap[user._id] || "none";
                   const src = avatarUrl(user.avatar);
                   return (
-                    <div key={user._id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group border border-gray-100">
-                      <div className="relative h-32 flex-shrink-0 overflow-hidden">
-                        {src ? (
-                          <img src={src} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                          <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-200"><User size={56} /></div>
-                        )}
-                        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-[10px] font-bold text-blue-600 flex items-center gap-1 shadow-sm">
-                          <Zap size={10} className="fill-blue-600" />
-                          {user.compatibilityScore || 85}% Match
-                        </div>
+                    <div key={user._id} className="bg-white rounded-[24px] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col group border border-gray-100">
+                      {/* Banner/Header Area */}
+                      <div className="relative h-24 bg-gradient-to-r from-blue-600 to-indigo-700 flex-shrink-0">
                       </div>
                       
-                      <div className="p-4 flex flex-col flex-1">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <h3 className="text-base font-bold text-gray-900 truncate flex items-center gap-1.5 group-hover:text-blue-600 transition-colors">
-                            {user.fullName}
-                            <CheckCircle2 size={16} className="text-blue-500" />
-                          </h3>
-                        </div>
-                        
-                        <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-3">
-                          <MapPin size={12} className="text-blue-500" />
-                          <span className="font-bold">{(user.preferredDestinations || [])[0] || 'Nepal'}</span>
-                          <span className="text-gray-300">•</span>
-                          <span>{user.travelStyle || 'Explorer'}</span>
-                        </p>
-
-                        <div className="flex flex-wrap gap-1.5 mb-4">
-                          {(user.travelInterests || []).slice(0, 3).map(tag => (
-                            <span key={tag} className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[10px] font-bold rounded-md border border-gray-100 uppercase tracking-wider">
-                              {tag}
-                            </span>
-                          ))}
+                      {/* Avatar Overlay */}
+                      <div className="px-6 -mt-16 relative z-10 flex items-end justify-between">
+                        <div className="relative">
+                          <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white shadow-lg bg-gray-50 flex items-center justify-center">
+                            {src ? (
+                              <img src={src} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                            ) : (
+                              <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-200">
+                                <User size={48} />
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="mt-auto flex gap-2">
+                        <div className="pb-4 flex gap-2">
                           <button 
                             onClick={() => navigate(`/profile/${user._id}`)} 
-                            className="flex-1 py-2 bg-white text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition border border-gray-200"
+                            className="p-3 bg-white text-gray-600 rounded-xl border border-gray-100 hover:bg-gray-50 transition shadow-sm"
+                            title="View Profile"
                           >
-                            Profile
+                            <User size={20} />
                           </button>
                           <button 
                             onClick={() => handleConnect(user._id)}
                             disabled={status !== 'none' && status !== 'received'}
-                            className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${
+                            className={`px-8 py-3 rounded-xl text-xs font-bold transition shadow-sm ${
                               status === 'none' || status === 'received' 
-                                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100' 
                                 : 'bg-gray-100 text-gray-400'
                             }`}
                           >
-                            {status === 'none' ? 'Connect' : status === 'sent' ? 'Sent' : status === 'connected' ? 'Buddy' : 'Accept'}
+                            {status === 'none' ? 'Connect' : status === 'sent' ? 'Sent' : status === 'connected' ? 'Connected' : 'Accept'}
                           </button>
+                        </div>
+                      </div>
+                      
+                      <div className="p-6 pt-4 flex flex-col flex-1">
+                        <div className="mb-2">
+                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-1.5 group-hover:text-blue-600 transition-colors">
+                            {user.fullName}
+                            <CheckCircle2 size={18} className="text-blue-500" />
+                          </h3>
+                          <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                            {user.travelStyle || 'Traveler'}
+                          </p>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-6 line-clamp-2 leading-relaxed">
+                          {user.bio || 'Adventuring through Nepal, looking for like-minded travel buddies to explore with!'}
+                        </p>
+
+                        <div className="mt-auto pt-4 border-t border-gray-50 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <MapPin size={14} className="text-blue-500" />
+                              <span className="text-[11px] font-bold text-gray-500 truncate">
+                                {user.city || 'Nepal'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg">
+                              <Zap size={10} className="text-blue-600 fill-blue-600" />
+                              <span className="text-[10px] font-bold text-blue-600">
+                                {user.compatibilityScore || 85}%
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {(user.travelInterests || []).slice(0, 3).map((tag, idx) => (
+                              <span 
+                                key={idx} 
+                                className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[10px] font-bold rounded-md border border-gray-100 uppercase tracking-wider whitespace-nowrap"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                            {(user.travelInterests || []).length > 3 && (
+                              <span className="text-[10px] font-bold text-gray-400 self-center">
+                                +{(user.travelInterests || []).length - 3}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
