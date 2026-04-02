@@ -22,8 +22,24 @@ const avatarUrl = (v) => {
   return s.startsWith("http") ? s : `${BASE_URL}${s}`;
 };
 
-const TRAVEL_STYLES = ["Adventure Seeker","Cultural Explorer","Backpacker","Luxury Traveler","Budget Traveler","Eco Traveler"];
-const TRAVEL_PACES  = ["Slow","Moderate","Fast"];
+const TRAVEL_STYLES = [
+  "Adventure Seeker",
+  "Cultural Explorer",
+  "Backpacker",
+  "Luxury Traveler",
+  "Eco Traveler",
+  "Solo Wanderer",
+  "Food Lover",
+  "Spiritual Seeker",
+  "Urban Explorer",
+  "Wildlife Enthusiast",
+];
+const TRAVEL_PACES   = ["Slow", "Moderate", "Fast"];
+const BUDGET_RANGES  = [
+  { value: "Budget Traveler",    label: "Budget Traveler",    desc: "NPR 1,000 – 2,000 / day" },
+  { value: "Mid-Range Traveler", label: "Mid-Range Traveler", desc: "NPR 2,500 – 5,000 / day" },
+  { value: "Luxury Traveler",    label: "Luxury Traveler",    desc: "NPR 6,000 – 15,000 / day" },
+];
 const INTEREST_PRESETS = ["Trekking","Food","Culture","Nightlife","Photography","Wildlife","History","Beach","Mountains","Spirituality","Architecture","Sports"];
 
 export default function Profile() {
@@ -41,7 +57,7 @@ export default function Profile() {
 
   const [userData, setUserData] = useState({
     fullName: "", email: "", phone: "", avatar: "", coverImage: "",
-    travelStyle: "", preferredDestinations: [], travelInterests: [],
+    travelStyle: "", travelBudget: "", preferredDestinations: [], travelInterests: [],
     travelPace: "", city: "", bio: "", languages: [],
     travelStats: { followersCount: 0, followingCount: 0, buddyCount: 0, totalPosts: 0 },
   });
@@ -131,6 +147,7 @@ export default function Profile() {
         avatar: user.avatar || "",
         coverImage: user.coverImage || "",
         travelStyle: user.travelStyle || "",
+        travelBudget: user.travelBudget || "",
         preferredDestinations: user.preferredDestinations || [],
         travelInterests: user.travelInterests || [],
         travelPace: user.travelPace || "",
@@ -179,6 +196,7 @@ export default function Profile() {
         fullName: userData.fullName,
         phone: userData.phone,
         travelStyle: userData.travelStyle,
+        travelBudget: userData.travelBudget,
         travelPace: userData.travelPace,
         city: userData.city,
         bio: userData.bio,
@@ -531,6 +549,32 @@ export default function Profile() {
                 ) : (
                   <span className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold border border-blue-100">
                     {userData.travelStyle || <span className="text-gray-400 italic text-xs">Not set</span>}
+                  </span>
+                )}
+              </div>
+
+              {/* Budget */}
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wider block mb-2">Travel Budget</label>
+                {isEditingTravel ? (
+                  <div className="flex flex-wrap gap-2">
+                    {BUDGET_RANGES.map(b => (
+                      <button key={b.value} onClick={() => setUserData(p => ({ ...p, travelBudget: b.value }))}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+                          userData.travelBudget === b.value
+                            ? "bg-green-600 text-white border-green-600"
+                            : "border-gray-200 text-gray-600 hover:border-green-300"
+                        }`}>
+                        <span>{b.label}</span>
+                        <span className={`text-[10px] ${userData.travelBudget === b.value ? "text-green-100" : "text-gray-400"}`}>{b.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-sm font-semibold border border-green-100">
+                    {userData.travelBudget
+                      ? <>{userData.travelBudget} — {BUDGET_RANGES.find(b => b.value === userData.travelBudget)?.desc}</>
+                      : <span className="text-gray-400 italic text-xs">Not set</span>}
                   </span>
                 )}
               </div>

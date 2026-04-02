@@ -188,26 +188,32 @@ export default function UserProfile() {
             </div>
 
               {/* Main Info Area */}
-              <div className="flex-1 pt-4 md:pt-16">
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h1 className="text-3xl font-bold text-gray-900">{user.fullName}</h1>
-                      <CheckCircle2 size={22} className="text-blue-500 fill-blue-50 flex-shrink-0" />
+              <div className="flex-1 pt-6 md:pt-20">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">{user.fullName}</h1>
+                        <CheckCircle2 size={24} className="text-blue-500 fill-blue-50 flex-shrink-0" />
+                      </div>
+                      
+                      {user.city && (
+                        <div className="flex items-center gap-1.5 text-blue-600">
+                          <MapPin size={14} className="fill-blue-50" />
+                          <span className="text-sm font-bold uppercase tracking-widest">{user.city}</span>
+                        </div>
+                      )}
                     </div>
-                    {/* Location and Bio below name */}
-                    {user.city && (
-                      <p className="text-blue-600 text-xs font-bold flex items-center gap-1 mb-1 uppercase tracking-wider">
-                        <MapPin size={12} className="fill-blue-50" /> {user.city}
+
+                    <div className="max-w-2xl">
+                      <p className="text-gray-600 text-base leading-relaxed">
+                        {user.bio || "Adventuring through Nepal, one moment at a time. 🏔️"}
                       </p>
-                    )}
-                    <p className="text-gray-600 text-sm max-w-lg line-clamp-2">
-                      {user.bio || "Adventuring through Nepal, one moment at a time. 🏔️"}
-                    </p>
+                    </div>
                   </div>
 
                   {/* Actions - Grouped pill buttons */}
-                  <div className="flex items-center gap-2 mt-2 md:mt-0">
+                  <div className="flex items-center gap-3 mt-2 md:mt-2">
                     {isSelf ? (
                       <button onClick={() => navigate('/settings')} 
                         className="px-8 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100">

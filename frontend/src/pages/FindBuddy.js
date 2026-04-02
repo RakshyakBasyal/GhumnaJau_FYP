@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Check, 
-  Loader2, 
-  MapPin, 
-  Search, 
-  ShieldCheck, 
-  Filter, 
-  CheckCircle2, 
-  Zap, 
+import {
+  Check,
+  Loader2,
+  MapPin,
+  Search,
+  ShieldCheck,
+  Filter,
+  CheckCircle2,
   User,
   Heart,
-  X
+  X,
+  Compass
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import {
@@ -24,8 +24,20 @@ import {
 
 const BASE_URL = "http://localhost:5000";
 
-const TRAVEL_STYLES = ["Adventure Seeker", "Cultural Explorer", "Backpacker", "Luxury Traveler", "Budget Traveler", "Eco Traveler"];
-const TRAVEL_PACES = ["Slow", "Moderate", "Fast"];
+const TRAVEL_STYLES = [
+  "Adventure Seeker",
+  "Cultural Explorer",
+  "Backpacker",
+  "Luxury Traveler",
+  "Eco Traveler",
+  "Solo Wanderer",
+  "Food Lover",
+  "Spiritual Seeker",
+  "Urban Explorer",
+  "Wildlife Enthusiast",
+];
+const TRAVEL_PACES   = ["Slow", "Moderate", "Fast"];
+const BUDGET_RANGES  = ["Budget Traveler", "Mid-Range Traveler", "Luxury Traveler"];
 
 const avatarUrl = (value) => {
   if (!value) return "";
@@ -64,6 +76,7 @@ export default function FindBuddy({ isCommunityView = false }) {
     language: "",
     style: "",
     pace: "",
+    budget: "",
   });
 
   const refreshAll = async (nextFilters = filters) => {
@@ -74,6 +87,7 @@ export default function FindBuddy({ isCommunityView = false }) {
         interest: nextFilters.interest || "",
         style: nextFilters.style || "",
         pace: nextFilters.pace || "",
+        budget: nextFilters.budget || "",
       };
       if (queryParams.q) queryParams.q = queryParams.q.trim();
       
@@ -163,7 +177,7 @@ export default function FindBuddy({ isCommunityView = false }) {
   };
 
   const clearFilters = () => {
-    const cleared = { q: "", place: "", interest: "", language: "", style: "", pace: "" };
+    const cleared = { q: "", place: "", interest: "", language: "", style: "", pace: "", budget: "" };
     setFilters(cleared);
     setDestQuery("");
     refreshAll(cleared);
@@ -300,6 +314,19 @@ export default function FindBuddy({ isCommunityView = false }) {
                 </select>
               </div>
 
+              {/* Budget Range */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Budget Range</label>
+                <select
+                  value={filters.budget}
+                  onChange={(e) => handleFilterChange('budget', e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-medium text-gray-700 transition-all appearance-none"
+                >
+                  <option value="">All Budgets</option>
+                  {BUDGET_RANGES.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+
               {/* Interest */}
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Special Interests</label>
@@ -359,94 +386,102 @@ export default function FindBuddy({ isCommunityView = false }) {
                 {visibleUsers.map((user) => {
                   const status = connectMap[user._id] || "none";
                   const src = avatarUrl(user.avatar);
+                  const score = user.compatibilityScore ?? 0;
+                  const scoreColor = score >= 70 ? 'text-green-600' : 'text-blue-600';
+                  const scoreBg = score >= 70 ? 'bg-green-50' : 'bg-blue-50';
+                  const scoreBorder = score >= 70 ? 'border-green-100' : 'border-blue-100';
+
                   return (
-                    <div key={user._id} className="bg-white rounded-[24px] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col group border border-gray-100">
-                      {/* Banner/Header Area */}
-                      <div className="relative h-24 bg-gradient-to-r from-blue-600 to-indigo-700 flex-shrink-0">
-                      </div>
+                    <div key={user._id} className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group border border-gray-100">
                       
-                      {/* Avatar Overlay */}
-                      <div className="px-6 -mt-16 relative z-10 flex items-end justify-between">
-                        <div className="relative">
-                          <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white shadow-lg bg-gray-50 flex items-center justify-center">
+                      {/* Main Card Content */}
+                      <div className="p-5 flex flex-col items-center text-center">
+                        
+                        {/* Avatar */}
+                        <div className="relative mb-3">
+                          <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-gray-50 bg-white shadow-sm">
                             {src ? (
-                              <img src={src} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                              <img src={src} alt="" className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full bg-blue-50 flex items-center justify-center text-blue-200">
-                                <User size={48} />
+                                <User size={40} />
                               </div>
                             )}
                           </div>
-                        </div>
-
-                        <div className="pb-4 flex gap-2">
-                          <button 
-                            onClick={() => navigate(`/profile/${user._id}`)} 
-                            className="p-3 bg-white text-gray-600 rounded-xl border border-gray-100 hover:bg-gray-50 transition shadow-sm"
-                            title="View Profile"
-                          >
-                            <User size={20} />
-                          </button>
-                          <button 
-                            onClick={() => handleConnect(user._id)}
-                            disabled={status !== 'none' && status !== 'received'}
-                            className={`px-8 py-3 rounded-xl text-xs font-bold transition shadow-sm ${
-                              status === 'none' || status === 'received' 
-                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100' 
-                                : 'bg-gray-100 text-gray-400'
-                            }`}
-                          >
-                            {status === 'none' ? 'Connect' : status === 'sent' ? 'Sent' : status === 'connected' ? 'Connected' : 'Accept'}
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="p-6 pt-4 flex flex-col flex-1">
-                        <div className="mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-1.5 group-hover:text-blue-600 transition-colors">
-                            {user.fullName}
-                            <CheckCircle2 size={18} className="text-blue-500" />
-                          </h3>
-                          <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-0.5">
-                            {user.travelStyle || 'Traveler'}
-                          </p>
-                        </div>
-                        
-                        <p className="text-sm text-gray-600 mb-6 line-clamp-2 leading-relaxed">
-                          {user.bio || 'Adventuring through Nepal, looking for like-minded travel buddies to explore with!'}
-                        </p>
-
-                        <div className="mt-auto pt-4 border-t border-gray-50 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <MapPin size={14} className="text-blue-500" />
-                              <span className="text-[11px] font-bold text-gray-500 truncate">
-                                {user.city || 'Nepal'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg">
-                              <Zap size={10} className="text-blue-600 fill-blue-600" />
-                              <span className="text-[10px] font-bold text-blue-600">
-                                {user.compatibilityScore || 85}%
-                              </span>
-                            </div>
+                          <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-lg shadow-sm">
+                            <CheckCircle2 size={16} className="text-blue-500" />
                           </div>
+                        </div>
 
-                          <div className="flex flex-wrap gap-1.5">
-                            {(user.travelInterests || []).slice(0, 3).map((tag, idx) => (
-                              <span 
-                                key={idx} 
-                                className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[10px] font-bold rounded-md border border-gray-100 uppercase tracking-wider whitespace-nowrap"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                            {(user.travelInterests || []).length > 3 && (
-                              <span className="text-[10px] font-bold text-gray-400 self-center">
-                                +{(user.travelInterests || []).length - 3}
+                        {/* Name & Basic Info */}
+                        <div className="mb-4">
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {user.fullName}
+                          </h3>
+                          <div className="flex items-center justify-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wide">
+                              {user.travelStyle || 'Traveler'}
+                            </span>
+                            {user.city && (
+                              <span className="flex items-center gap-1 text-[10px] text-gray-400 font-bold uppercase">
+                                <MapPin size={10} className="text-blue-400" />
+                                {user.city}
                               </span>
                             )}
                           </div>
+                        </div>
+
+                        {/* Compatibility Score - Vibrant & Simple */}
+                        <div className={`w-full ${scoreBg} ${scoreBorder} border rounded-2xl p-3 mb-4 flex flex-col items-center justify-center`}>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Match Score</span>
+                          <div className="flex items-baseline gap-0.5">
+                            <span className={`text-3xl font-bold ${scoreColor}`}>
+                              {score}
+                            </span>
+                            <span className={`text-sm font-bold ${scoreColor} opacity-70`}>%</span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 w-full">
+                          <button
+                            onClick={() => navigate(`/profile/${user._id}`)}
+                            className="flex-1 py-2.5 px-4 bg-gray-50 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-100 transition border border-gray-100"
+                          >
+                            Profile
+                          </button>
+                          <button
+                            onClick={() => handleConnect(user._id)}
+                            disabled={status !== 'none' && status !== 'received'}
+                            className={`flex-[1.5] py-2.5 px-4 rounded-xl text-xs font-bold transition shadow-sm ${
+                              status === 'none' || status === 'received'
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : status === 'connected'
+                                ? 'bg-green-100 text-green-700 border border-green-200 cursor-default'
+                                : 'bg-gray-100 text-gray-400 cursor-default'
+                            }`}
+                          >
+                            {status === 'none' ? 'Connect' : status === 'sent' ? 'Sent' : status === 'connected' ? 'Buddies' : 'Accept'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Subtle Match Details */}
+                      <div className="px-5 pb-5 space-y-2">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                          {[
+                            { label: "Interests",    value: user.scoreBreakdown?.interests    ?? 0 },
+                            { label: "Style",        value: user.scoreBreakdown?.style        ?? 0 },
+                            { label: "Pace",         value: user.scoreBreakdown?.pace         ?? 0 },
+                            { label: "Budget",       value: user.scoreBreakdown?.budget       ?? 0 },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="flex items-center justify-between">
+                              <span className="text-[10px] text-gray-400 font-medium">{label}</span>
+                              <span className={`text-[10px] font-bold ${
+                                value >= 70 ? 'text-green-600' : 'text-blue-600'
+                              }`}>{value}%</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -492,17 +527,25 @@ export default function FindBuddy({ isCommunityView = false }) {
               <p className="text-xs text-gray-500 mb-4">Matching based on:</p>
               <ul className="space-y-3">
                 {[
-                  "Travel interests",
-                  "Budget preferences",
-                  "Travel pace",
-                  "Destination overlap"
+                  { label: "Travel interests", pts: "35pts" },
+                  { label: "Destination overlap", pts: "20pts" },
+                  { label: "Travel style", pts: "15pts" },
+                  { label: "Travel pace", pts: "10pts" },
+                  { label: "Languages spoken", pts: "10pts" },
+                  { label: "Budget range", pts: "10pts" },
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-xs font-bold text-gray-600">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                    {item}
+                  <li key={i} className="flex items-center justify-between text-xs font-bold text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                      {item.label}
+                    </div>
+                    <span className="text-[10px] text-blue-400 font-bold">{item.pts}</span>
                   </li>
                 ))}
               </ul>
+              <p className="text-[10px] text-gray-400 mt-4 leading-relaxed">
+                Complete your travel profile to get more accurate matches.
+              </p>
             </div>
           </aside>
         </div>

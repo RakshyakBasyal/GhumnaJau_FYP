@@ -9,6 +9,12 @@ import FindBuddy from './FindBuddy';
 
 const BASE_URL = 'http://localhost:5000';
 
+const avatarUrl = (v) => {
+  if (!v) return '';
+  const s = String(v);
+  return s.startsWith('http') ? s : `${BASE_URL}${s}`;
+};
+
 const Community = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -332,8 +338,14 @@ const Community = () => {
                               : 'hover:bg-gray-50'
                           }`}
                         >
-                          <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                            {buddy.fullName?.charAt(0).toUpperCase()}
+                          <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
+                            {avatarUrl(buddy.avatar) ? (
+                              <img src={avatarUrl(buddy.avatar)} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                                {buddy.fullName?.charAt(0).toUpperCase()}
+                              </div>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0 text-left">
                             <p className="font-semibold text-gray-900 truncate">{buddy.fullName}</p>
@@ -359,8 +371,14 @@ const Community = () => {
                       <>
                         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                              {activeChatBuddy.fullName?.charAt(0).toUpperCase()}
+                            <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
+                              {avatarUrl(activeChatBuddy.avatar) ? (
+                                <img src={avatarUrl(activeChatBuddy.avatar)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                                  {activeChatBuddy.fullName?.charAt(0).toUpperCase()}
+                                </div>
+                              )}
                             </div>
                             <div>
                               <p className="font-bold text-gray-900">{activeChatBuddy.fullName}</p>

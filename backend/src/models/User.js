@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  travelBudget: {
+    type: String,
+    default: '',
+  },
   preferredDestinations: {
     type: [String],
     default: [],
