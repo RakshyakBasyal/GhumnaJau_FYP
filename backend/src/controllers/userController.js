@@ -113,6 +113,10 @@ exports.updateMe = async (req, res) => {
       travelPace,
       city,
       bio,
+      gender,
+      age,
+      travelDateStart,
+      travelDateEnd,
       languages,
       travelStats,
     } = req.body;
@@ -146,6 +150,10 @@ exports.updateMe = async (req, res) => {
       ...(travelPace !== undefined ? { travelPace: String(travelPace).trim() } : {}),
       ...(city !== undefined ? { city: String(city).trim() } : {}),
       ...(bio !== undefined ? { bio: String(bio) } : {}),
+      ...(gender !== undefined ? { gender: String(gender).trim() } : {}),
+      ...(age !== undefined ? { age: Number(age) || null } : {}),
+      ...(travelDateStart !== undefined ? { travelDateStart: travelDateStart ? new Date(travelDateStart) : null } : {}),
+      ...(travelDateEnd !== undefined ? { travelDateEnd: travelDateEnd ? new Date(travelDateEnd) : null } : {}),
     };
 
     const normalizedPreferredDestinations = normalizeStringList(preferredDestinations);
@@ -210,7 +218,7 @@ exports.updateMe = async (req, res) => {
 exports.getUserPublicProfile = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select(
-      "fullName avatar travelStyle travelBudget preferredDestinations travelInterests travelPace city bio languages travelStats"
+      "fullName avatar travelStyle travelBudget preferredDestinations travelInterests travelPace city bio languages travelStats gender age travelDateStart travelDateEnd"
     );
     if (!user) return res.status(404).json({ msg: "User not found" });
 
@@ -240,18 +248,20 @@ exports.getDiscoverUsers = async (req, res) => {
     );
     if (!me) return res.status(404).json({ msg: "User not found" });
 
-    const { place = "", style = "", budget = "", pace = "", interest = "", limit } = req.query;
+    const { place = "", style = "", budget = "", pace = "", interest = "", startDate = "", endDate = "", limit } = req.query;
     const styleFilter  = String(style  || "").trim().toLowerCase();
     const budgetFilter = String(budget || "").trim().toLowerCase();
     const placeFilter  = String(place  || "").trim().toLowerCase();
     const paceFilter   = String(pace   || "").trim().toLowerCase();
     const interestFilter = String(interest || "").trim().toLowerCase();
+    const startFilter = startDate ? new Date(startDate) : null;
+    const endFilter = endDate ? new Date(endDate) : null;
 
     const users = await User.find({
       _id: { $ne: req.user.id },
       role: "USER",
     }).select(
-      "fullName avatar travelStyle travelPace travelBudget travelInterests preferredDestinations city languages bio travelStats"
+      "fullName avatar travelStyle travelPace travelBudget travelInterests preferredDestinations city languages bio travelStats gender age travelDateStart travelDateEnd"
     );
 
     // --- My profile data (normalised to lowercase sets) ---
@@ -336,6 +346,26 @@ exports.getDiscoverUsers = async (req, res) => {
           const places = (u.preferredDestinations || []).map((v) => String(v).toLowerCase());
           if (!places.some((v) => v.includes(placeFilter))) return false;
         }
+
+        // Date overlap filtering
+        if (startFilter || endFilter) {
+          const buddyStart = u.travelDateStart ? new Date(u.travelDateStart) : null;
+          const buddyEnd = u.travelDateEnd ? new Date(u.travelDateEnd) : null;
+
+          if (!buddyStart || !buddyEnd) return false;
+
+          // If searching with a date range: (BuddyStart <= SearchEnd) && (BuddyEnd >= SearchStart)
+          // If only start date is provided, buddy must be active on or after that date
+          // If only end date is provided, buddy must be active on or before that date
+          if (startFilter && endFilter) {
+            if (!(buddyStart <= endFilter && buddyEnd >= startFilter)) return false;
+          } else if (startFilter) {
+            if (buddyEnd < startFilter) return false;
+          } else if (endFilter) {
+            if (buddyStart > endFilter) return false;
+          }
+        }
+
         return true;
       })
       .sort((a, b) => b.compatibilityScore - a.compatibilityScore);

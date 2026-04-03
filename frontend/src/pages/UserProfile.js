@@ -205,6 +205,27 @@ export default function UserProfile() {
                       )}
                     </div>
 
+                    {/* Gender, Age and Intent Status */}
+                    <div className="flex flex-wrap items-center gap-4">
+                      {(user.gender || user.age) && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-xl border border-gray-100 shadow-sm">
+                          <Info size={14} className="text-gray-400" />
+                          <span className="text-xs font-bold text-gray-600">
+                            {user.gender || "Gender N/A"}{user.age ? ` · ${user.age} yrs` : ""}
+                          </span>
+                        </div>
+                      )}
+
+                      {user.intentStatus && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-xl border border-blue-100 shadow-sm">
+                          <Globe size={14} className="text-blue-500" />
+                          <span className="text-xs font-bold text-blue-700">
+                            {user.intentStatus}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="max-w-2xl">
                       <p className="text-gray-600 text-base leading-relaxed">
                         {user.bio || "Adventuring through Nepal, one moment at a time. 🏔️"}

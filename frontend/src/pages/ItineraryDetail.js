@@ -1062,7 +1062,7 @@ const TripSummaryBanner = ({ itin, items, nights, budget }) => {
       <div className="p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0"><Sparkles className="h-5 w-5 text-blue-600" /></div>
-          <div><h2 className="text-xl font-bold text-gray-900">Trip Complete! 🎉</h2><p className="text-gray-500 text-sm mt-0.5">{itin.title}</p></div>
+          <div><h2 className="text-xl font-bold text-gray-900">Trip Complete!</h2><p className="text-gray-500 text-sm mt-0.5">{itin.title}</p></div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           {[
@@ -1108,7 +1108,6 @@ const ItineraryDetail = () => {
   const [editCost,   setEditCost]   = useState(null);
   const [editTrip,   setEditTrip]   = useState(false);
   const [showShare,  setShowShare]  = useState(false);
-  const [showCover,  setShowCover]  = useState(false);
   const [deleteTrip, setDeleteTrip] = useState(false);
   const [showBudget, setShowBudget] = useState(false);
   // Unscheduled modal (when no dates set)
@@ -1281,7 +1280,6 @@ const ItineraryDetail = () => {
       {editCost   && <EditCostModal item={editCost} onClose={() => setEditCost(null)} onConfirm={handleEditCost} />}
       {editTrip   && <TripModal existing={itin} onClose={() => setEditTrip(false)} onSave={handleEditSave} />}
       {showShare  && <ShareModal itin={itin} onClose={() => setShowShare(false)} />}
-      {showCover  && <CoverPhotoModal itinId={id} token={token} onClose={() => setShowCover(false)} onSaved={path => setItin(prev => ({ ...prev, coverImage: path }))} />}
       {showBudget && <SetBudgetModal current={itin.budget} grandEst={grandEst} onClose={() => setShowBudget(false)} onSave={handleSetBudget} />}
 
       {/* Unscheduled modals (no dates) */}
@@ -1292,41 +1290,46 @@ const ItineraryDetail = () => {
       {!hasDays && unschedModal === 'custom_expense' && <AddCustomExpenseModal onClose={() => setUnschedModal(null)} onAdd={handleAddItem} />}
 
       {/* Cover hero */}
-      <div className="relative h-56 bg-gradient-to-br from-blue-500 to-blue-700 overflow-hidden">
-        {(itin.coverImage || itin.destinationImage) && (
-          <img src={`${BASE_URL}${itin.coverImage || itin.destinationImage}`} alt={itin.title} className="w-full h-full object-cover" />
+      <div className="relative h-[320px] md:h-[400px] bg-gradient-to-br from-blue-600 to-indigo-700 overflow-hidden flex items-center">
+        {itin.destinationImage && (
+          <img src={`${BASE_URL}${itin.destinationImage}`} alt={itin.title} className="w-full h-full object-cover" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 
         {/* Back */}
         <button onClick={() => navigate('/itinerary')}
-          className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/90 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-white transition">
+          className="absolute top-6 left-6 flex items-center gap-2 bg-white/10 backdrop-blur-md text-white border border-white/20 px-4 py-2 rounded-xl text-sm font-bold hover:bg-white/20 transition-all shadow-xl">
           ← My Trips
         </button>
 
         {/* Action buttons */}
-        <div className="absolute top-4 right-4 flex gap-2">
-          <button onClick={() => setShowCover(true)} className="p-2 bg-white/90 text-gray-700 rounded-lg hover:bg-white transition" title="Change cover"><Camera className="h-4 w-4" /></button>
-          <button onClick={() => setShowShare(true)} className="p-2 bg-white/90 text-gray-700 rounded-lg hover:bg-white transition" title="Share"><Share2 className="h-4 w-4" /></button>
+        <div className="absolute top-6 right-6 flex gap-3">
+          <button onClick={() => setShowShare(true)} className="p-2.5 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl hover:bg-white/20 transition-all shadow-xl" title="Share"><Share2 className="h-5 w-5" /></button>
         </div>
 
         {/* Trip info */}
-        <div className="absolute bottom-0 left-0 right-0 px-6 pb-5">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-white/90 mb-2 ${sCfg.textColor}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${sCfg.dotColor} ${status === 'active' ? 'animate-pulse' : ''}`} />{sCfg.label}
+        <div className="relative z-10 max-w-7xl mx-auto w-full px-6 sm:px-8 lg:px-10 mt-auto pb-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="max-w-3xl">
+              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/20 mb-4 text-white shadow-lg`}>
+                <span className={`w-2 h-2 rounded-full ${sCfg.dotColor} ${status === 'active' ? 'animate-pulse' : ''}`} />{sCfg.label}
               </span>
-              <h1 className="text-2xl font-bold text-white">{itin.title}</h1>
-              <div className="flex items-center gap-3 text-white/80 text-sm mt-0.5">
-                {destinationName && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{destinationName}</span>}
-                {itin.startDate && itin.endDate && <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{nights} nights</span>}
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-3 tracking-tight" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.5)' }}>
+                {itin.title}
+              </h1>
+              <div className="flex flex-wrap items-center gap-4 text-white/90 text-base md:text-lg font-medium">
+                {destinationName && <span className="flex items-center gap-2 drop-shadow-md"><MapPin className="h-5 w-5 text-blue-400" />{destinationName}</span>}
+                {itin.startDate && itin.endDate && <span className="flex items-center gap-2 drop-shadow-md"><Calendar className="h-5 w-5 text-indigo-400" />{nights} nights</span>}
               </div>
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <StatusButton itin={itin} onStatusChange={handleStatusChange} />
-              <button onClick={() => setEditTrip(true)} className="flex items-center gap-1.5 px-3 py-2 bg-white/20 text-white rounded-xl hover:bg-white/30 text-sm font-semibold transition backdrop-blur-sm"><Edit2 className="h-3.5 w-3.5" />Edit</button>
-              <button onClick={() => setDeleteTrip(true)} className="p-2 bg-white/20 text-white rounded-xl hover:bg-red-500/70 transition backdrop-blur-sm"><Trash2 className="h-4 w-4" /></button>
+            
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="bg-white/10 backdrop-blur-md border border-white/20 p-2 rounded-2xl shadow-2xl flex items-center gap-2">
+                <StatusButton itin={itin} onStatusChange={handleStatusChange} />
+                <button onClick={() => setEditTrip(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white/20 text-white rounded-xl hover:bg-white/30 text-sm font-bold transition-all backdrop-blur-sm border border-white/10"><Edit2 className="h-4 w-4" />Edit</button>
+                <button onClick={() => setDeleteTrip(true)} className="p-2.5 bg-red-500/20 text-white rounded-xl hover:bg-red-500/80 transition-all backdrop-blur-sm border border-red-500/30"><Trash2 className="h-4 w-4" /></button>
+              </div>
             </div>
           </div>
         </div>

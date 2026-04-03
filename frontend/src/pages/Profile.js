@@ -59,6 +59,7 @@ export default function Profile() {
     fullName: "", email: "", phone: "", avatar: "", coverImage: "",
     travelStyle: "", travelBudget: "", preferredDestinations: [], travelInterests: [],
     travelPace: "", city: "", bio: "", languages: [],
+    gender: "", age: "", intentStatus: "",
     travelStats: { followersCount: 0, followingCount: 0, buddyCount: 0, totalPosts: 0 },
   });
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -153,6 +154,9 @@ export default function Profile() {
         travelPace: user.travelPace || "",
         city: user.city || "",
         bio: user.bio || "",
+        gender: user.gender || "",
+        age: user.age || "",
+        intentStatus: user.intentStatus || "Exploring",
         languages: user.languages || [],
         travelStats: {
           followersCount: followData.followersCount || 0,
@@ -200,6 +204,9 @@ export default function Profile() {
         travelPace: userData.travelPace,
         city: userData.city,
         bio: userData.bio,
+        gender: userData.gender,
+        age: userData.age,
+        intentStatus: userData.intentStatus,
       }).forEach(([k,v]) => fd.append(k, v));
       fd.append("preferredDestinations", JSON.stringify(userData.preferredDestinations));
       fd.append("travelInterests",       JSON.stringify(userData.travelInterests));
@@ -424,6 +431,62 @@ export default function Profile() {
                       </div>
                     ) : (
                       userData.city && <span className="flex items-center gap-1"><MapPin size={13} className="text-blue-400" />{userData.city}</span>
+                    )}
+                  </div>
+
+                  {/* Gender and Age */}
+                  <div className="flex items-center gap-3 mt-1.5 text-xs font-bold text-gray-500">
+                    {isEditingBasic ? (
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-gray-400 uppercase tracking-widest">Gender</label>
+                          <select 
+                            value={userData.gender}
+                            onChange={e => setUserData(p => ({ ...p, gender: e.target.value }))}
+                            className="bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 outline-none text-xs"
+                          >
+                            <option value="">Select</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                            <option value="Prefer not to say">N/A</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-gray-400 uppercase tracking-widest">Age</label>
+                          <input 
+                            type="number" 
+                            min="1" max="120"
+                            value={userData.age}
+                            onChange={e => setUserData(p => ({ ...p, age: e.target.value }))}
+                            className="bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 outline-none text-xs w-16"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-gray-400 uppercase tracking-widest">Status</label>
+                          <select 
+                            value={userData.intentStatus}
+                            onChange={e => setUserData(p => ({ ...p, intentStatus: e.target.value }))}
+                            className="bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 outline-none text-xs"
+                          >
+                            <option value="Exploring">Exploring</option>
+                            <option value="Planning a trip">Planning a trip</option>
+                            <option value="Looking for buddy">Looking for buddy</option>
+                          </select>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {userData.gender && (
+                          <span className="bg-gray-50 px-2 py-1 rounded-md border border-gray-100">{userData.gender}</span>
+                        )}
+                        {userData.age && (
+                          <span className="bg-gray-50 px-2 py-1 rounded-md border border-gray-100">{userData.age} yrs</span>
+                        )}
+                        {userData.intentStatus && (
+                          <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100">{userData.intentStatus}</span>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

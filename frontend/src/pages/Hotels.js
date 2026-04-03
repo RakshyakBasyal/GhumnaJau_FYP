@@ -14,10 +14,12 @@ const Hotels = () => {
   const [sortPrice, setSortPrice] = useState('');
   const [filteredHotels, setFilteredHotels] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const navigate = useNavigate();
   const searchRef = useRef(null);
   const inputRef = useRef(null);
+  const sortRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,7 +43,7 @@ const Hotels = () => {
       result = result.filter(h => h.destination?._id === selectedDestination._id);
     }
 
-    if (selectedDestination && sortPrice) {
+    if (sortPrice) {
       result = [...result].sort((a, b) => {
         const priceA = Math.min(...(a.roomTypes?.map(r => r.pricePerNight) || [Infinity]));
         const priceB = Math.min(...(b.roomTypes?.map(r => r.pricePerNight) || [Infinity]));
@@ -61,6 +63,9 @@ const Hotels = () => {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setShowSuggestions(false);
         setHighlightedIndex(-1);
+      }
+      if (sortRef.current && !sortRef.current.contains(e.target)) {
+        setShowSortDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -108,116 +113,131 @@ const Hotels = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+    <div className="min-h-screen bg-[#f8fafc]">
+
+      {/* Hero Section */}
+      <div
+        className="relative w-full h-[280px] md:h-[360px] flex items-center justify-center text-center"
+        style={{
+          backgroundImage: `url('https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=1470&auto=format&fit=crop')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-black/45" />
+        
+        {/* Hero Content — Centered */}
+        <div className="relative z-10 max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl md:text-5xl font-bold text-white mb-2" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.6)' }}>
             Discover Hotels
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-white/90 text-base md:text-lg mb-6 max-w-2xl mx-auto" style={{ textShadow: '0 1px 10px rgba(0,0,0,0.5)' }}>
             Find your perfect stay in Nepal's most beautiful destinations
           </p>
-        </div>
 
-        {/* Compact Search + Sort Row */}
-        <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 mb-12 max-w-4xl mx-auto">
-          {/* Search Box */}
-          <div className="relative flex-1 w-full md:w-auto" ref={searchRef}>
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setShowSuggestions(true);
-                  setHighlightedIndex(-1);
-                  if (selectedDestination) setSelectedDestination(null);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onKeyDown={handleKeyDown}
-                placeholder="Search destination..."
-                className="w-full pl-11 pr-11 py-3 bg-white border border-gray-200 rounded-full text-base shadow-sm focus:shadow-md focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all duration-200"
-              />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-              {searchTerm && (
-                <button
-                  onClick={clearSearch}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
-            </div>
+          {/* Integrated Search Bar — Larger and Centered */}
+          <div className="bg-white/15 backdrop-blur-lg border border-white/20 rounded-2xl p-4 md:p-6 shadow-2xl max-w-4xl mx-auto">
+            <div className="flex flex-col md:flex-row gap-4">
 
-            {/* Suggestions */}
-            {showSuggestions && searchTerm && (
-              <div className="absolute z-20 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-80">
-                {suggestions.length > 0 ? (
-                  suggestions.map((dest, index) => (
-                    <div
-                      key={dest._id}
-                      onClick={() => handleSelectDestination(dest)}
-                      className={`flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition ${
-                        index === highlightedIndex ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 bg-gray-100">
-                        {dest.images?.[0] ? (
-                          <img
-                            src={`${BASE_URL}${dest.images[0]}`}
-                            alt={dest.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <MapPin className="h-5 w-5 text-gray-400" />
-                          </div>
-                        )}
+              {/* Search Input */}
+              <div className="relative flex-1" ref={searchRef}>
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/70 pointer-events-none" />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Where do you want to stay?"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setShowSuggestions(true);
+                    setHighlightedIndex(-1);
+                    if (selectedDestination) setSelectedDestination(null);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full pl-12 pr-10 py-3.5 bg-white/10 border border-white/10 rounded-xl text-base text-white placeholder-white/60 focus:bg-white/20 focus:outline-none transition-all"
+                />
+                {searchTerm && (
+                  <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                {/* Suggestions dropdown */}
+                {showSuggestions && searchTerm && (
+                  <div className="absolute z-30 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-72">
+                    {suggestions.length > 0 ? suggestions.map((dest, index) => (
+                      <div
+                        key={dest._id}
+                        onClick={() => handleSelectDestination(dest)}
+                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 last:border-none ${index === highlightedIndex ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                      >
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                          {dest.images?.[0] ? (
+                            <img src={`${BASE_URL}${dest.images[0]}`} alt={dest.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center"><MapPin className="h-4 w-4 text-gray-300" /></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{dest.name}</p>
+                          <p className="text-xs text-gray-400">{dest.country || 'Nepal'}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{dest.name}</p>
-                        <p className="text-xs text-gray-500">{dest.country}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-4 py-5 text-center text-gray-500 text-sm">
-                    No destinations found
+                    )) : (
+                      <div className="px-4 py-6 text-center text-gray-400 text-sm">No destinations found</div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Price Sort – right next to search, only after selection */}
-          {selectedDestination && (
-            <div className="relative w-full md:w-56">
-              <select
-                value={sortPrice}
-                onChange={(e) => setSortPrice(e.target.value)}
-                className="w-full appearance-none bg-white border border-gray-200 rounded-full px-5 py-3 text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none shadow-sm transition cursor-pointer"
-              >
-                <option value="">Sort by Price</option>
-                <option value="low">Low to High</option>
-                <option value="high">High to Low</option>
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+                {/* Price Sort Filter */}
+                <div className="relative w-full md:w-56" ref={sortRef}>
+                  <button
+                    onClick={() => setShowSortDropdown(!showSortDropdown)}
+                    className="w-full flex items-center justify-between px-5 py-3.5 bg-white/10 border border-white/10 rounded-xl text-base text-white hover:bg-white/20 focus:bg-white/20 focus:outline-none transition-all cursor-pointer"
+                  >
+                    <span className="truncate">{sortPrice === 'low' ? 'Price: Low to High' : sortPrice === 'high' ? 'Price: High to Low' : 'Sort by Price'}</span>
+                    <ChevronDown className={`h-5 w-5 text-white/60 flex-shrink-0 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showSortDropdown && (
+                    <div className="absolute z-30 w-full mt-2 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-2xl py-1 overflow-hidden">
+                      <button 
+                        onClick={() => { setSortPrice(''); setShowSortDropdown(false); }} 
+                        className={`w-full text-left px-4 py-3 text-sm transition-colors ${sortPrice === '' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                      >
+                        Default
+                      </button>
+                      <button 
+                        onClick={() => { setSortPrice('low'); setShowSortDropdown(false); }} 
+                        className={`w-full text-left px-4 py-3 text-sm transition-colors ${sortPrice === 'low' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                      >
+                        Price: Low to High
+                      </button>
+                      <button 
+                        onClick={() => { setSortPrice('high'); setShowSortDropdown(false); }} 
+                        className={`w-full text-left px-4 py-3 text-sm transition-colors ${sortPrice === 'high' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+                      >
+                        Price: High to Low
+                      </button>
+                    </div>
+                  )}
+                </div>
             </div>
-          )}
+          </div>
         </div>
+      </div>
 
-        {/* Results Header */}
-        <div className="mb-8 text-center md:text-left">
-          <h2 className="text-3xl font-bold text-gray-900">
-            {selectedDestination
-              ? `Hotels in ${selectedDestination.name}`
-              : 'Explore All Hotels'}
-          </h2>
-          <p className="text-gray-600 mt-2">
-            {filteredHotels.length} {filteredHotels.length === 1 ? 'hotel' : 'hotels'} found
-          </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900">
+              {selectedDestination
+                ? `Hotels in ${selectedDestination.name}`
+                : 'Explore All Hotels'}
+            </h2>
+          </div>
         </div>
 
         {/* Hotel Cards */}
@@ -235,57 +255,68 @@ const Hotels = () => {
               return (
                 <div
                   key={hotel._id}
-                  className="group bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                  className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col"
                   onClick={() => navigate(`/hotels/${hotel._id}`)}
                 >
+                  {/* Image with Overlays */}
                   <div className="relative h-56 overflow-hidden">
                     <img
                       src={hotel.images?.[0] ? `${BASE_URL}${hotel.images[0]}` : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'}
                       alt={hotel.name}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center space-x-1 shadow">
-                      <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                      <span className="font-semibold">{hotel.rating || 5}</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                    
+                    {/* Rating Badge */}
+                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-md">
+                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      <span className="text-xs font-bold text-gray-800">{hotel.rating || '5.0'}</span>
+                    </div>
+
+                    {/* Title + Location Overlay */}
+                    <div className="absolute bottom-4 left-4 right-4 text-white">
+                      <h3
+                        className="text-xl font-bold leading-tight mb-1"
+                        style={{ textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}
+                      >
+                        {hotel.name}
+                      </h3>
+                      <p
+                        className="text-sm flex items-center gap-1"
+                        style={{ textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}
+                      >
+                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                        {hotel.destination?.name || 'Nepal'}
+                      </p>
                     </div>
                   </div>
-                  <div className="p-6">
-                    <div className="flex items-center space-x-2 text-gray-600 mb-2">
-                      <MapPin className="h-4 w-4" />
-                      <span className="text-sm font-medium">
-                        {hotel.destination?.name || 'Unknown'}
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-                      {hotel.name}
-                    </h3>
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                      {hotel.shortDescription || 'No description available'}
-                    </p>
 
-                    <div className="mb-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Amenities:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {hotel.amenities?.slice(0, 3).map((amenity, idx) => (
-                          <span
-                            key={idx}
-                            className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded"
-                          >
-                            {amenity}
-                          </span>
-                        ))}
-                      </div>
+                  {/* Card Body */}
+                  <div className="p-5 flex flex-col flex-1">
+                    {/* Amenities Tags */}
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {hotel.amenities?.slice(0, 3).map((amenity, idx) => (
+                        <span key={idx} className="px-2.5 py-1 bg-gray-50 border border-gray-200 text-gray-600 text-xs font-medium rounded-full">
+                          {amenity}
+                        </span>
+                      ))}
+                      {hotel.amenities?.length > 3 && (
+                        <span className="px-2.5 py-1 bg-gray-50 border border-gray-200 text-gray-400 text-xs font-medium rounded-full">
+                          +{hotel.amenities.length - 3} more
+                        </span>
+                      )}
                     </div>
 
-                    <div className="border-t pt-4 flex items-center justify-between">
+                    {/* Price + Book Now */}
+                    <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600">Starting from</p>
-                        <p className="text-2xl font-bold text-blue-600">
-                          NPR {startingPrice.toLocaleString() || 'Varies'}
+                        <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Starting from</p>
+                        <p className="text-lg font-bold text-blue-600 leading-tight">
+                          NPR {startingPrice.toLocaleString()}
                         </p>
                       </div>
-                      <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
-                        View & Book
+                      <button className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg active:scale-95">
+                        Book Now
                       </button>
                     </div>
                   </div>

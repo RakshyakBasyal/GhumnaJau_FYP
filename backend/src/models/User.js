@@ -25,6 +25,26 @@ const userSchema = new mongoose.Schema({
   // already present — good for token invalidation
   lastLogout: { type: Date, default: null },
 
+  // Profile Information
+  gender: {
+    type: String,
+    enum: ['Male', 'Female', 'Other', 'Prefer not to say', ''],
+    default: '',
+  },
+  age: {
+    type: Number,
+    min: 1,
+    max: 120,
+    default: null,
+  },
+
+  // Intent Status
+  intentStatus: {
+    type: String,
+    enum: ['Planning a trip', 'Looking for buddy', 'Exploring', ''],
+    default: 'Exploring',
+  },
+
   // Optional: add googleId if you want to store it separately (recommended)
   googleId: { type: String },  // ← optional but very useful for linking/merging
 
