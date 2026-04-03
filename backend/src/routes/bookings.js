@@ -5,7 +5,7 @@ const Booking = require('../models/Booking');
 const Flight  = require('../models/Flight');
 const auth    = require('../middleware/auth');
 const admin   = require('../middleware/admin');
-const { sendBookingConfirmationEmail } = require('../utils/bookingEmail');
+const { sendBookingConfirmationEmail, sendRefundConfirmationEmail } = require('../utils/bookingEmail');
 const { 
   getAdminStats, 
   emitAdminStats 
@@ -364,6 +364,16 @@ router.patch('/:id/refund-review', auth, admin, async (req, res) => {
 
     req.app.get('io')?.emit('bookingRefundReviewed', updated);
     await emitAdminStats(req.app.get('io'));
+
+    // Send refund email if approved
+    if (decision === 'admin_approved') {
+      try {
+        await sendRefundConfirmationEmail({ booking: updated });
+      } catch (mailErr) {
+        console.error('Refund confirmation email failed (admin):', mailErr.message);
+      }
+    }
+
     res.json({
       message: decision === 'admin_approved'
         ? 'Refund approved and processed via Stripe'

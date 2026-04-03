@@ -2,7 +2,7 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Booking = require('../models/Booking');
 const Flight = require('../models/Flight');
-const { sendBookingConfirmationEmail } = require('../utils/bookingEmail');
+const { sendBookingConfirmationEmail, sendRefundConfirmationEmail } = require('../utils/bookingEmail');
 const { calculateRefundPolicy, calculateRefundAmount } = require('../utils/refundPolicy');
 const { emitAdminStats } = require('./adminController');
 
@@ -202,6 +202,12 @@ exports.refundBookingPayment = async (req, res) => {
           const populated = await fullPopulate(booking._id);
           req.app.get('io')?.emit('bookingRefunded', populated);
           await emitAdminStats(req.app.get('io'));
+
+          try {
+            await sendRefundConfirmationEmail({ booking: populated });
+          } catch (mailErr) {
+            console.error('Refund confirmation email failed (auto):', mailErr.message);
+          }
 
           return res.json({
             success: true,
