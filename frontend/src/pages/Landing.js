@@ -84,7 +84,7 @@ const Landing = () => {
 
       {/* Hero Section */}
       <section
-        className="relative h-[600px] bg-cover bg-center flex items-center justify-center"
+        className="relative h-[380px] md:h-[460px] bg-cover bg-center flex items-center justify-center"
         style={{
           backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('https://plus.unsplash.com/premium_photo-1692976236758-817620ab62ba?q=80&w=1476&auto=format&fit=crop&ixlib=rb-4.1.0')`,
         }}
@@ -95,10 +95,10 @@ const Landing = () => {
           transition={{ duration: 1, ease: "easeOut" }}
           className="text-center text-white px-4 max-w-4xl z-10"
         >
-          <h1 className="text-4xl md:text-6xl font-bold mb-5 drop-shadow-lg">
+          <h1 className="text-3xl md:text-5xl font-bold mb-4 drop-shadow-lg">
             Discover Your Next Adventure
           </h1>
-          <p className="text-lg md:text-2xl mb-10 drop-shadow-md">
+          <p className="text-base md:text-xl mb-8 drop-shadow-md opacity-90">
             Explore breathtaking destinations across Nepal with Ghumna Jau
           </p>
 
