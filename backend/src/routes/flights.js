@@ -6,6 +6,8 @@ const Destination = require('../models/Destination'); // Import Destination for 
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 
+const { emitAdminStats } = require('../controllers/adminController');
+
 // ADMIN ONLY - Get all flights (including inactive) — put this FIRST
 router.get('/admin', auth, admin, async (req, res) => {
   try {
@@ -62,6 +64,7 @@ router.get('/:id', async (req, res) => {
     const flight = await Flight.findById(req.params.id)
       .populate('destination', 'name country');
     if (!flight) return res.status(404).json({ message: 'Flight not found' });
+    await emitAdminStats(req.app.get('io'));
     res.json(flight);
   } catch (err) {
     console.error('Single flight error:', err.stack);
@@ -75,6 +78,7 @@ router.post('/', auth, admin, async (req, res) => {
     const flight = new Flight(req.body);
     await flight.save();
     await flight.populate('destination', 'name country');
+    await emitAdminStats(req.app.get('io'));
     res.status(201).json(flight);
   } catch (err) {
     console.error('Create flight error:', err.stack);
@@ -103,6 +107,7 @@ router.delete('/:id', auth, admin, async (req, res) => {
   try {
     const flight = await Flight.findByIdAndDelete(req.params.id);
     if (!flight) return res.status(404).json({ message: 'Flight not found' });
+    await emitAdminStats(req.app.get('io'));
     res.json({ message: 'Flight deleted' });
   } catch (err) {
     console.error('Delete flight error:', err.stack);

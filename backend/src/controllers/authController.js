@@ -6,6 +6,8 @@ const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
+const { emitAdminStats } = require("./adminController");
+
 exports.register = async (req, res) => {
   try {
     const { fullName, email, password, phone } = req.body;
@@ -29,6 +31,7 @@ exports.register = async (req, res) => {
     });
 
     if (user) {
+      await emitAdminStats(req.app.get('io'));
       res.status(201).json({
         _id: user._id,
         fullName: user.fullName,

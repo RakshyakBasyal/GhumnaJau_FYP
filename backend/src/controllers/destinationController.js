@@ -55,8 +55,9 @@ exports.createDestination = async (req, res) => {
       nearestAirport: isAirportBool ? null : nearestAirport || null,
     });
 
-    await destination.save();
-    res.status(201).json(destination);
+    const createdDest = await destination.save();
+    await emitAdminStats(req.app.get('io'));
+    res.status(201).json(createdDest);
   } catch (err) {
     console.error("Create destination error:", err);
     res.status(500).json({ msg: "Server error" });
@@ -154,6 +155,7 @@ exports.updateDestination = async (req, res) => {
     }
 
     const updated = await destination.save();
+    await emitAdminStats(req.app.get('io'));
     res.json(updated);
   } catch (err) {
     console.error("Update error:", err);
@@ -161,7 +163,10 @@ exports.updateDestination = async (req, res) => {
   }
 };
 
-// GET ALL & GET SINGLE & DELETE remain unchanged
+const { emitAdminStats } = require("./adminController");
+
+// @desc    Get all destinations
+// @route   GET /api/destinations
 exports.getAllDestinations = async (req, res) => {
   try {
     const destinations = await Destination.find({})
@@ -192,7 +197,11 @@ exports.getDestination = async (req, res) => {
 
 exports.deleteDestination = async (req, res) => {
   try {
-    await Destination.findByIdAndDelete(req.params.id);
+    const destination = await Destination.findByIdAndDelete(req.params.id);
+    if (!destination)
+      return res.status(404).json({ msg: "Destination not found" });
+
+    await emitAdminStats(req.app.get('io'));
     res.json({ msg: "Destination deleted" });
   } catch (err) {
     console.error("Delete error:", err);
