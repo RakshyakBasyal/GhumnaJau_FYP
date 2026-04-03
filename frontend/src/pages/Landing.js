@@ -84,9 +84,9 @@ const Landing = () => {
 
       {/* Hero Section */}
       <section
-        className="relative h-[380px] md:h-[460px] bg-cover bg-center flex items-center justify-center"
+        className="relative h-[340px] md:h-[420px] bg-cover bg-center flex items-center justify-center"
         style={{
-          backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('https://plus.unsplash.com/premium_photo-1692976236758-817620ab62ba?q=80&w=1476&auto=format&fit=crop&ixlib=rb-4.1.0')`,
+          backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('https://plus.unsplash.com/premium_photo-1691735666207-be6e91326e3a?q=80&w=2076&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')`,
         }}
       >
         <motion.div
@@ -98,14 +98,14 @@ const Landing = () => {
           <h1 className="text-3xl md:text-5xl font-bold mb-4 drop-shadow-lg">
             Discover Your Next Adventure
           </h1>
-          <p className="text-base md:text-xl mb-8 drop-shadow-md opacity-90">
+          <p className="text-base md:text-xl mb-10 drop-shadow-md opacity-90">
             Explore breathtaking destinations across Nepal with Ghumna Jau
           </p>
 
-          {/* Search Box */}
-          <div className="relative max-w-2xl mx-auto" ref={searchRef}>
+          {/* Search Box — Larger and Prominent */}
+          <div className="relative max-w-3xl mx-auto" ref={searchRef}>
             <form onSubmit={handleSearchSubmit}>
-              <div className="relative">
+              <div className="relative group">
                 <input
                   ref={inputRef}
                   type="text"
@@ -114,16 +114,17 @@ const Landing = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setShowSuggestions(true)}
                   onKeyDown={handleKeyDown}
-                  className="w-full pl-12 pr-28 py-4 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-full text-lg text-gray-900 placeholder-gray-500 shadow-lg focus:shadow-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-300"
+                  className="w-full pl-14 pr-32 py-4.5 bg-white/15 backdrop-blur-lg border border-white/20 rounded-2xl text-lg text-white placeholder-white/60 focus:bg-white/25 focus:outline-none transition-all duration-300 shadow-2xl"
+                  style={{ paddingBlock: '1.125rem' }}
                 />
 
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-gray-500 pointer-events-none" />
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-white/70 pointer-events-none group-focus-within:text-white transition-colors" />
 
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={clearSearch}
-                    className="absolute right-16 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+                    className="absolute right-20 top-1/2 -translate-y-1/2 text-white/60 hover:text-white transition"
                   >
                     <X className="h-6 w-6" />
                   </button>
@@ -131,9 +132,10 @@ const Landing = () => {
 
                 <button
                   type="submit"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full shadow-md transition"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2 font-bold"
                 >
                   <Search className="h-5 w-5" />
+                  <span className="hidden sm:inline">Search</span>
                 </button>
               </div>
             </form>
@@ -144,7 +146,7 @@ const Landing = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute z-20 w-full mt-3 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-80"
+                className="absolute z-20 w-full mt-3 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-2xl overflow-hidden max-h-80"
               >
                 {suggestions.length > 0 ? (
                   suggestions.map((dest, index) => (
