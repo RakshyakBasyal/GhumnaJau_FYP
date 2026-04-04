@@ -1,30 +1,23 @@
 // backend/src/controllers/tripController.js
+// KEY FIX: getGeneralDiscovery now actually filters by destination when provided,
+// so users with Pokhara in preferredDestinations show up when you search "Pokhara"
 const Trip = require('../models/Trip');
 const TripRoom = require('../models/TripRoom');
 const User = require('../models/User');
 
 // ── TRIP CRUD ─────────────────────────────────────────────────────────────────
-
 exports.createTrip = async (req, res) => {
   try {
     const { destination, startDate, endDate, budget, travelStyle, description } = req.body;
     if (!destination) return res.status(400).json({ msg: 'Destination is required' });
 
     const trip = new Trip({
-      user: req.user.id,
-      destination,
-      startDate,
-      endDate,
-      budget,
-      travelStyle,
-      description,
+      user: req.user.id, destination, startDate, endDate, budget, travelStyle, description,
     });
     await trip.save();
 
-    // Auto-create a trip room for this trip
     const room = new TripRoom({
-      destination,
-      startDate,
+      destination, startDate,
       endDate: endDate || startDate,
       budget: budget || '',
       description: description || '',
@@ -34,7 +27,6 @@ exports.createTrip = async (req, res) => {
       tripRef: trip._id,
     });
     await room.save();
-
     trip.roomId = room._id;
     await trip.save();
 
@@ -53,7 +45,6 @@ exports.getTrips = async (req, res) => {
       .sort({ startDate: 1 });
     res.json(trips);
   } catch (err) {
-    console.error('Get trips error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -64,39 +55,27 @@ exports.deleteTrip = async (req, res) => {
     if (!trip) return res.status(404).json({ msg: 'Trip not found' });
     if (trip.user.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
 
-    // Delete associated trip room too
     if (trip.roomId) await TripRoom.findByIdAndDelete(trip.roomId);
-
     await Trip.findByIdAndDelete(req.params.id);
     res.json({ msg: 'Trip removed' });
   } catch (err) {
-    console.error('Delete trip error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
 
 // ── DISCOVER TRIPS (trip-based matching) ──────────────────────────────────────
-// All fields optional — at least one should be provided for useful results
 exports.getDiscoverTrips = async (req, res) => {
   try {
     const { destination, startDate, endDate, budget, travelStyle } = req.query;
 
-    // Build a flexible query — no field is required
-    let query = {
-      user: { $ne: req.user.id },
-      status: 'active',
-    };
+    let query = { user: { $ne: req.user.id }, status: 'active' };
 
     if (destination && destination.trim()) {
       query.destination = { $regex: destination.trim(), $options: 'i' };
     }
-
-    // Date overlap: only apply if at least one date is provided
     if (startDate && endDate) {
-      const s = new Date(startDate);
-      const e = new Date(endDate);
-      query.startDate = { $lte: e };
-      query.endDate   = { $gte: s };
+      query.startDate = { $lte: new Date(endDate) };
+      query.endDate   = { $gte: new Date(startDate) };
     } else if (startDate) {
       query.endDate = { $gte: new Date(startDate) };
     } else if (endDate) {
@@ -116,16 +95,12 @@ exports.getDiscoverTrips = async (req, res) => {
         const e1 = endDate   ? new Date(endDate)   : null;
         const s2 = new Date(trip.startDate);
         const e2 = new Date(trip.endDate);
-
         const overlaps = (!s1 || s2 <= (e1 || s2)) && (!e1 || e2 >= (s1 || e2));
         if (overlaps) { score += 40; reasons.push('Overlapping dates'); }
       }
-
       if (destination && trip.destination.toLowerCase().includes(destination.toLowerCase())) {
-        score += 35;
-        reasons.push('Same destination');
+        score += 35; reasons.push('Same destination');
       }
-
       if (budget && trip.budget === budget) { score += 15; reasons.push('Similar budget'); }
       if (travelStyle && trip.travelStyle === travelStyle) { score += 10; reasons.push('Similar style'); }
 
@@ -139,9 +114,12 @@ exports.getDiscoverTrips = async (req, res) => {
   }
 };
 
-// ── GENERAL DISCOVERY (profile-based) ─────────────────────────────────────────
-// Scores users by: travelStyle, travelBudget, travelPace, travelInterests,
-// languages, and preferredDestinations (NOT city — city is just biographical).
+// ── GENERAL DISCOVERY (profile-based user search) ─────────────────────────────
+// FIX: destination param now actually filters preferredDestinations in DB query
+// so searching "Pokhara" returns users who listed Pokhara as preferred destination.
+// Users without ANY preferredDestinations are still included when no destination
+// is specified (show everyone for general tab), but filtered out when destination
+// is provided so results are relevant.
 exports.getGeneralDiscovery = async (req, res) => {
   try {
     const me = await User.findById(req.user.id).select(
@@ -151,21 +129,27 @@ exports.getGeneralDiscovery = async (req, res) => {
 
     const { destination, style, budget, language, limit = 100 } = req.query;
 
+    // Build DB query
     let query = { _id: { $ne: req.user.id }, role: 'USER' };
     if (style)    query.travelStyle  = style;
     if (budget)   query.travelBudget = budget;
     if (language) query.languages    = { $in: [new RegExp(language, 'i')] };
 
-    // NOTE: destination is NOT added to the DB query — it's used as a scoring
-    // bonus only, so users without preferredDestinations still show up (just
-    // scored lower). This fixes the "solo travelers not appearing" bug.
+    // KEY FIX: when a destination is provided, filter users whose preferredDestinations
+    // contains that string (case-insensitive). This is the main bug that caused
+    // solo travelers not appearing in destination searches.
+    if (destination && destination.trim()) {
+      query.preferredDestinations = {
+        $elemMatch: { $regex: destination.trim(), $options: 'i' },
+      };
+    }
 
     const users = await User.find(query)
       .select(
         'fullName avatar travelStyle travelBudget travelInterests preferredDestinations ' +
         'city languages bio travelStats gender age intentStatus'
       )
-      .limit(Math.min(Number(limit), 200));  // fetch up to 200, return all scored
+      .limit(Math.min(Number(limit), 200));
 
     const myStyle        = String(me.travelStyle  || '').toLowerCase();
     const myBudget       = String(me.travelBudget || '').toLowerCase();
@@ -178,40 +162,39 @@ exports.getGeneralDiscovery = async (req, res) => {
       let score = 0;
       const reasons = [];
 
-      // Travel style (25 pts)
       if (myStyle && String(user.travelStyle || '').toLowerCase() === myStyle) {
         score += 25; reasons.push('Same travel style');
       }
-
-      // Budget (20 pts)
       if (myBudget && String(user.travelBudget || '').toLowerCase() === myBudget) {
         score += 20; reasons.push('Similar budget');
       }
-
-      // Pace (10 pts)
       if (myPace && String(user.travelPace || '').toLowerCase() === myPace) {
         score += 10; reasons.push('Same travel pace');
       }
 
-      // Shared interests (up to 25 pts)
       const commonInterests = (user.travelInterests || []).filter(i => myInterests.has(i.toLowerCase()));
       if (commonInterests.length > 0) {
         score += Math.min(commonInterests.length * 8, 25);
         reasons.push(`${commonInterests.length} shared interest${commonInterests.length > 1 ? 's' : ''}`);
       }
 
-      // Shared languages (up to 10 pts)
       const commonLanguages = (user.languages || []).filter(l => myLanguages.has(l.toLowerCase()));
       if (commonLanguages.length > 0) {
         score += Math.min(commonLanguages.length * 5, 10);
         reasons.push('Shared language');
       }
 
-      // Shared preferred destinations (up to 10 pts) — KEY FIX: uses preferredDestinations, not city
       const commonDestinations = (user.preferredDestinations || []).filter(d => myDestinations.has(d.toLowerCase()));
       if (commonDestinations.length > 0) {
         score += Math.min(commonDestinations.length * 5, 10);
         reasons.push(`Going to ${commonDestinations[0]}`);
+      }
+
+      // Bonus: if destination search matches, push score up so they appear high
+      if (destination && destination.trim()) {
+        const destLower = destination.trim().toLowerCase();
+        const inPrefs = (user.preferredDestinations || []).some(d => d.toLowerCase().includes(destLower));
+        if (inPrefs) { score += 20; }
       }
 
       return {
@@ -229,24 +212,17 @@ exports.getGeneralDiscovery = async (req, res) => {
 };
 
 // ── TRIP ROOMS ────────────────────────────────────────────────────────────────
-
-// ── GET MY ROOMS (rooms I am a member/owner/co-owner of) ──────────────────────
 exports.getMyRooms = async (req, res) => {
   try {
     const me = req.user.id;
     const rooms = await TripRoom.find({
-      $or: [
-        { members: me },
-        { createdBy: me },
-        { coOwners: me },
-      ]
+      $or: [{ members: me }, { createdBy: me }, { coOwners: me }],
     })
-      .populate('members',          'fullName avatar travelStyle')
-      .populate('pendingRequests',  'fullName avatar travelStyle')
-      .populate('createdBy',        'fullName avatar')
-      .populate('messages.sender',  'fullName avatar')   // ✅ populate sender so names show
+      .populate('members',         'fullName avatar travelStyle')
+      .populate('pendingRequests', 'fullName avatar travelStyle')
+      .populate('createdBy',       'fullName avatar')
+      .populate('messages.sender', 'fullName avatar')
       .sort({ createdAt: -1 });
-
     res.json(rooms);
   } catch (err) {
     console.error('Get my rooms error:', err);
@@ -258,14 +234,10 @@ exports.getTripRooms = async (req, res) => {
   try {
     const { destination, startDate, endDate } = req.query;
     let query = {};
-
     if (destination) query.destination = { $regex: destination, $options: 'i' };
-
     if (startDate && endDate) {
-      const s = new Date(startDate);
-      const e = new Date(endDate);
-      query.startDate = { $lte: e };
-      query.endDate   = { $gte: s };
+      query.startDate = { $lte: new Date(endDate) };
+      query.endDate   = { $gte: new Date(startDate) };
     } else if (startDate) {
       query.endDate = { $gte: new Date(startDate) };
     } else if (endDate) {
@@ -278,7 +250,6 @@ exports.getTripRooms = async (req, res) => {
       .populate('invitedBuddies',  'fullName avatar travelStyle')
       .populate('createdBy',       'fullName avatar')
       .sort({ createdAt: -1 });
-
     res.json(rooms);
   } catch (err) {
     console.error('Get rooms error:', err);
@@ -289,18 +260,11 @@ exports.getTripRooms = async (req, res) => {
 exports.createTripRoom = async (req, res) => {
   try {
     if (!req.body.endDate) req.body.endDate = req.body.startDate;
-
-    const room = new TripRoom({
-      ...req.body,
-      createdBy: req.user.id,
-      members: [req.user.id],
-    });
+    const room = new TripRoom({ ...req.body, createdBy: req.user.id, members: [req.user.id] });
     await room.save();
-
     const populated = await TripRoom.findById(room._id)
       .populate('members',   'fullName avatar')
       .populate('createdBy', 'fullName avatar');
-
     res.status(201).json(populated);
   } catch (err) {
     console.error('Create room error:', err);
@@ -311,13 +275,12 @@ exports.createTripRoom = async (req, res) => {
 exports.getTripRoomById = async (req, res) => {
   try {
     const room = await TripRoom.findById(req.params.id)
-      .populate('members',          'fullName avatar travelStyle')
-      .populate('createdBy',        'fullName avatar')
-      .populate('messages.sender',  'fullName avatar');
+      .populate('members',         'fullName avatar travelStyle')
+      .populate('createdBy',       'fullName avatar')
+      .populate('messages.sender', 'fullName avatar');
     if (!room) return res.status(404).json({ msg: 'Room not found' });
     res.json(room);
   } catch (err) {
-    console.error('Get room by ID error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -329,10 +292,8 @@ exports.joinTripRoom = async (req, res) => {
 
     if (room.members.map(m => m.toString()).includes(req.user.id))
       return res.status(400).json({ msg: 'Already a member' });
-
     if (room.pendingRequests.map(m => m.toString()).includes(req.user.id))
       return res.status(400).json({ msg: 'Join request already pending' });
-
     if (room.members.length >= room.maxMembers)
       return res.status(400).json({ msg: 'Room is full' });
 
@@ -340,21 +301,12 @@ exports.joinTripRoom = async (req, res) => {
     await room.save();
 
     const requester = await User.findById(req.user.id).select('fullName avatar');
-
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user:${String(room.createdBy)}`).emit('room:request:new', {
-        roomId: room._id,
-        roomDestination: room.destination,
-        userId: req.user.id,
-        userName: requester?.fullName || 'Someone',
-        userAvatar: requester?.avatar || '',
-      });
-    }
-
+    req.app.get('io')?.to(`user:${String(room.createdBy)}`).emit('room:request:new', {
+      roomId: room._id, roomDestination: room.destination,
+      userId: req.user.id, userName: requester?.fullName || 'Someone', userAvatar: requester?.avatar || '',
+    });
     res.json({ msg: 'Join request sent to group owner' });
   } catch (err) {
-    console.error('Join room error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -364,31 +316,20 @@ exports.respondToJoinRequest = async (req, res) => {
     const { roomId, userId, action } = req.body;
     const room = await TripRoom.findById(roomId);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
-
-    if (room.createdBy.toString() !== req.user.id)
-      return res.status(401).json({ msg: 'Not authorized' });
+    if (room.createdBy.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
 
     if (action === 'accept') {
-      if (room.members.length >= room.maxMembers)
-        return res.status(400).json({ msg: 'Room is full' });
+      if (room.members.length >= room.maxMembers) return res.status(400).json({ msg: 'Room is full' });
       room.members.push(userId);
     }
-
-    room.pendingRequests = room.pendingRequests.filter((id) => id.toString() !== userId);
+    room.pendingRequests = room.pendingRequests.filter(id => id.toString() !== userId);
     await room.save();
 
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user:${userId}`).emit('room:request:updated', {
-        roomId,
-        roomDestination: room.destination,
-        status: action === 'accept' ? 'accepted' : 'rejected',
-      });
-    }
-
+    req.app.get('io')?.to(`user:${userId}`).emit('room:request:updated', {
+      roomId, roomDestination: room.destination, status: action === 'accept' ? 'accepted' : 'rejected',
+    });
     res.json({ msg: `Request ${action}ed`, room });
   } catch (err) {
-    console.error('Respond join request error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -398,10 +339,7 @@ exports.inviteBuddyToRoom = async (req, res) => {
     const { roomId, buddyId } = req.body;
     const room = await TripRoom.findById(roomId);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
-
-    if (room.createdBy.toString() !== req.user.id)
-      return res.status(401).json({ msg: 'Not authorized' });
-
+    if (room.createdBy.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
     if (room.members.map(m => m.toString()).includes(buddyId))
       return res.status(400).json({ msg: 'Buddy already in room' });
 
@@ -409,21 +347,12 @@ exports.inviteBuddyToRoom = async (req, res) => {
       room.invitedBuddies.push(buddyId);
       await room.save();
     }
-
     const inviter = await User.findById(req.user.id).select('fullName');
-
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user:${buddyId}`).emit('room:invite:new', {
-        roomId,
-        roomDestination: room.destination,
-        inviterName: inviter?.fullName || 'Someone',
-      });
-    }
-
+    req.app.get('io')?.to(`user:${buddyId}`).emit('room:invite:new', {
+      roomId, roomDestination: room.destination, inviterName: inviter?.fullName || 'Someone',
+    });
     res.json({ msg: 'Invitation sent' });
   } catch (err) {
-    console.error('Invite buddy error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -433,34 +362,22 @@ exports.acceptRoomInvite = async (req, res) => {
     const { roomId } = req.params;
     const room = await TripRoom.findById(roomId);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
-
     if (!room.invitedBuddies.map(m => m.toString()).includes(req.user.id))
       return res.status(400).json({ msg: 'No invitation found' });
-
     if (room.members.length >= room.maxMembers)
       return res.status(400).json({ msg: 'Room is full' });
 
     room.members.push(req.user.id);
-    room.invitedBuddies = room.invitedBuddies.filter((id) => id.toString() !== req.user.id);
+    room.invitedBuddies = room.invitedBuddies.filter(id => id.toString() !== req.user.id);
     await room.save();
 
     const joiner = await User.findById(req.user.id).select('fullName avatar');
-
-    // Notify room creator
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user:${String(room.createdBy)}`).emit('room:member:joined', {
-        roomId,
-        roomDestination: room.destination,
-        userId: req.user.id,
-        userName: joiner?.fullName || 'Someone',
-        userAvatar: joiner?.avatar || '',
-      });
-    }
-
+    req.app.get('io')?.to(`user:${String(room.createdBy)}`).emit('room:member:joined', {
+      roomId, roomDestination: room.destination,
+      userId: req.user.id, userName: joiner?.fullName || 'Someone', userAvatar: joiner?.avatar || '',
+    });
     res.json({ msg: 'Joined room via invite', room });
   } catch (err) {
-    console.error('Accept invite error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -469,11 +386,10 @@ exports.leaveTripRoom = async (req, res) => {
   try {
     const room = await TripRoom.findById(req.params.id);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
-    room.members = room.members.filter((m) => m.toString() !== req.user.id);
+    room.members = room.members.filter(m => m.toString() !== req.user.id);
     await room.save();
     res.json({ msg: 'Left room' });
   } catch (err) {
-    console.error('Leave room error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -482,28 +398,20 @@ exports.addRoomMessage = async (req, res) => {
   try {
     const room = await TripRoom.findById(req.params.id);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
-    if (!room.members.map((m) => m.toString()).includes(req.user.id))
+    if (!room.members.map(m => m.toString()).includes(req.user.id))
       return res.status(401).json({ msg: 'Not a member' });
 
-    const newMessage = { sender: req.user.id, text: req.body.text, createdAt: new Date() };
-    room.messages.push(newMessage);
+    room.messages.push({ sender: req.user.id, text: req.body.text, createdAt: new Date() });
     await room.save();
 
     const populated = await TripRoom.findById(req.params.id)
       .select({ messages: { $slice: -1 } })
       .populate('messages.sender', 'fullName avatar');
-
     const msg = populated.messages[0];
 
-    // Broadcast to all room members
-    const io = req.app.get('io');
-    if (io) {
-      io.emit('room:message:new', { roomId: req.params.id, message: msg });
-    }
-
+    req.app.get('io')?.emit('room:message:new', { roomId: req.params.id, message: msg });
     res.json(msg);
   } catch (err) {
-    console.error('Add message error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 };
@@ -532,68 +440,45 @@ exports.updateRoomNotes = async (req, res) => {
   }
 };
 
-// ── PLAN A TRIP TOGETHER / CREATE TRIP FROM CHAT ──────────────────────────────
-// Creates a trip + room with BOTH users as co-owners/admins.
-// Called when either user clicks "Plan a Trip Together" inside a 1-on-1 chat.
+// ── CREATE TRIP FROM CHAT ─────────────────────────────────────────────────────
 const _createTripFromChat = async (req, res) => {
   try {
-    // Accept both param naming conventions
-    const buddyId     = req.body.buddyId     || req.body.partnerId;
+    const buddyId = req.body.buddyId || req.body.partnerId;
     const { destination, startDate, endDate, budget, description } = req.body;
-
-    if (!buddyId || !destination || !startDate) {
+    if (!buddyId || !destination || !startDate)
       return res.status(400).json({ msg: 'buddyId, destination, and startDate are required' });
-    }
 
     const buddy = await User.findById(buddyId).select('_id fullName');
     if (!buddy) return res.status(404).json({ msg: 'Buddy not found' });
 
-    // Create trip owned by requester
     const trip = new Trip({
-      user:        req.user.id,
-      destination,
-      startDate,
-      endDate:     endDate     || startDate,
-      budget:      budget      || '',
-      description: description || '',
-      status:      'active',
+      user: req.user.id, destination,
+      startDate, endDate: endDate || startDate,
+      budget: budget || '', description: description || '', status: 'active',
     });
     await trip.save();
 
-    // Create room — both users are members AND both are in coOwners list
     const room = new TripRoom({
-      destination,
-      startDate,
-      endDate:     endDate     || startDate,
-      budget:      budget      || '',
+      destination, startDate, endDate: endDate || startDate,
+      budget: budget || '',
       description: description || `Trip to ${destination} with ${buddy.fullName}`,
-      maxMembers:  10,
-      createdBy:   req.user.id,
-      members:     [req.user.id, buddyId],
-      // coOwners allows both users to manage the trip room
-      coOwners:    [req.user.id, buddyId],
-      tripRef:     trip._id,
+      maxMembers: 10, createdBy: req.user.id,
+      members:  [req.user.id, buddyId],
+      coOwners: [req.user.id, buddyId],
+      tripRef:  trip._id,
     });
     await room.save();
-
     trip.roomId = room._id;
     await trip.save();
 
-    // Notify the buddy
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`user:${String(buddyId)}`).emit('trip:group:created', {
-        roomId:      room._id.toString(),
-        destination,
-        createdBy:   req.user.id,
-        message:     `You've been added to a trip group for ${destination}!`,
-      });
-    }
+    req.app.get('io')?.to(`user:${String(buddyId)}`).emit('trip:group:created', {
+      roomId: room._id.toString(), destination, createdBy: req.user.id,
+      message: `You've been added to a trip group for ${destination}!`,
+    });
 
     const populated = await TripRoom.findById(room._id)
       .populate('members',   'fullName avatar')
       .populate('createdBy', 'fullName avatar');
-
     res.status(201).json({ trip, room: populated });
   } catch (err) {
     console.error('Create trip from chat error:', err);
@@ -601,6 +486,5 @@ const _createTripFromChat = async (req, res) => {
   }
 };
 
-// Export under both names so both route files work
 exports.planTripTogether  = _createTripFromChat;
 exports.createTripFromChat = _createTripFromChat;

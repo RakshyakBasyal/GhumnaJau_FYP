@@ -197,7 +197,7 @@ const ShareModal = ({ onClose, onShare, destination }) => {
                   ? <p className="text-center text-gray-400 text-xs py-6">No itineraries yet</p>
                   : filteredItineraries.map(i => (
                       <button key={i._id}
-                        onClick={() => share(i.title, `${window.location.origin}/itinerary/${i._id}`, `📍 ${i.destinationName || ""}${i.startDate ? ` · ${fmtDate(i.startDate)}` : ""}`)}
+                        onClick={() => share(i.title, `${window.location.origin}/itinerary/public/${i._id}`, `📍 ${i.destinationName || ""}${i.startDate ? ` · ${fmtDate(i.startDate)}` : ""}`)}
                         className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition text-left border-b border-gray-50 last:border-0">
                         <div className="w-8 h-8 rounded-lg overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center">
                           {i.destinationImage

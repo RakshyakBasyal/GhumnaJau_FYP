@@ -12,6 +12,7 @@ import {
   addAnswer, likeAnswer,
 } from '../../services/feedApi';
 import { useToast } from '../../context/ToastContext';
+import { io } from 'socket.io-client';
 
 const BASE_URL = 'http://localhost:5000';
 
@@ -40,7 +41,6 @@ const StarDisplay = ({ rating, size = 13 }) => (
   </div>
 );
 
-// ── Category chip styles ───────────────────────────────────────────────────────
 const CAT_STYLE = {
   photo:    'bg-blue-50 text-blue-700 border-blue-100',
   story:    'bg-purple-50 text-purple-700 border-purple-100',
@@ -55,7 +55,7 @@ const CAT_LABEL = {
 
 export default function PostCard({ post, onUpdated, onDeleted }) {
   const { showToast } = useToast();
-  const navigate      = useNavigate();
+  const navigate = useNavigate();
 
   const myId = (() => {
     const t = localStorage.getItem('token');
@@ -65,7 +65,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   })();
 
   const [liked,      setLiked]      = useState((post.likes || []).some(l => String(l) === String(myId)));
-  const [likeCount,  setLikeCount]  = useState(post.likeCount || 0);
+  const [likeCount,  setLikeCount]  = useState(post.likeCount || (post.likes || []).length || 0);
   const [saved,      setSaved]      = useState((post.saves || []).some(s => String(s) === String(myId)));
   const [saveCount,  setSaveCount]  = useState(post.saveCount || 0);
   const [comments,   setComments]   = useState([]);
@@ -84,13 +84,35 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   const isAuthor = String(post.author?._id || post.author) === String(myId);
   const images = post.images || [];
 
+  // ── Live socket updates for this specific post ─────────────────────────────
+  useEffect(() => {
+    const socket = io(BASE_URL, { withCredentials: true });
+
+    socket.on('postLiked', ({ postId, likes, likeCount: newCount }) => {
+      if (postId !== String(post._id)) return;
+      setLiked((likes || []).some(id => String(id) === String(myId)));
+      setLikeCount(newCount ?? (likes || []).length);
+    });
+
+    socket.on('commentAdded', ({ postId, commentCount: newCount }) => {
+      if (postId !== String(post._id)) return;
+      setCommentCount(newCount);
+    });
+
+    socket.on('commentDeleted', ({ postId, commentCount: newCount }) => {
+      if (postId !== String(post._id)) return;
+      setCommentCount(newCount);
+    });
+
+    return () => socket.disconnect();
+  }, [post._id, myId]);
+
   useEffect(() => {
     const h = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  // Load comments when opened
   useEffect(() => {
     if (!showComments) return;
     getComments(post._id)
@@ -140,7 +162,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     try {
       await deleteComment(post._id, commentId);
       setComments(prev => prev.filter(c => c._id !== commentId));
-      setCommentCount(c => c - 1);
+      setCommentCount(c => Math.max(0, c - 1));
     } catch (_) { showToast('Failed to delete comment', 'error'); }
   };
 
@@ -159,7 +181,6 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   const handleLikeAnswer = async (answerId) => {
     try {
       await likeAnswer(post._id, answerId);
-      // Re-fetch updated answers from response
       setAnswers(prev => prev.map(a => {
         if (String(a._id) === String(answerId)) {
           const wasLiked = a.likes.some(l => String(l) === String(myId));
@@ -173,15 +194,15 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     } catch (_) {}
   };
 
-  const authorAv  = avatarUrl(post.author?.avatar);
+  const authorAv   = avatarUrl(post.author?.avatar);
   const authorName = post.author?.fullName || 'Traveler';
-  const catStyle  = CAT_STYLE[post.category] || CAT_STYLE.photo;
-  const catLabel  = CAT_LABEL[post.category] || post.category;
+  const catStyle   = CAT_STYLE[post.category] || CAT_STYLE.photo;
+  const catLabel   = CAT_LABEL[post.category] || post.category;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <Link to={`/profile/${post.author?._id}`} className="flex items-center gap-2.5 group">
           <div className="w-9 h-9 rounded-full overflow-hidden bg-blue-100 flex-shrink-0">
@@ -204,14 +225,11 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </Link>
 
         <div className="flex items-center gap-1">
-          {/* Budget badge */}
           {post.budget && (
             <span className="text-[10px] font-semibold px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full flex items-center gap-0.5">
               <DollarSign size={9} /> {post.budget}
             </span>
           )}
-
-          {/* Menu */}
           {isAuthor && (
             <div className="relative" ref={menuRef}>
               <button onClick={() => setShowMenu(v => !v)}
@@ -235,7 +253,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       </div>
 
-      {/* ── Review rating ──────────────────────────────────────────────── */}
+      {/* Review rating */}
       {post.category === 'review' && post.rating && (
         <div className="px-4 pb-2 flex items-center gap-2">
           <StarDisplay rating={post.rating} />
@@ -246,7 +264,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       )}
 
-      {/* ── Images (carousel for multiple) ────────────────────────────── */}
+      {/* Images */}
       {images.length > 0 && (
         <div className="relative">
           <img
@@ -272,14 +290,14 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       )}
 
-      {/* ── Content ────────────────────────────────────────────────────── */}
+      {/* Content */}
       {post.content && (
         <div className="px-4 pt-3 pb-1">
           <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{post.content}</p>
         </div>
       )}
 
-      {/* ── Question: answers section ──────────────────────────────────── */}
+      {/* Question answers */}
       {post.category === 'question' && (
         <div className="px-4 py-3 border-t border-gray-50 mt-1">
           <button onClick={() => setShowAnswers(v => !v)}
@@ -317,8 +335,6 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
                   </div>
                 );
               })}
-
-              {/* Answer input */}
               <form onSubmit={handleAnswer} className="flex gap-2 mt-2">
                 <input value={answerText} onChange={e => setAnswerText(e.target.value)}
                   placeholder="Write your answer..."
@@ -334,23 +350,20 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       )}
 
-      {/* ── Action bar ─────────────────────────────────────────────────── */}
+      {/* Action bar */}
       <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50">
-        {/* Like */}
         <button onClick={handleLike}
           className={`flex items-center gap-1.5 text-sm font-semibold transition ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400'}`}>
           <Heart size={18} className={liked ? 'fill-red-500' : ''} />
           {likeCount > 0 && <span>{likeCount}</span>}
         </button>
 
-        {/* Comment */}
         <button onClick={() => setShowComments(v => !v)}
           className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-blue-500 transition">
           <MessageCircle size={18} />
           {commentCount > 0 && <span>{commentCount}</span>}
         </button>
 
-        {/* Save */}
         <button onClick={handleSave}
           className={`flex items-center gap-1.5 text-sm font-semibold transition ml-auto ${saved ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}
           title={saved ? 'Unsave' : 'Save post'}>
@@ -359,7 +372,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </button>
       </div>
 
-      {/* ── Comments section ───────────────────────────────────────────── */}
+      {/* Comments */}
       {showComments && (
         <div className="border-t border-gray-50 px-4 pt-3 pb-4 space-y-3">
           {comments.length === 0
@@ -367,6 +380,8 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
             : comments.map(c => {
                 const cAv   = avatarUrl(c.author?.avatar);
                 const cName = c.author?.fullName || 'Traveler';
+                // Support both `text` (postRoutes inline) and `content` (commentController)
+                const cText = c.text || c.content || '';
                 const isMyComment = String(c.author?._id) === String(myId);
                 return (
                   <div key={c._id} className="flex items-start gap-2">
@@ -388,14 +403,13 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
                           )}
                         </div>
                       </div>
-                      <p className="text-xs text-gray-700 mt-0.5">{c.text}</p>
+                      <p className="text-xs text-gray-700 mt-0.5">{cText}</p>
                     </div>
                   </div>
                 );
               })
           }
 
-          {/* Comment input */}
           <form onSubmit={handleComment} className="flex items-center gap-2 mt-2">
             <input value={commentText} onChange={e => setCommentText(e.target.value)}
               placeholder="Write a comment..."

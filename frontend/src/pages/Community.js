@@ -1005,7 +1005,7 @@ const Community = () => {
                                     );
                                   }
                                   return (
-                                    <button key={item._id} onClick={() => sendSharedMsg(item.title, `${window.location.origin}/itinerary/${item._id}`, `📍 ${item.destinationName||''} ${item.startDate?`· ${new Date(item.startDate).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`:''}`)}
+                                    <button key={item._id} onClick={() => sendSharedMsg(item.title, `${window.location.origin}/itinerary/public/${item._id}`, `📍 ${item.destinationName||''} ${item.startDate?`· ${new Date(item.startDate).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`:''}`)}
                                       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition text-left border-b border-gray-50 last:border-0">
                                       <div className="w-8 h-8 rounded-lg overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center">
                                         {item.destinationImage ? <img src={`${BASE_URL}${item.destinationImage}`} alt="" className="w-full h-full object-cover" /> : <ClipboardList size={14} className="text-emerald-600" />}
