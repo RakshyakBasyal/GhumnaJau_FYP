@@ -22,10 +22,10 @@ const tripSchema = new mongoose.Schema({
     required: true
   },
   budget: {
-    type: String,
-    enum: ['Budget Traveler', 'Mid-Range Traveler', 'Luxury Traveler', ''],
-    default: ''
-  },
+  type: String,
+  enum: ['Budget', 'Mid-range', 'Luxury', 'Flexible', ''],
+  default: '',
+},
   travelStyle: {
     type: String,
     default: ''

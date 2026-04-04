@@ -60,10 +60,14 @@ export const getUserProfileById = (id)   => API.get(`/users/${id}`);
 export const getDiscoverUsers   = (params = {}) => API.get('/users/discover', { params });
 
 // ── Buddy system ──────────────────────────────────────────────────────────────
+// New: instant connect (no approval) — creates a chat immediately
+export const connectUser         = (userId)              => API.post('/buddies/connect', { userId });
+// New: get all users I have a conversation with
+export const getConnections      = ()                    => API.get('/buddies/connections');
 export const sendBuddyRequest    = (userId)              => API.post('/buddies/requests', { userId });
 export const getBuddyRequests    = ()                    => API.get('/buddies/requests');
 export const respondBuddyRequest = (requestId, action)  => API.patch(`/buddies/requests/${requestId}`, { action });
-export const getBuddyConnections = ()                    => API.get('/buddies/connections');
+export const getBuddyConnections = ()                    => API.get('/buddies/legacy-connections'); // legacy for profile buddy count
 export const getBuddyStatus      = (userId)              => API.get(`/buddies/status/${userId}`);
 export const getBuddyMessages    = (userId)              => API.get(`/buddies/messages/${userId}`);
 export const sendBuddyMessage    = (userId, text)        => API.post('/buddies/messages', { userId, text });
@@ -81,6 +85,7 @@ export const createTripFromChat = (data) => API.post('/trips/from-chat', data);
 
 // ── Trip Rooms (Groups) ───────────────────────────────────────────────────────
 export const getTripRooms       = (params = {}) => API.get('/trips/rooms', { params });
+export const getMyTripRooms     = ()             => API.get('/trips/rooms/mine');  // rooms I'm in
 export const createTripRoom     = (data)        => API.post('/trips/rooms', data);
 export const getTripRoomById    = (id)           => API.get(`/trips/rooms/${id}`);
 export const joinTripRoom       = (id)           => API.post(`/trips/rooms/${id}/join`);
