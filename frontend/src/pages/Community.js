@@ -710,7 +710,7 @@ const Community = () => {
                   <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <Users className="text-blue-600" /> My Groups
                   </h2>
-                  <button onClick={() => navigate('/community/buddies')}
+                  <button onClick={() => navigate('/community/buddies?tab=groups')}
                     className="text-xs font-bold text-blue-600 hover:text-blue-800 transition">
                     Browse All Groups →
                   </button>
@@ -727,7 +727,7 @@ const Community = () => {
                       <div className="p-8 text-center">
                         <Users size={32} className="mx-auto text-gray-300 mb-2" />
                         <p className="text-sm text-gray-500">You're not in any groups yet.</p>
-                        <button onClick={() => navigate('/community/buddies')}
+                        <button onClick={() => navigate('/community/buddies?tab=groups')}
                           className="mt-3 text-xs text-blue-600 font-bold hover:underline">Find Trip Groups</button>
                       </div>
                     ) : (

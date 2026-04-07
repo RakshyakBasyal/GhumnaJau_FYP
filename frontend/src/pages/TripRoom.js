@@ -440,7 +440,7 @@ export default function TripRoom() {
           <Users size={32} className="text-gray-300 mx-auto mb-3" />
           <h2 className="text-base font-bold text-gray-800 mb-2">You're not in this group</h2>
           <p className="text-gray-400 text-sm mb-5">Request to join from the Find Buddies page.</p>
-          <button onClick={() => navigate("/community/buddies")}
+          <button onClick={() => navigate("/community/buddies?tab=groups")}
             className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition">
             Find Buddies
           </button>
@@ -521,7 +521,7 @@ export default function TripRoom() {
         <GroupsSidebar
           currentRoomId={roomId}
           myId={myId}
-          onNavigate={(id) => id ? navigate(`/community/groups/${id}`) : navigate("/community/groups")}
+          onNavigate={(id) => id ? navigate(`/community/groups/${id}`) : navigate("/community/buddies?tab=groups")}
         />
 
         {/* Main area */}

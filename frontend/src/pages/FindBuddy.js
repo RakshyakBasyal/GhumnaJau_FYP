@@ -4,7 +4,7 @@
 // 2. Trip search empty state shows "Create a Trip" CTA + solo travelers by preference
 // 3. No-results state shows both "Create" button and profile-matched travelers
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Loader2, MapPin, Search, Calendar, Users, Plus, X,
   CheckCircle2, MessageSquare, Check, UserCheck,
@@ -15,6 +15,7 @@ import {
   connectUser, getConnections, getGeneralDiscoveryTrips,
   getDiscoverTrips, getTripRooms, getMyTripRooms, joinTripRoom,
   respondToRoomRequest, inviteBuddyToRoom, acceptRoomInvite, createTrip,
+  getMe,
 } from '../services/api';
 
 const BASE_URL = 'http://localhost:5000';
@@ -210,8 +211,8 @@ function GroupCard({ room, myId, connections, onJoin, onAcceptInvite, onRespondR
 }
 
 // ── Create Trip Modal ─────────────────────────────────────────────────────────
-function CreateTripModal({ onClose, onCreated }) {
-  var [form, setForm]         = useState({ destination: '', startDate: '', endDate: '', budget: '', description: '' });
+function CreateTripModal({ onClose, onCreated, defaultDestination }) {
+  var [form, setForm]         = useState({ destination: defaultDestination || '', startDate: '', endDate: '', budget: '', description: '' });
   var [loading, setLoading]   = useState(false);
   var [dests, setDests]       = useState([]);
   var [showSugg, setShowSugg] = useState(false);
@@ -360,11 +361,17 @@ function EmptyState({ icon: Icon, title, desc, action, onAction }) {
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 export default function FindBuddy() {
   var navigate      = useNavigate();
+  var location      = useLocation();
   var { showToast } = useToast();
   var searchRef     = useRef(null);
 
-  var [tab, setTab]                   = useState('general');
+  var [tab, setTab]                   = useState(function () {
+    var p = new URLSearchParams(location.search);
+    var t = p.get('tab');
+    return (t && ['general', 'trips', 'groups'].includes(t)) ? t : 'general';
+  });
   var [loading, setLoading]           = useState(true);
+  var [me,           setMe]           = useState(null);
   var [suggested,    setSuggested]    = useState([]);
   var [soloTravelers, setSoloTravelers] = useState([]);
   var [trips,        setTrips]        = useState([]);
@@ -397,6 +404,14 @@ export default function FindBuddy() {
   }, []);
 
   useEffect(function () {
+    var p = new URLSearchParams(location.search);
+    if (p.get('tab') !== tab) {
+      p.set('tab', tab);
+      navigate({ search: p.toString() }, { replace: true });
+    }
+  }, [tab]);
+
+  useEffect(function () {
     if (!myId) return;
     var socket = io(BASE_URL, { withCredentials: true });
     socket.on('connect', function () { socket.emit('registerUser', myId); });
@@ -407,6 +422,10 @@ export default function FindBuddy() {
     });
     return function () { socket.disconnect(); };
   }, [myId, tab]);
+
+  useEffect(function () {
+    getMe().then(function (res) { setMe(res.data); }).catch(function () {});
+  }, []);
 
   var loadConnections = useCallback(async function () {
     try {
@@ -446,16 +465,31 @@ export default function FindBuddy() {
         var res = await getGeneralDiscoveryTrips();
         setSuggested(res && res.data || []);
       } else if (tab === 'trips') {
-        var results = await Promise.all([
-          getDiscoverTrips(hasSearched ? tripSearch : {}),
-          getTripRooms(hasSearched ? { destination: tripSearch.destination } : {}),
-          hasSearched && tripSearch.destination
-            ? getGeneralDiscoveryTrips({ destination: tripSearch.destination })
-            : Promise.resolve({ data: [] }),
-        ]);
-        setTrips(results[0] && results[0].data || []);
-        setRooms(results[1] && results[1].data || []);
-        setSoloTravelers(results[2] && results[2].data || []);
+        if (!hasSearched) {
+          // Suggested trips: groups for user's preferred destinations
+          const dests = me?.preferredDestinations || [];
+          if (dests.length > 0) {
+            const roomResults = await Promise.all(
+              dests.slice(0, 3).map(d => getTripRooms({ destination: d }))
+            );
+            const allRooms = roomResults.flatMap(r => r.data || []);
+            const uniqueRooms = allRooms.filter((v, i, a) => a.findIndex(t => t._id === v._id) === i);
+            setRooms(uniqueRooms);
+          } else {
+            setRooms([]);
+          }
+          setSoloTravelers([]); // Only show after search
+          setTrips([]);
+        } else {
+          // Searched results
+          const results = await Promise.all([
+            getTripRooms({ destination: tripSearch.destination }),
+            getGeneralDiscoveryTrips({ destination: tripSearch.destination }),
+          ]);
+          setRooms(results[0]?.data || []);
+          setSoloTravelers(results[1]?.data || []);
+          setTrips([]);
+        }
       } else if (tab === 'groups') {
         // FIX: show ALL public trip rooms, not just mine
         var roomsRes = await getTripRooms({});
@@ -487,13 +521,12 @@ export default function FindBuddy() {
     setLoading(true);
     try {
       var results = await Promise.all([
-        getDiscoverTrips(tripSearch),
         getTripRooms({ destination: tripSearch.destination }),
-        tripSearch.destination ? getGeneralDiscoveryTrips({ destination: tripSearch.destination }) : Promise.resolve({ data: [] }),
+        getGeneralDiscoveryTrips({ destination: tripSearch.destination }),
       ]);
-      setTrips(results[0] && results[0].data || []);
-      setRooms(results[1] && results[1].data || []);
-      setSoloTravelers(results[2] && results[2].data || []);
+      setRooms(results[0]?.data || []);
+      setSoloTravelers(results[1]?.data || []);
+      setTrips([]); // Clear trips
     } catch (e) { showToast('Search failed', 'error'); }
     setLoading(false);
   }
@@ -658,15 +691,15 @@ export default function FindBuddy() {
             {/* TRIPS tab */}
             {tab === 'trips' && (
               <div className="space-y-10">
-                {/* Groups matching search */}
-                {rooms.filter(function (r) { return r && r._id; }).length > 0 && (
+                {/* Suggested Trips (Before Search) */}
+                {!hasSearched && rooms.length > 0 && (
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 mb-5">
-                      Trip Groups
-                      <span className="ml-2 text-sm font-normal text-gray-400">— join an existing group</span>
+                      Suggested Trips
+                      <span className="ml-2 text-sm font-normal text-gray-400">— based on your preferred destinations</span>
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {rooms.filter(function (r) { return r && r._id; }).map(function (room) {
+                      {rooms.map(function (room) {
                         return (
                           <GroupCard key={room._id} room={room} myId={myId} connections={connections}
                             onJoin={function () { handleJoin(room._id); }}
@@ -680,52 +713,46 @@ export default function FindBuddy() {
                   </div>
                 )}
 
-                {/* Solo trip posts */}
-                {trips.filter(function (t) { return t && t._id && t.user; }).length > 0 && (
+                {/* Searched Trip Groups */}
+                {hasSearched && rooms.length > 0 && (
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900 mb-5">Active Trip Posts</h2>
+                    <h2 className="text-xl font-bold text-gray-900 mb-5">
+                      Trip Groups
+                      <span className="ml-2 text-sm font-normal text-gray-400">— groups heading to {tripSearch.destination}</span>
+                    </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {trips.filter(function (t) { return t && t._id && t.user; }).map(function (trip) {
-                        var user = trip.user;
-                        var av = avatarUrl(user.avatar);
+                      {rooms.map(function (room) {
                         return (
-                          <div key={trip._id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all flex flex-col cursor-pointer" onClick={function () { navigate('/profile/' + user._id); }}>
-                            <div className="relative h-40 overflow-hidden">
-                              {av ? <img src={av} alt={user.fullName} className="w-full h-full object-cover" />
-                                : <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-blue-700 flex items-center justify-center text-white text-4xl font-bold">{user.fullName && user.fullName.charAt(0)}</div>}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                              {trip.matchScore > 0 && (
-                                <div className="absolute top-3 right-3 px-2 py-0.5 bg-white/95 rounded-xl text-xs font-bold text-blue-700">{trip.matchScore}% match</div>
-                              )}
-                              <div className="absolute bottom-3 left-4 text-white">
-                                <p className="font-bold text-sm">{user.fullName}</p>
-                                <p className="text-xs flex items-center gap-1 mt-0.5"><MapPin size={10} /> {trip.destination}</p>
-                              </div>
-                            </div>
-                            <div className="p-4 flex flex-col flex-1" onClick={function (e) { e.stopPropagation(); }}>
-                              <div className="flex flex-wrap gap-1.5 mb-3">
-                                <span className="px-2 py-0.5 bg-gray-50 border border-gray-200 text-gray-600 text-xs font-medium rounded-full flex items-center gap-1">
-                                  <Calendar size={10} /> {fmtDate(trip.startDate)}
-                                </span>
-                                {trip.budget && <span className="px-2 py-0.5 bg-gray-50 border border-gray-200 text-gray-600 text-xs font-medium rounded-full">{trip.budget}</span>}
-                              </div>
-                              <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between">
-                                <p className="text-xs text-gray-400">{user.travelStyle || 'Traveler'}</p>
-                                <button onClick={function (e) { e.stopPropagation(); handleConnect(user._id); }}
-                                  className={'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ' + (connectionIds.has(user._id) ? 'bg-gray-100 text-gray-500' : 'bg-blue-600 text-white hover:bg-blue-700')}>
-                                  {connectionIds.has(user._id) ? 'Message' : <><UserCheck size={12} /> Connect</>}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
+                          <GroupCard key={room._id} room={room} myId={myId} connections={connections}
+                            onJoin={function () { handleJoin(room._id); }}
+                            onAcceptInvite={function () { handleAcceptInvite(room._id); }}
+                            onRespondRequest={function (uid, action) { handleRoomAction(room._id, uid, action); }}
+                            onInviteBuddy={function (cid) { handleInvite(room._id, cid); }}
+                            onEnter={handleEnterRoom} />
                         );
                       })}
                     </div>
                   </div>
                 )}
 
-                {/* Solo travelers by preference */}
-                {soloTravelers.filter(function (u) { return u && u._id; }).length > 0 && (
+                 {/* No groups but travelers exist — show Create Group CTA */}
+                 {hasSearched && rooms.length === 0 && soloTravelers.length > 0 && (
+                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                     <div className="flex items-center justify-between gap-3">
+                       <div>
+                         <h3 className="font-bold text-gray-900">No groups for {tripSearch.destination} yet</h3>
+                         <p className="text-xs text-gray-400 mt-0.5">Create a group so interested travelers can join you</p>
+                       </div>
+                       <button onClick={function () { setShowCreateModal(true); }}
+                         className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition">
+                         Create Group
+                       </button>
+                     </div>
+                   </div>
+                 )}
+
+                {/* Searched Solo Travelers (After Search Only) */}
+                {hasSearched && soloTravelers.length > 0 && (
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 mb-5">
                       Travelers Interested in <span className="text-blue-600">{tripSearch.destination}</span>
@@ -745,59 +772,74 @@ export default function FindBuddy() {
                   </div>
                 )}
 
-                {/* Empty search state — show create CTA */}
-                {hasSearched && hasNoResults && (
+                {/* Empty states */}
+                {hasSearched && rooms.length === 0 && soloTravelers.length === 0 && (
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
                     <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Search size={28} className="text-blue-400" />
                     </div>
-                    <h3 className="font-bold text-gray-800 text-lg mb-2">
-                      No trips planned to {tripSearch.destination} yet
-                    </h3>
-                    <p className="text-gray-400 text-sm mb-6 max-w-xs mx-auto">
-                      Be the first! Create a trip and others heading there can find and join you.
-                    </p>
-                    <button onClick={function () { setShowCreateModal(true); }}
-                      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition shadow-md mx-auto">
-                      <Plus size={15} /> Plan a Trip to {tripSearch.destination}
-                    </button>
+                    <h3 className="font-bold text-gray-800 text-lg mb-2">No groups or travelers heading to {tripSearch.destination}</h3>
+                    <p className="text-gray-400 text-sm mb-6 max-w-xs mx-auto">Be the first to plan a trip there!</p>
+                    <button onClick={function () { setShowCreateModal(true); }} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition">Plan a Trip</button>
                   </div>
                 )}
 
-                {/* Not searched yet */}
-                {!hasSearched && trips.length === 0 && rooms.length === 0 && (
-                  <EmptyState icon={Users} title="Search for a destination above" desc="Search for a place to find groups, active trips, and travelers interested in going there." action="Plan a Trip" onAction={function () { setShowCreateModal(true); }} />
+                {!hasSearched && rooms.length === 0 && (
+                  <EmptyState icon={Users} title="Find your next trip" desc="Search for a destination to find trip groups and travelers, or plan your own trip!" action="Plan a Trip" onAction={function () { setShowCreateModal(true); }} />
                 )}
               </div>
             )}
 
             {/* GROUPS tab — all public rooms */}
             {tab === 'groups' && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {rooms.filter(function (r) { return r && r._id; }).length === 0 ? 'Trip Groups' : rooms.filter(function (r) { return r && r._id; }).length + ' Trip Groups'}
+              <div className="space-y-10">
+                {/* My Groups */}
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-5">
+                    My Groups
+                    <span className="ml-2 text-sm font-normal text-gray-400">— groups you are a member of</span>
                   </h2>
-                  <button onClick={function () { setShowCreateModal(true); }} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition shadow-md">
-                    <Plus size={14} /> Create Group
-                  </button>
+                  {myRooms.length === 0
+                    ? <EmptyState icon={Users} title="You haven't joined any groups yet" desc="Join a group from the active groups below or create your own!" />
+                    : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {myRooms.map(function (room) {
+                          return (
+                            <GroupCard key={room._id} room={room} myId={myId} connections={connections}
+                              onJoin={function () { handleJoin(room._id); }}
+                              onAcceptInvite={function () { handleAcceptInvite(room._id); }}
+                              onRespondRequest={function (uid, action) { handleRoomAction(room._id, uid, action); }}
+                              onInviteBuddy={function (cid) { handleInvite(room._id, cid); }}
+                              onEnter={handleEnterRoom} />
+                          );
+                        })}
+                      </div>
+                    )}
                 </div>
-                {rooms.filter(function (r) { return r && r._id; }).length === 0
-                  ? <EmptyState icon={Users} title="No trip groups yet" desc="Create a trip to start a group. Others can search and join your group." action="Create a Group" onAction={function () { setShowCreateModal(true); }} />
-                  : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {rooms.filter(function (r) { return r && r._id; }).map(function (room) {
-                        return (
-                          <GroupCard key={room._id} room={room} myId={myId} connections={connections}
-                            onJoin={function () { handleJoin(room._id); }}
-                            onAcceptInvite={function () { handleAcceptInvite(room._id); }}
-                            onRespondRequest={function (uid, action) { handleRoomAction(room._id, uid, action); }}
-                            onInviteBuddy={function (cid) { handleInvite(room._id, cid); }}
-                            onEnter={handleEnterRoom} />
-                        );
-                      })}
-                    </div>
-                  )}
+
+                {/* Active Groups (excluding my groups) */}
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-5">
+                    Active Groups
+                    <span className="ml-2 text-sm font-normal text-gray-400">— public groups you can join</span>
+                  </h2>
+                  {rooms.filter(function (r) { return r && r._id && !amMemberOf(r._id); }).length === 0
+                    ? <EmptyState icon={Users} title="No other active groups" desc="No public groups available to join at the moment. Why not create one?" action="Create a Group" onAction={function () { setShowCreateModal(true); }} />
+                    : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {rooms.filter(function (r) { return r && r._id && !amMemberOf(r._id); }).map(function (room) {
+                          return (
+                            <GroupCard key={room._id} room={room} myId={myId} connections={connections}
+                              onJoin={function () { handleJoin(room._id); }}
+                              onAcceptInvite={function () { handleAcceptInvite(room._id); }}
+                              onRespondRequest={function (uid, action) { handleRoomAction(room._id, uid, action); }}
+                              onInviteBuddy={function (cid) { handleInvite(room._id, cid); }}
+                              onEnter={handleEnterRoom} />
+                          );
+                        })}
+                      </div>
+                    )}
+                </div>
               </div>
             )}
 
@@ -806,7 +848,11 @@ export default function FindBuddy() {
       </div>
 
       {showCreateModal && (
-        <CreateTripModal onClose={function () { setShowCreateModal(false); }} onCreated={function () { setTab('groups'); fetchData(); }} />
+        <CreateTripModal
+          onClose={function () { setShowCreateModal(false); }}
+          onCreated={function () { setTab('groups'); fetchData(); }}
+          defaultDestination={hasSearched ? tripSearch.destination : ''}
+        />
       )}
     </div>
   );
