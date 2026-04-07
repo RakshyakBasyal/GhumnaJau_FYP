@@ -133,6 +133,23 @@ router.get('/user/:userId', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ msg: 'Server error' }); }
 });
 
+router.post('/sync-ratings', auth, async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ msg: 'Not authorized' });
+  try {
+    const destinations = await Destination.find({});
+    for (const dest of destinations) {
+      await updateAverageRating('destination', dest._id);
+    }
+    const hotels = await Hotel.find({});
+    for (const hotel of hotels) {
+      await updateAverageRating('hotel', hotel._id);
+    }
+    res.json({ msg: 'Ratings and review counts synced successfully' });
+  } catch (err) {
+    res.status(500).json({ msg: 'Sync failed' });
+  }
+});
+
 // ── Single post ───────────────────────────────────────────────────────────────
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -443,11 +460,22 @@ async function updateAverageRating(reviewType, reviewRefId) {
     const reviews = await Post.find({
       isDeleted: false, category: 'review', reviewType, reviewRefId, rating: { $ne: null },
     }).select('rating');
-    if (reviews.length === 0) return;
+    
+    if (reviews.length === 0) {
+      if (reviewType === 'destination') await Destination.findByIdAndUpdate(reviewRefId, { rating: 5, reviewCount: 0 });
+      else if (reviewType === 'hotel') await Hotel.findByIdAndUpdate(reviewRefId, { rating: 5, reviewCount: 0 });
+      return;
+    }
+
     const avg     = reviews.reduce((s, r) => s + r.rating, 0) / reviews.length;
     const rounded = Math.round(avg * 10) / 10;
-    if (reviewType === 'destination') await Destination.findByIdAndUpdate(reviewRefId, { rating: rounded });
-    else if (reviewType === 'hotel') await Hotel.findByIdAndUpdate(reviewRefId, { rating: rounded });
+    const count   = reviews.length;
+
+    if (reviewType === 'destination') {
+      await Destination.findByIdAndUpdate(reviewRefId, { rating: rounded, reviewCount: count });
+    } else if (reviewType === 'hotel') {
+      await Hotel.findByIdAndUpdate(reviewRefId, { rating: rounded, reviewCount: count });
+    }
   } catch (err) { console.error('Rating update error:', err); }
 }
 

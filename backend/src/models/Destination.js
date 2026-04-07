@@ -8,6 +8,7 @@ const destinationSchema = new mongoose.Schema(
     description: { type: String },
     shortDescription: { type: String },
     rating: { type: Number, default: 5 },
+    reviewCount: { type: Number, default: 0 },
     bestTimeToVisit: { type: String },
 
     averageCost: { type: Number },

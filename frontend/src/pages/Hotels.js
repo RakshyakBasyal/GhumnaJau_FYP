@@ -270,7 +270,10 @@ const Hotels = () => {
                     {/* Rating Badge */}
                     <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-md">
                       <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                      <span className="text-xs font-bold text-gray-800">{hotel.rating || '5.0'}</span>
+                      <span className="text-xs font-bold text-gray-800">
+                        {hotel.rating?.toFixed(1) || '5.0'}
+                        {hotel.reviewCount > 0 && <span className="text-[10px] text-gray-400 font-normal ml-1">({hotel.reviewCount})</span>}
+                      </span>
                     </div>
 
                     {/* Title + Location Overlay */}
