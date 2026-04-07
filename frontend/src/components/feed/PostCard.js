@@ -1,407 +1,461 @@
 // frontend/src/components/feed/PostCard.jsx
-import { useEffect, useState } from 'react';
+// Fix: removed socket.io from inside PostCard entirely.
+// Live updates (likes, comments) are handled by the Feed-level socket and
+// passed down via prop updates. This eliminates the _s is not a function
+// React Fast Refresh error caused by io() inside a component body.
+
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Heart,
-  MessageCircle,
-  MapPin,
-  Building2,
-  Plane,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  X,
-  ChevronLeft,
-  ChevronRight,
+  Heart, MessageCircle, Bookmark, MoreHorizontal, Trash2,
+  Edit2, MapPin, Star, Send, Loader2, DollarSign,
+  ChevronDown, ChevronUp, HelpCircle, Check,
 } from 'lucide-react';
-import { toggleLike, deletePost } from '../../services/feedApi';
-import CommentsDrawer from './CommentsDrawer';
+import {
+  likePost, unlikePost, savePost, unsavePost,
+  getComments, addComment, deleteComment,
+  addAnswer, likeAnswer,
+} from '../../services/feedApi';
+import { useToast } from '../../context/ToastContext';
+import ImageCarousel from './ImageCarousel';
 
-const CATEGORY_STYLES = {
-  story:  { label: 'Story',   cls: 'bg-blue-50   text-blue-700   border-blue-200'   },
-  photo:  { label: 'Photo',   cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  review: { label: 'Review',  cls: 'bg-slate-50  text-slate-700  border-slate-200'  },
-  tip:    { label: 'Tip',     cls: 'bg-emerald-50  text-emerald-700  border-emerald-200'  },
+const BASE_URL = 'http://localhost:5000';
+
+const avatarUrl = (v) => {
+  if (!v) return '';
+  if (String(v).includes('googleusercontent.com')) return '';
+  return String(v).startsWith('http') ? v : (BASE_URL + v);
 };
 
 const timeAgo = (date) => {
+  if (!date) return '';
   const diff = (Date.now() - new Date(date)) / 1000;
-  if (diff < 60)    return 'just now';
-  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60)     return 'just now';
+  if (diff < 3600)   return Math.floor(diff / 60) + 'm';
+  if (diff < 86400)  return Math.floor(diff / 3600) + 'h';
+  if (diff < 604800) return Math.floor(diff / 86400) + 'd';
   return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const mediaUrl = (value) => {
-  if (!value) return '';
-  if (String(value).startsWith('http://') || String(value).startsWith('https://')) return value;
-  return `http://localhost:5000${value}`;
+const StarDisplay = ({ rating, size = 13 }) => (
+  <div className="flex items-center gap-0.5">
+    {[1, 2, 3, 4, 5].map((n) => (
+      <Star
+        key={n}
+        size={size}
+        className={n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}
+      />
+    ))}
+  </div>
+);
+
+const CAT_STYLE = {
+  photo:    'bg-blue-50 text-blue-700 border-blue-100',
+  story:    'bg-purple-50 text-purple-700 border-purple-100',
+  tip:      'bg-amber-50 text-amber-700 border-amber-100',
+  review:   'bg-emerald-50 text-emerald-700 border-emerald-100',
+  question: 'bg-rose-50 text-rose-700 border-rose-100',
 };
 
-const Avatar = ({ name, avatar }) => {
-  if (avatar) return (
-    <img
-      src={mediaUrl(avatar)}
-      alt={name}
-      className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-white"
-    />
-  );
-  return (
-    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ring-2 ring-white">
-      {name?.charAt(0).toUpperCase()}
-    </div>
-  );
+const CAT_LABEL = {
+  photo: 'Travel Photo', story: 'Story', tip: 'Tip', review: 'Review', question: 'Question',
 };
 
 export default function PostCard({ post, onUpdated, onDeleted }) {
-  const token = localStorage.getItem('token');
-  let decoded = null;
-  try {
-    decoded = token ? JSON.parse(atob(token.split('.')[1])) : null;
-  } catch (_) {}
+  const { showToast } = useToast();
 
-  const myId = localStorage.getItem('userId') || decoded?.id || decoded?._id;
-  const authorId = post.author?._id;
-  const isOwner = Boolean(authorId && myId && String(authorId) === String(myId));
-  const authorProfileHref = isOwner ? '/profile' : authorId ? `/profile/${authorId}` : '/profile';
-  const hasLiked = (likes) =>
-    myId ? Array.isArray(likes) && likes.some(id => String(id) === String(myId)) : false;
+  const myId = (() => {
+    const t = localStorage.getItem('token');
+    if (!t) return null;
+    try {
+      const d = JSON.parse(atob(t.split('.')[1]));
+      return (d && (d.id || d._id)) || null;
+    } catch (_) { return null; }
+  })();
 
-  const [liked,        setLiked]        = useState(hasLiked(post.likes));
-  const [likeCount,    setLikeCount]    = useState(post.likes?.length || 0);
-  const [commentCount, setCommentCount] = useState(post.commentCount || 0);
-  const [showComments, setShowComments] = useState(false);
-  const [showMenu,     setShowMenu]     = useState(false);
-  const [imgIdx,       setImgIdx]       = useState(0);
-  const [showImageViewer, setShowImageViewer] = useState(false);
-  const [viewerIdx, setViewerIdx] = useState(0);
+  // Derive initial state from post prop
+  const [liked,      setLiked]      = useState(() => (post.likes || []).some((l) => String(l) === String(myId)));
+  const [likeCount,  setLikeCount]  = useState(() => post.likeCount || (post.likes || []).length || 0);
+  const [saved,      setSaved]      = useState(() => (post.saves || []).some((s) => String(s) === String(myId)));
+  const [saveCount,  setSaveCount]  = useState(() => post.saveCount || 0);
+  const [commentCount, setCommentCount] = useState(() => post.commentCount || 0);
+  const [comments,   setComments]   = useState([]);
+  const [showComments,  setShowComments]  = useState(false);
+  const [commentText,   setCommentText]   = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [showMenu,   setShowMenu]   = useState(false);
+  const [showAnswers,  setShowAnswers]  = useState(false);
+  const [answerText,   setAnswerText]   = useState('');
+  const [answers,      setAnswers]      = useState(() => post.answers || []);
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [showHeart,  setShowHeart]  = useState(false);
 
-  const cat = CATEGORY_STYLES[post.category] || CATEGORY_STYLES.story;
+  const menuRef  = useRef(null);
+  const isAuthor = String(post.author?._id || post.author) === String(myId);
+  const images   = post.images || [];
+
+  // Keep local counts in sync when parent re-renders the post prop
+  // (e.g. when Feed socket updates postLiked / commentAdded)
+  useEffect(() => {
+    setLiked((post.likes || []).some((l) => String(l) === String(myId)));
+    setLikeCount(post.likeCount || (post.likes || []).length || 0);
+  }, [post.likes, post.likeCount]);
 
   useEffect(() => {
-    setLiked(hasLiked(post.likes));
-    setLikeCount(post.likes?.length || post.likeCount || 0);
     setCommentCount(post.commentCount || 0);
-    setImgIdx(0);
-  }, [post.likes, post.likeCount, post.commentCount]);
+  }, [post.commentCount]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    if (!showComments) return;
+    getComments(post._id).then((res) => setComments(res.data || [])).catch(() => {});
+  }, [showComments, post._id]);
 
   const handleLike = async () => {
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikeCount((c) => wasLiked ? c - 1 : c + 1);
     try {
-      const res = await toggleLike(post._id);
-      setLiked(Boolean(res.data?.liked));
-      setLikeCount(Number(res.data?.likeCount ?? 0));
+      wasLiked ? await unlikePost(post._id) : await likePost(post._id);
     } catch (_) {
-      // ignore
+      setLiked(wasLiked);
+      setLikeCount((c) => wasLiked ? c + 1 : c - 1);
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this post?')) return;
-    try {
-      await deletePost(post._id);
-      onDeleted?.(post._id);
-    } catch (_) {}
-    setShowMenu(false);
+  const handleDoubleTap = () => {
+    if (!liked) handleLike();
+    setShowHeart(true);
+    setTimeout(() => setShowHeart(false), 800);
   };
 
+  const handleSave = async () => {
+    const wasSaved = saved;
+    setSaved(!wasSaved);
+    setSaveCount((c) => wasSaved ? c - 1 : c + 1);
+    try {
+      wasSaved ? await unsavePost(post._id) : await savePost(post._id);
+      showToast(wasSaved ? 'Post unsaved' : 'Saved!', 'success');
+    } catch (_) {
+      setSaved(wasSaved);
+      setSaveCount((c) => wasSaved ? c + 1 : c - 1);
+    }
+  };
+
+  const handleComment = async (e) => {
+    e.preventDefault();
+    if (!commentText.trim() || submittingComment) return;
+    setSubmittingComment(true);
+    try {
+      const res = await addComment(post._id, commentText.trim());
+      setComments((prev) => [...prev, res.data]);
+      setCommentCount((c) => c + 1);
+      setCommentText('');
+    } catch (_) {
+      showToast('Failed to comment', 'error');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await deleteComment(post._id, commentId);
+      setComments((prev) => prev.filter((c) => c._id !== commentId));
+      setCommentCount((c) => Math.max(0, c - 1));
+    } catch (_) {
+      showToast('Failed to delete comment', 'error');
+    }
+  };
+
+  const handleAnswer = async (e) => {
+    e.preventDefault();
+    if (!answerText.trim() || submittingAnswer) return;
+    setSubmittingAnswer(true);
+    try {
+      const res = await addAnswer(post._id, answerText.trim());
+      setAnswers(res.data.answers || []);
+      setAnswerText('');
+    } catch (_) {
+      showToast('Failed to post answer', 'error');
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
+
+  const handleLikeAnswer = async (answerId) => {
+    try {
+      await likeAnswer(post._id, answerId);
+      setAnswers((prev) =>
+        prev.map((a) => {
+          if (String(a._id) !== String(answerId)) return a;
+          const wasLiked = a.likes.some((l) => String(l) === String(myId));
+          const newLikes = wasLiked
+            ? a.likes.filter((l) => String(l) !== String(myId))
+            : [...a.likes, myId];
+          return { ...a, likes: newLikes, likeCount: newLikes.length };
+        })
+      );
+    } catch (_) {}
+  };
+
+  const authorAv   = avatarUrl(post.author?.avatar);
+  const authorName = post.author?.fullName || 'Traveler';
+  const catStyle   = CAT_STYLE[post.category] || CAT_STYLE.photo;
+  const catLabel   = CAT_LABEL[post.category] || post.category;
+
   return (
-    <>
-      <article className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow duration-200">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-        {/* Header */}
-        <div className="flex items-start justify-between px-4 pt-4 pb-3">
-          <div className="flex items-center gap-3">
-            {authorId ? (
-              <Link to={authorProfileHref} className="flex-shrink-0" aria-label="View profile">
-                <Avatar name={post.author?.fullName} avatar={post.author?.avatar} />
-              </Link>
-            ) : (
-              <Avatar name={post.author?.fullName} avatar={post.author?.avatar} />
-            )}
-            <div>
-              {authorId ? (
-                <Link
-                  to={authorProfileHref}
-                  className="text-sm font-semibold text-gray-900 leading-tight hover:underline"
-                >
-                  {post.author?.fullName || 'Traveller'}
-                </Link>
-              ) : (
-                <p className="text-sm font-semibold text-gray-900 leading-tight">
-                  {post.author?.fullName || 'Traveller'}
-                </p>
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+        <Link to={'/profile/' + (post.author?._id || '')} className="flex items-center gap-2.5 group min-w-0">
+          <div className="w-9 h-9 rounded-full overflow-hidden bg-blue-100 flex-shrink-0">
+            {authorAv
+              ? <img src={authorAv} alt={authorName} className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center text-blue-700 font-bold text-sm">{authorName.charAt(0).toUpperCase()}</div>}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition leading-tight truncate">{authorName}</p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={'text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ' + catStyle}>{catLabel}</span>
+              {post.destinationName && (
+                <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                  <MapPin size={9} /> {post.destinationName}
+                </span>
               )}
-              <p className="text-xs text-gray-400">{timeAgo(post.createdAt)}</p>
+              <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(post.createdAt)}</span>
             </div>
           </div>
+        </Link>
 
-          <div className="flex items-center gap-2">
-            {/* Category badge */}
-            <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${cat.cls}`}>
-              {cat.label}
+        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+          {post.budget && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full flex items-center gap-0.5">
+              <DollarSign size={9} /> {post.budget}
             </span>
-
-            {/* Menu */}
-            {isOwner && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowMenu(p => !p)}
-                  className="p-1.5 rounded-full hover:bg-gray-100 transition text-gray-400"
-                >
-                  <MoreHorizontal size={16} />
-                </button>
-                {showMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                    <div className="absolute right-0 top-8 z-20 bg-white rounded-xl shadow-lg border border-gray-100 py-1 w-36 overflow-hidden">
-                      <button
-                        onClick={() => { setShowMenu(false); onUpdated?.(post, 'edit'); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
-                      >
-                        <Pencil size={14} /> Edit post
-                      </button>
-                      <button
-                        onClick={handleDelete}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition"
-                      >
-                        <Trash2 size={14} /> Delete post
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="px-4 pb-3">
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{post.content}</p>
-        </div>
-
-        {/* Tags row */}
-        {(post.destination || post.hotel || post.flight) && (
-          <div className="px-4 pb-3 flex flex-wrap gap-2">
-            {post.destination && (
-              <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full">
-                <MapPin size={11} />
-                {post.destination.name}, {post.destination.country}
-              </span>
-            )}
-            {post.hotel && (
-              <span className="inline-flex items-center gap-1 text-xs bg-sky-50 text-sky-700 border border-sky-200 px-2.5 py-1 rounded-full">
-                <Building2 size={11} />
-                {post.hotel.name}
-              </span>
-            )}
-            {post.flight && (
-              <span className="inline-flex items-center gap-1 text-xs bg-violet-50 text-violet-700 border border-violet-200 px-2.5 py-1 rounded-full">
-                <Plane size={11} />
-                {post.flight.airline} {post.flight.flightNumber}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Images */}
-        {post.images?.length > 0 && (
-          <div className="bg-gray-50">
-            {/* Facebook-style photo blocks */}
-            {post.images.length === 1 && (
+          )}
+          {isAuthor && (
+            <div className="relative" ref={menuRef}>
               <button
-                type="button"
-                onClick={() => { setViewerIdx(0); setShowImageViewer(true); }}
-                className="relative w-full h-[360px] overflow-hidden bg-black"
-                aria-label="Open photo"
+                onClick={() => setShowMenu((v) => !v)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
               >
-                <img src={mediaUrl(post.images[0])} alt="post" className="w-full h-full object-contain" loading="lazy" />
+                <MoreHorizontal size={16} />
               </button>
-            )}
-
-            {post.images.length === 2 && (
-              <div className="grid grid-cols-2 gap-0.5 h-[360px] bg-white">
-                {post.images.slice(0, 2).map((img, i) => (
+              {showMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-20 py-1 w-36">
                   <button
-                    key={img}
-                    type="button"
-                    onClick={() => { setViewerIdx(i); setShowImageViewer(true); }}
-                    className="relative overflow-hidden bg-black"
-                    aria-label={`Open photo ${i + 1}`}
+                    onClick={() => { setShowMenu(false); onUpdated(post, 'edit'); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
                   >
-                    <img src={mediaUrl(img)} alt="post" className="w-full h-full object-contain" loading="lazy" />
+                    <Edit2 size={13} /> Edit
                   </button>
-                ))}
-              </div>
-            )}
-
-            {post.images.length === 3 && (
-              <div className="grid grid-cols-2 gap-0.5 h-[360px] bg-white">
-                <button
-                  type="button"
-                  onClick={() => { setViewerIdx(0); setShowImageViewer(true); }}
-                  className="row-span-2 relative overflow-hidden bg-black"
-                  aria-label="Open photo 1"
-                >
-                  <img src={mediaUrl(post.images[0])} alt="post" className="w-full h-full object-contain" loading="lazy" />
-                </button>
-                {[1, 2].map((i) => (
                   <button
-                    key={post.images[i]}
-                    type="button"
-                    onClick={() => { setViewerIdx(i); setShowImageViewer(true); }}
-                    className="relative overflow-hidden bg-black"
-                    aria-label={`Open photo ${i + 1}`}
+                    onClick={() => { setShowMenu(false); onDeleted(post._id); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition"
                   >
-                    <img src={mediaUrl(post.images[i])} alt="post" className="w-full h-full object-contain" loading="lazy" />
+                    <Trash2 size={13} /> Delete
                   </button>
-                ))}
-              </div>
-            )}
-
-            {post.images.length >= 4 && (
-              <div className="grid grid-cols-2 gap-0.5 h-[360px] bg-white">
-                {[0, 1, 2, 3].map((i) => {
-                  const extra = post.images.length - 4;
-                  const isLast = i === 3 && extra > 0;
-                  return (
-                    <button
-                      key={`${post.images[i]}-${i}`}
-                      type="button"
-                      onClick={() => { setViewerIdx(i); setShowImageViewer(true); }}
-                      className="relative overflow-hidden bg-black"
-                      aria-label={`Open photo ${i + 1}`}
-                    >
-                      <img src={mediaUrl(post.images[i])} alt="post" className="w-full h-full object-contain" loading="lazy" />
-                      {isLast && (
-                        <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
-                          <span className="text-white text-3xl font-bold">+{extra}</span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Fullscreen image viewer */}
-        {showImageViewer && post.images?.length > 0 && (
-          <div
-            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
-            onClick={() => setShowImageViewer(false)}
-          >
-            <button
-              type="button"
-              className="absolute top-6 right-6 z-10 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition text-white"
-              onClick={(e) => { e.stopPropagation(); setShowImageViewer(false); }}
-              aria-label="Close image viewer"
-            >
-              <X className="h-7 w-7" />
-            </button>
-
-            {post.images.length > 1 && (
-              <button
-                type="button"
-                className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition text-white"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setViewerIdx((prev) => {
-                    const next = (prev - 1 + post.images.length) % post.images.length;
-                    setImgIdx(next);
-                    return next;
-                  });
-                }}
-                aria-label="Previous image"
-              >
-                <ChevronLeft className="h-8 w-8" />
-              </button>
-            )}
-
-            {post.images.length > 1 && (
-              <button
-                type="button"
-                className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-sm p-4 rounded-full hover:bg-white/40 transition text-white"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setViewerIdx((prev) => {
-                    const next = (prev + 1) % post.images.length;
-                    setImgIdx(next);
-                    return next;
-                  });
-                }}
-                aria-label="Next image"
-              >
-                <ChevronRight className="h-8 w-8" />
-              </button>
-            )}
-
-            <div className="relative max-w-5xl w-full px-4" onClick={(e) => e.stopPropagation()}>
-              <img
-                src={mediaUrl(post.images[viewerIdx])}
-                alt="post fullscreen"
-                className="w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
-              />
-              <p className="text-white text-center mt-5 text-lg font-medium">
-                {viewerIdx + 1} / {post.images.length}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50">
-          <button
-            onClick={handleLike}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium transition-all ${
-              liked ? 'text-red-600 bg-red-50' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
-            }`}
-          >
-            <Heart
-              size={18}
-              strokeWidth={liked ? 2.5 : 2}
-              fill={liked ? 'currentColor' : 'none'}
-            />
-            <span>{likeCount}</span>
-          </button>
-
-          <button
-            onClick={() => setShowComments(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition"
-          >
-            <MessageCircle size={18} />
-            <span>{commentCount}</span>
-          </button>
-
-          {isOwner && (
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onUpdated?.(post, 'edit')}
-                className="text-xs px-2.5 py-1.5 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 transition"
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="text-xs px-2.5 py-1.5 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition"
-              >
-                Delete
-              </button>
+                </div>
+              )}
             </div>
           )}
         </div>
-      </article>
+      </div>
 
-      {showComments && (
-        <CommentsDrawer
-          post={post}
-          onClose={() => setShowComments(false)}
-          onCommentCountChange={(delta) => setCommentCount(p => p + delta)}
-        />
+      {/* ── Review rating ────────────────────────────────────────────────── */}
+      {post.category === 'review' && post.rating && (
+        <div className="px-4 pb-2 flex items-center gap-2">
+          <StarDisplay rating={post.rating} />
+          <span className="text-xs font-bold text-amber-600">{post.rating}/5</span>
+          {post.reviewType && (
+            <span className="text-[10px] text-gray-400 capitalize">{post.reviewType} review</span>
+          )}
+        </div>
       )}
-    </>
+
+      {/* ── Images ───────────────────────────────────────────────────────── */}
+      {images.length > 0 && (
+        <div className="relative">
+          <ImageCarousel images={images} onDoubleTap={handleDoubleTap} />
+          {showHeart && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+              <Heart
+                size={80}
+                className="text-white fill-white drop-shadow-2xl"
+                style={{
+                  animation: 'heartPop 0.75s ease-out forwards',
+                }}
+              />
+            </div>
+          )}
+          <style>{`@keyframes heartPop{0%{transform:scale(.3);opacity:0}30%{transform:scale(1.3);opacity:1}60%{transform:scale(1);opacity:1}100%{transform:scale(1.1);opacity:0}}`}</style>
+        </div>
+      )}
+
+      {/* ── Content ──────────────────────────────────────────────────────── */}
+      {post.content && (
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{post.content}</p>
+        </div>
+      )}
+
+      {/* ── Question answers ─────────────────────────────────────────────── */}
+      {post.category === 'question' && (
+        <div className="px-4 py-3 border-t border-gray-50 mt-1">
+          <button
+            onClick={() => setShowAnswers((v) => !v)}
+            className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800 transition"
+          >
+            <HelpCircle size={14} />
+            {answers.length === 0 ? 'Be the first to answer' : answers.length + ' answer' + (answers.length !== 1 ? 's' : '')}
+            {showAnswers ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+
+          {showAnswers && (
+            <div className="mt-3 space-y-3">
+              {answers.map((ans) => {
+                const ansAv    = avatarUrl(ans.author?.avatar);
+                const ansName  = ans.author?.fullName || 'Traveler';
+                const ansLiked = (ans.likes || []).some((l) => String(l) === String(myId));
+                return (
+                  <div key={ans._id} className="flex gap-2.5">
+                    <div className="w-7 h-7 rounded-full overflow-hidden bg-blue-100 flex-shrink-0 mt-0.5">
+                      {ansAv
+                        ? <img src={ansAv} alt={ansName} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-blue-700">{ansName.charAt(0)}</div>}
+                    </div>
+                    <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <Link to={'/profile/' + (ans.author?._id || '')} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition">{ansName}</Link>
+                        <span className="text-[10px] text-gray-400">{timeAgo(ans.createdAt)}</span>
+                      </div>
+                      <p className="text-xs text-gray-700">{ans.text}</p>
+                      <button
+                        onClick={() => handleLikeAnswer(ans._id)}
+                        className={'mt-1.5 flex items-center gap-1 text-[10px] font-semibold transition ' + (ansLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400')}
+                      >
+                        <Heart size={11} className={ansLiked ? 'fill-red-500' : ''} />
+                        {ans.likeCount || 0}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <form onSubmit={handleAnswer} className="flex gap-2 mt-2">
+                <input
+                  value={answerText}
+                  onChange={(e) => setAnswerText(e.target.value)}
+                  placeholder="Write your answer..."
+                  className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                />
+                <button
+                  type="submit"
+                  disabled={!answerText.trim() || submittingAnswer}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1"
+                >
+                  {submittingAnswer ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  Answer
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Action bar ───────────────────────────────────────────────────── */}
+      <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50 mt-1">
+        <button
+          onClick={handleLike}
+          className={'flex items-center gap-1.5 text-sm font-semibold transition-all active:scale-90 ' + (liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400')}
+        >
+          <Heart size={18} className={liked ? 'fill-red-500' : ''} />
+          {likeCount > 0 && <span>{likeCount}</span>}
+        </button>
+
+        <button
+          onClick={() => setShowComments((v) => !v)}
+          className={'flex items-center gap-1.5 text-sm font-semibold transition ' + (showComments ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500')}
+        >
+          <MessageCircle size={18} />
+          {commentCount > 0 && <span>{commentCount}</span>}
+        </button>
+
+        <button
+          onClick={handleSave}
+          className={'flex items-center gap-1.5 text-sm font-semibold transition ml-auto active:scale-90 ' + (saved ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500')}
+        >
+          <Bookmark size={18} className={saved ? 'fill-blue-600' : ''} />
+          {saveCount > 0 && <span className="text-xs">{saveCount}</span>}
+        </button>
+      </div>
+
+      {/* ── Comments ─────────────────────────────────────────────────────── */}
+      {showComments && (
+        <div className="border-t border-gray-50 px-4 pt-3 pb-4 space-y-3">
+          {comments.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">No comments yet. Be the first!</p>
+          ) : (
+            comments.map((c) => {
+              const cAv   = avatarUrl(c.author?.avatar);
+              const cName = c.author?.fullName || 'Traveler';
+              const cText = c.content || c.text || '';
+              const isMyComment = String(c.author?._id) === String(myId);
+              return (
+                <div key={c._id} className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 mt-0.5">
+                    {cAv
+                      ? <img src={cAv} alt={cName} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-gray-500">{cName.charAt(0)}</div>}
+                  </div>
+                  <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2 group">
+                    <div className="flex items-center justify-between">
+                      <Link to={'/profile/' + (c.author?._id || '')} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition">{cName}</Link>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-gray-400">{timeAgo(c.createdAt)}</span>
+                        {(isMyComment || isAuthor) && (
+                          <button
+                            onClick={() => handleDeleteComment(c._id)}
+                            className="ml-1 p-0.5 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-700 mt-0.5 leading-relaxed">{cText}</p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          <form onSubmit={handleComment} className="flex items-center gap-2 mt-2">
+            <input
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="Write a comment..."
+              className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+            />
+            <button
+              type="submit"
+              disabled={!commentText.trim() || submittingComment}
+              className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              {submittingComment ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }

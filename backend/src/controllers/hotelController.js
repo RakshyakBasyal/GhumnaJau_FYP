@@ -31,8 +31,9 @@ exports.createHotel = async (req, res) => {
       roomTypes: roomTypes ? JSON.parse(roomTypes) : [],  
     });
 
-    await hotel.save();
-    res.status(201).json(hotel);
+    const createdHotel = await hotel.save();
+    await emitAdminStats(req.app.get('io'));
+    res.status(201).json(createdHotel);
   } catch (err) {
     console.error('Create hotel error:', err);
     res.status(500).json({ msg: 'Server error' });
@@ -79,6 +80,7 @@ exports.updateHotel = async (req, res) => {
     }
 
     const updated = await hotel.save();
+    await emitAdminStats(req.app.get('io'));
     res.json(updated);
   } catch (err) {
     console.error('Update hotel error:', err);
@@ -86,6 +88,10 @@ exports.updateHotel = async (req, res) => {
   }
 };
 
+const { emitAdminStats } = require("./adminController");
+
+// @desc    Get all hotels
+// @route   GET /api/hotels
 exports.getAllHotels = async (req, res) => {
   try {
     const { destination } = req.query;
@@ -112,6 +118,7 @@ exports.getHotel = async (req, res) => {
 exports.deleteHotel = async (req, res) => {
   try {
     await Hotel.findByIdAndDelete(req.params.id);
+    await emitAdminStats(req.app.get('io'));
     res.json({ msg: 'Hotel deleted' });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });

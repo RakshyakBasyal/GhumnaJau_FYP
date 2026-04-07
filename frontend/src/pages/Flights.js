@@ -178,7 +178,7 @@ const Flights = () => {
     return flight.price * adults + flight.price * children * 0.5;
   };
 
-  const handleBookFlight = async (flight) => {
+  const handleBookFlight = async (flight, isPayLater = false) => {
     if (!bookerPhone.trim() || !bookerEmail.trim()) {
       setBookingError('Please enter your contact details');
       return;
@@ -221,6 +221,12 @@ const Flights = () => {
       }
 
       const data = await res.json();
+
+      if (isPayLater) {
+        showToast('Flight reserved! You can pay later from your profile.', 'success');
+        closeBookingForm();
+        return;
+      }
 
       setSuccessBooking({
         bookingId: data.booking._id,
@@ -516,17 +522,26 @@ const Flights = () => {
                       />
                     </div>
 
-                    <div className="pt-4 border-t flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">Total</p>
-                        <p className="text-xl font-bold text-blue-600">NPR {calculateTotal(flight).toLocaleString()}</p>
+                    <div className="pt-4 border-t flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500">Total</p>
+                          <p className="text-xl font-bold text-blue-600">NPR {calculateTotal(flight).toLocaleString()}</p>
+                        </div>
+                        <button
+                          onClick={() => handleBookFlight(flight)}
+                          disabled={bookingLoading}
+                          className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 disabled:bg-blue-400"
+                        >
+                          {bookingLoading ? 'Processing...' : 'Book & Pay Now'}
+                        </button>
                       </div>
                       <button
-                        onClick={() => handleBookFlight(flight)}
+                        onClick={() => handleBookFlight(flight, true)}
                         disabled={bookingLoading}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 disabled:bg-blue-400"
+                        className="w-full py-2.5 text-blue-600 font-bold text-sm border-2 border-blue-600 rounded-xl hover:bg-blue-50 transition-colors disabled:opacity-50"
                       >
-                        {bookingLoading ? 'Processing...' : 'Confirm'}
+                        {bookingLoading ? 'Processing...' : 'Reserve & Pay Later'}
                       </button>
                     </div>
                   </div>

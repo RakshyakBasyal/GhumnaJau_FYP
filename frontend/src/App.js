@@ -28,9 +28,7 @@ import ItineraryDetail from './pages/ItineraryDetail';
 import Community from './pages/Community';
 import Feed from './pages/Feed';
 import FindBuddy from './pages/FindBuddy';
-
-
-   
+import TripRoom from './pages/TripRoom';
 
 function App() {
   return (
@@ -38,72 +36,47 @@ function App() {
       <Router>
         <Routes>
           {/* Full-screen pages (no Navbar/Footer) */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login"       element={<Login />} />
+          <Route path="/register"    element={<Register />} />
           <Route path="/admin-login" element={<AdminLogin />} />
 
-          {/* Admin Section - Protected & No Layout */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute adminOnly>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <ProtectedRoute adminOnly>
-                <ManageUsers />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/destinations"
-            element={
-              <ProtectedRoute adminOnly>
-                <ManageDestinations />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/hotels"
-            element={
-              <ProtectedRoute adminOnly>
-                <ManageHotels />
-              </ProtectedRoute>
-            }
-          />
+          {/* Admin Section */}
+          <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute adminOnly><ManageUsers /></ProtectedRoute>} />
+          <Route path="/admin/destinations" element={<ProtectedRoute adminOnly><ManageDestinations /></ProtectedRoute>} />
+          <Route path="/admin/hotels" element={<ProtectedRoute adminOnly><ManageHotels /></ProtectedRoute>} />
           <Route path="/admin/bookings" element={<AdminBookings />} />
-          <Route
-            path="/admin/flights"
-            element={
-              <ProtectedRoute adminOnly>
-                <ManageFlights />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/admin/flights" element={<ProtectedRoute adminOnly><ManageFlights /></ProtectedRoute>} />
           <Route path="/admin/manage-flights" element={<ManageFlights />} />
 
-          {/* ALL User Pages - With Layout (Navbar + Footer) */}
+          {/* All user pages with Layout (Navbar + Footer) */}
           <Route element={<Layout />}>
-            <Route path="/" element={<Landing />} />
-            <Route path="/destinations" element={<Destinations />} />
-            <Route path="/destinations/:id" element={<DestinationDetail />} />
-            <Route path="/hotels" element={<Hotels />} />
-            <Route path="/hotels/:id" element={<HotelDetail />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/profile/:userId" element={<UserProfile />} />
-            <Route path="/my-bookings" element={<MyBookings />} />
-            <Route path="/flights" element={<Flights />} />
-            <Route path="/payment/result" element={<PaymentResult />} />
-            <Route path="/auth/google/success" element={<AuthGoogleSuccess />} />
-            <Route path="/itinerary" element={<Itinerary />} />
-            <Route path="/itinerary/:id" element={<ItineraryDetail />} />
-            <Route path="/community" element={<Community />} />
-            <Route path="/community/buddies" element={<Community />} />
-            <Route path="/community/messages" element={<Community />} />
+            <Route path="/"                       element={<Landing />} />
+            <Route path="/destinations"           element={<Destinations />} />
+            <Route path="/destinations/:id"       element={<DestinationDetail />} />
+            <Route path="/hotels"                 element={<Hotels />} />
+            <Route path="/hotels/:id"             element={<HotelDetail />} />
+            <Route path="/profile"                element={<Profile />} />
+            <Route path="/profile/:userId"        element={<UserProfile />} />
+            <Route path="/my-bookings"            element={<MyBookings />} />
+            <Route path="/flights"                element={<Flights />} />
+            <Route path="/payment/result"         element={<PaymentResult />} />
+            <Route path="/auth/google/success"    element={<AuthGoogleSuccess />} />
+            <Route path="/itinerary"              element={<Itinerary />} />
+            {/* Public view — no ownership check, anyone with the link can see */}
+            <Route path="/itinerary/public/:id"   element={<ItineraryDetail publicView />} />
+            <Route path="/itinerary/:id"          element={<ItineraryDetail />} />
+
+            {/* Community routes */}
+            <Route path="/community"              element={<Community />} />
+            <Route path="/community/buddies"      element={<Community />} />
+            <Route path="/community/messages"     element={<Community />} />
+
+            {/* ✅ FIX: /community/groups (no roomId) → Community with groups tab active */}
+            <Route path="/community/groups"       element={<Community />} />
+
+            {/* /community/groups/:roomId → individual group chat page */}
+            <Route path="/community/groups/:roomId" element={<TripRoom />} />
           </Route>
         </Routes>
       </Router>
