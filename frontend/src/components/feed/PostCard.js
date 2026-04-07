@@ -1,10 +1,15 @@
 // frontend/src/components/feed/PostCard.jsx
+// Fix: removed socket.io from inside PostCard entirely.
+// Live updates (likes, comments) are handled by the Feed-level socket and
+// passed down via prop updates. This eliminates the _s is not a function
+// React Fast Refresh error caused by io() inside a component body.
+
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Heart, MessageCircle, Bookmark, MoreHorizontal, Trash2,
-  Edit2, MapPin, Star, Send, Loader2, DollarSign, ChevronDown,
-  ChevronUp, HelpCircle, Check,
+  Edit2, MapPin, Star, Send, Loader2, DollarSign,
+  ChevronDown, ChevronUp, HelpCircle, Check,
 } from 'lucide-react';
 import {
   likePost, unlikePost, savePost, unsavePost,
@@ -12,31 +17,34 @@ import {
   addAnswer, likeAnswer,
 } from '../../services/feedApi';
 import { useToast } from '../../context/ToastContext';
-import { io } from 'socket.io-client';
+import ImageCarousel from './ImageCarousel';
 
 const BASE_URL = 'http://localhost:5000';
 
 const avatarUrl = (v) => {
   if (!v) return '';
   if (String(v).includes('googleusercontent.com')) return '';
-  return String(v).startsWith('http') ? v : `${BASE_URL}${v}`;
+  return String(v).startsWith('http') ? v : (BASE_URL + v);
 };
 
 const timeAgo = (date) => {
   if (!date) return '';
   const diff = (Date.now() - new Date(date)) / 1000;
   if (diff < 60)     return 'just now';
-  if (diff < 3600)   return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400)  return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
+  if (diff < 3600)   return Math.floor(diff / 60) + 'm';
+  if (diff < 86400)  return Math.floor(diff / 3600) + 'h';
+  if (diff < 604800) return Math.floor(diff / 86400) + 'd';
   return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const StarDisplay = ({ rating, size = 13 }) => (
   <div className="flex items-center gap-0.5">
-    {[1, 2, 3, 4, 5].map(n => (
-      <Star key={n} size={size}
-        className={n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'} />
+    {[1, 2, 3, 4, 5].map((n) => (
+      <Star
+        key={n}
+        size={size}
+        className={n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}
+      />
     ))}
   </div>
 );
@@ -55,93 +63,89 @@ const CAT_LABEL = {
 
 export default function PostCard({ post, onUpdated, onDeleted }) {
   const { showToast } = useToast();
-  const navigate = useNavigate();
 
   const myId = (() => {
     const t = localStorage.getItem('token');
     if (!t) return null;
-    try { const d = JSON.parse(atob(t.split('.')[1])); return d?.id || d?._id || null; }
-    catch (_) { return null; }
+    try {
+      const d = JSON.parse(atob(t.split('.')[1]));
+      return (d && (d.id || d._id)) || null;
+    } catch (_) { return null; }
   })();
 
-  const [liked,      setLiked]      = useState((post.likes || []).some(l => String(l) === String(myId)));
-  const [likeCount,  setLikeCount]  = useState(post.likeCount || (post.likes || []).length || 0);
-  const [saved,      setSaved]      = useState((post.saves || []).some(s => String(s) === String(myId)));
-  const [saveCount,  setSaveCount]  = useState(post.saveCount || 0);
+  // Derive initial state from post prop
+  const [liked,      setLiked]      = useState(() => (post.likes || []).some((l) => String(l) === String(myId)));
+  const [likeCount,  setLikeCount]  = useState(() => post.likeCount || (post.likes || []).length || 0);
+  const [saved,      setSaved]      = useState(() => (post.saves || []).some((s) => String(s) === String(myId)));
+  const [saveCount,  setSaveCount]  = useState(() => post.saveCount || 0);
+  const [commentCount, setCommentCount] = useState(() => post.commentCount || 0);
   const [comments,   setComments]   = useState([]);
-  const [showComments, setShowComments] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  const [commentCount, setCommentCount] = useState(post.commentCount || 0);
+  const [showComments,  setShowComments]  = useState(false);
+  const [commentText,   setCommentText]   = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [showMenu,   setShowMenu]   = useState(false);
-  const [showAnswers, setShowAnswers] = useState(false);
-  const [answerText,  setAnswerText]  = useState('');
-  const [answers,     setAnswers]     = useState(post.answers || []);
+  const [showAnswers,  setShowAnswers]  = useState(false);
+  const [answerText,   setAnswerText]   = useState('');
+  const [answers,      setAnswers]      = useState(() => post.answers || []);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
-  const [imgIdx,     setImgIdx]     = useState(0);
+  const [showHeart,  setShowHeart]  = useState(false);
 
-  const menuRef = useRef(null);
+  const menuRef  = useRef(null);
   const isAuthor = String(post.author?._id || post.author) === String(myId);
-  const images = post.images || [];
+  const images   = post.images || [];
 
-  // ── Live socket updates for this specific post ─────────────────────────────
+  // Keep local counts in sync when parent re-renders the post prop
+  // (e.g. when Feed socket updates postLiked / commentAdded)
   useEffect(() => {
-    const socket = io(BASE_URL, { withCredentials: true });
-
-    socket.on('postLiked', ({ postId, likes, likeCount: newCount }) => {
-      if (postId !== String(post._id)) return;
-      setLiked((likes || []).some(id => String(id) === String(myId)));
-      setLikeCount(newCount ?? (likes || []).length);
-    });
-
-    socket.on('commentAdded', ({ postId, commentCount: newCount }) => {
-      if (postId !== String(post._id)) return;
-      setCommentCount(newCount);
-    });
-
-    socket.on('commentDeleted', ({ postId, commentCount: newCount }) => {
-      if (postId !== String(post._id)) return;
-      setCommentCount(newCount);
-    });
-
-    return () => socket.disconnect();
-  }, [post._id, myId]);
+    setLiked((post.likes || []).some((l) => String(l) === String(myId)));
+    setLikeCount(post.likeCount || (post.likes || []).length || 0);
+  }, [post.likes, post.likeCount]);
 
   useEffect(() => {
-    const h = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+    setCommentCount(post.commentCount || 0);
+  }, [post.commentCount]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
   useEffect(() => {
     if (!showComments) return;
-    getComments(post._id)
-      .then(res => setComments(res.data || []))
-      .catch(() => {});
+    getComments(post._id).then((res) => setComments(res.data || [])).catch(() => {});
   }, [showComments, post._id]);
 
   const handleLike = async () => {
     const wasLiked = liked;
     setLiked(!wasLiked);
-    setLikeCount(c => wasLiked ? c - 1 : c + 1);
+    setLikeCount((c) => wasLiked ? c - 1 : c + 1);
     try {
       wasLiked ? await unlikePost(post._id) : await likePost(post._id);
     } catch (_) {
       setLiked(wasLiked);
-      setLikeCount(c => wasLiked ? c + 1 : c - 1);
+      setLikeCount((c) => wasLiked ? c + 1 : c - 1);
     }
+  };
+
+  const handleDoubleTap = () => {
+    if (!liked) handleLike();
+    setShowHeart(true);
+    setTimeout(() => setShowHeart(false), 800);
   };
 
   const handleSave = async () => {
     const wasSaved = saved;
     setSaved(!wasSaved);
-    setSaveCount(c => wasSaved ? c - 1 : c + 1);
+    setSaveCount((c) => wasSaved ? c - 1 : c + 1);
     try {
       wasSaved ? await unsavePost(post._id) : await savePost(post._id);
-      showToast(wasSaved ? 'Post unsaved' : 'Post saved!', 'success');
+      showToast(wasSaved ? 'Post unsaved' : 'Saved!', 'success');
     } catch (_) {
       setSaved(wasSaved);
-      setSaveCount(c => wasSaved ? c + 1 : c - 1);
+      setSaveCount((c) => wasSaved ? c + 1 : c - 1);
     }
   };
 
@@ -151,19 +155,24 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     setSubmittingComment(true);
     try {
       const res = await addComment(post._id, commentText.trim());
-      setComments(prev => [...prev, res.data]);
-      setCommentCount(c => c + 1);
+      setComments((prev) => [...prev, res.data]);
+      setCommentCount((c) => c + 1);
       setCommentText('');
-    } catch (_) { showToast('Failed to comment', 'error'); }
-    finally { setSubmittingComment(false); }
+    } catch (_) {
+      showToast('Failed to comment', 'error');
+    } finally {
+      setSubmittingComment(false);
+    }
   };
 
   const handleDeleteComment = async (commentId) => {
     try {
       await deleteComment(post._id, commentId);
-      setComments(prev => prev.filter(c => c._id !== commentId));
-      setCommentCount(c => Math.max(0, c - 1));
-    } catch (_) { showToast('Failed to delete comment', 'error'); }
+      setComments((prev) => prev.filter((c) => c._id !== commentId));
+      setCommentCount((c) => Math.max(0, c - 1));
+    } catch (_) {
+      showToast('Failed to delete comment', 'error');
+    }
   };
 
   const handleAnswer = async (e) => {
@@ -174,23 +183,26 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
       const res = await addAnswer(post._id, answerText.trim());
       setAnswers(res.data.answers || []);
       setAnswerText('');
-    } catch (_) { showToast('Failed to post answer', 'error'); }
-    finally { setSubmittingAnswer(false); }
+    } catch (_) {
+      showToast('Failed to post answer', 'error');
+    } finally {
+      setSubmittingAnswer(false);
+    }
   };
 
   const handleLikeAnswer = async (answerId) => {
     try {
       await likeAnswer(post._id, answerId);
-      setAnswers(prev => prev.map(a => {
-        if (String(a._id) === String(answerId)) {
-          const wasLiked = a.likes.some(l => String(l) === String(myId));
+      setAnswers((prev) =>
+        prev.map((a) => {
+          if (String(a._id) !== String(answerId)) return a;
+          const wasLiked = a.likes.some((l) => String(l) === String(myId));
           const newLikes = wasLiked
-            ? a.likes.filter(l => String(l) !== String(myId))
+            ? a.likes.filter((l) => String(l) !== String(myId))
             : [...a.likes, myId];
           return { ...a, likes: newLikes, likeCount: newLikes.length };
-        }
-        return a;
-      }));
+        })
+      );
     } catch (_) {}
   };
 
@@ -202,29 +214,29 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-      {/* Header */}
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <Link to={`/profile/${post.author?._id}`} className="flex items-center gap-2.5 group">
+        <Link to={'/profile/' + (post.author?._id || '')} className="flex items-center gap-2.5 group min-w-0">
           <div className="w-9 h-9 rounded-full overflow-hidden bg-blue-100 flex-shrink-0">
             {authorAv
               ? <img src={authorAv} alt={authorName} className="w-full h-full object-cover" />
               : <div className="w-full h-full flex items-center justify-center text-blue-700 font-bold text-sm">{authorName.charAt(0).toUpperCase()}</div>}
           </div>
-          <div>
-            <p className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition leading-tight">{authorName}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition leading-tight truncate">{authorName}</p>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${catStyle}`}>{catLabel}</span>
+              <span className={'text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ' + catStyle}>{catLabel}</span>
               {post.destinationName && (
                 <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
                   <MapPin size={9} /> {post.destinationName}
                 </span>
               )}
-              <span className="text-[10px] text-gray-400">{timeAgo(post.createdAt)}</span>
+              <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(post.createdAt)}</span>
             </div>
           </div>
         </Link>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
           {post.budget && (
             <span className="text-[10px] font-semibold px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full flex items-center gap-0.5">
               <DollarSign size={9} /> {post.budget}
@@ -232,18 +244,24 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
           )}
           {isAuthor && (
             <div className="relative" ref={menuRef}>
-              <button onClick={() => setShowMenu(v => !v)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition">
+              <button
+                onClick={() => setShowMenu((v) => !v)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
+              >
                 <MoreHorizontal size={16} />
               </button>
               {showMenu && (
                 <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-20 py-1 w-36">
-                  <button onClick={() => { setShowMenu(false); onUpdated(post, 'edit'); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+                  <button
+                    onClick={() => { setShowMenu(false); onUpdated(post, 'edit'); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                  >
                     <Edit2 size={13} /> Edit
                   </button>
-                  <button onClick={() => { setShowMenu(false); onDeleted(post._id); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition">
+                  <button
+                    onClick={() => { setShowMenu(false); onDeleted(post._id); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                  >
                     <Trash2 size={13} /> Delete
                   </button>
                 </div>
@@ -253,7 +271,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       </div>
 
-      {/* Review rating */}
+      {/* ── Review rating ────────────────────────────────────────────────── */}
       {post.category === 'review' && post.rating && (
         <div className="px-4 pb-2 flex items-center gap-2">
           <StarDisplay rating={post.rating} />
@@ -264,55 +282,50 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       )}
 
-      {/* Images */}
+      {/* ── Images ───────────────────────────────────────────────────────── */}
       {images.length > 0 && (
         <div className="relative">
-          <img
-            src={`${BASE_URL}${images[imgIdx]}`}
-            alt=""
-            className="w-full object-cover max-h-80"
-            onDoubleClick={handleLike}
-          />
-          {images.length > 1 && (
-            <>
-              <button onClick={() => setImgIdx(p => (p - 1 + images.length) % images.length)}
-                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 text-white p-1.5 rounded-full hover:bg-black/60 transition text-sm font-bold">‹</button>
-              <button onClick={() => setImgIdx(p => (p + 1) % images.length)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 text-white p-1.5 rounded-full hover:bg-black/60 transition text-sm font-bold">›</button>
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                {images.map((_, i) => (
-                  <div key={i} onClick={() => setImgIdx(i)}
-                    className={`w-1.5 h-1.5 rounded-full cursor-pointer transition ${i === imgIdx ? 'bg-white' : 'bg-white/50'}`} />
-                ))}
-              </div>
-            </>
+          <ImageCarousel images={images} onDoubleTap={handleDoubleTap} />
+          {showHeart && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+              <Heart
+                size={80}
+                className="text-white fill-white drop-shadow-2xl"
+                style={{
+                  animation: 'heartPop 0.75s ease-out forwards',
+                }}
+              />
+            </div>
           )}
+          <style>{`@keyframes heartPop{0%{transform:scale(.3);opacity:0}30%{transform:scale(1.3);opacity:1}60%{transform:scale(1);opacity:1}100%{transform:scale(1.1);opacity:0}}`}</style>
         </div>
       )}
 
-      {/* Content */}
+      {/* ── Content ──────────────────────────────────────────────────────── */}
       {post.content && (
         <div className="px-4 pt-3 pb-1">
           <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{post.content}</p>
         </div>
       )}
 
-      {/* Question answers */}
+      {/* ── Question answers ─────────────────────────────────────────────── */}
       {post.category === 'question' && (
         <div className="px-4 py-3 border-t border-gray-50 mt-1">
-          <button onClick={() => setShowAnswers(v => !v)}
-            className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800 transition">
+          <button
+            onClick={() => setShowAnswers((v) => !v)}
+            className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800 transition"
+          >
             <HelpCircle size={14} />
-            {answers.length === 0 ? 'Be the first to answer' : `${answers.length} answer${answers.length !== 1 ? 's' : ''}`}
+            {answers.length === 0 ? 'Be the first to answer' : answers.length + ' answer' + (answers.length !== 1 ? 's' : '')}
             {showAnswers ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
 
           {showAnswers && (
             <div className="mt-3 space-y-3">
-              {answers.map(ans => {
-                const ansAv   = avatarUrl(ans.author?.avatar);
-                const ansName = ans.author?.fullName || 'Traveler';
-                const ansLiked = (ans.likes || []).some(l => String(l) === String(myId));
+              {answers.map((ans) => {
+                const ansAv    = avatarUrl(ans.author?.avatar);
+                const ansName  = ans.author?.fullName || 'Traveler';
+                const ansLiked = (ans.likes || []).some((l) => String(l) === String(myId));
                 return (
                   <div key={ans._id} className="flex gap-2.5">
                     <div className="w-7 h-7 rounded-full overflow-hidden bg-blue-100 flex-shrink-0 mt-0.5">
@@ -322,12 +335,14 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
                     </div>
                     <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
                       <div className="flex items-center justify-between mb-0.5">
-                        <Link to={`/profile/${ans.author?._id}`} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition">{ansName}</Link>
+                        <Link to={'/profile/' + (ans.author?._id || '')} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition">{ansName}</Link>
                         <span className="text-[10px] text-gray-400">{timeAgo(ans.createdAt)}</span>
                       </div>
                       <p className="text-xs text-gray-700">{ans.text}</p>
-                      <button onClick={() => handleLikeAnswer(ans._id)}
-                        className={`mt-1.5 flex items-center gap-1 text-[10px] font-semibold transition ${ansLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`}>
+                      <button
+                        onClick={() => handleLikeAnswer(ans._id)}
+                        className={'mt-1.5 flex items-center gap-1 text-[10px] font-semibold transition ' + (ansLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400')}
+                      >
                         <Heart size={11} className={ansLiked ? 'fill-red-500' : ''} />
                         {ans.likeCount || 0}
                       </button>
@@ -335,12 +350,19 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
                   </div>
                 );
               })}
+
               <form onSubmit={handleAnswer} className="flex gap-2 mt-2">
-                <input value={answerText} onChange={e => setAnswerText(e.target.value)}
+                <input
+                  value={answerText}
+                  onChange={(e) => setAnswerText(e.target.value)}
                   placeholder="Write your answer..."
-                  className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
-                <button type="submit" disabled={!answerText.trim() || submittingAnswer}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1">
+                  className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                />
+                <button
+                  type="submit"
+                  disabled={!answerText.trim() || submittingAnswer}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1"
+                >
                   {submittingAnswer ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                   Answer
                 </button>
@@ -350,72 +372,85 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       )}
 
-      {/* Action bar */}
-      <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50">
-        <button onClick={handleLike}
-          className={`flex items-center gap-1.5 text-sm font-semibold transition ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400'}`}>
+      {/* ── Action bar ───────────────────────────────────────────────────── */}
+      <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50 mt-1">
+        <button
+          onClick={handleLike}
+          className={'flex items-center gap-1.5 text-sm font-semibold transition-all active:scale-90 ' + (liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400')}
+        >
           <Heart size={18} className={liked ? 'fill-red-500' : ''} />
           {likeCount > 0 && <span>{likeCount}</span>}
         </button>
 
-        <button onClick={() => setShowComments(v => !v)}
-          className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-blue-500 transition">
+        <button
+          onClick={() => setShowComments((v) => !v)}
+          className={'flex items-center gap-1.5 text-sm font-semibold transition ' + (showComments ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500')}
+        >
           <MessageCircle size={18} />
           {commentCount > 0 && <span>{commentCount}</span>}
         </button>
 
-        <button onClick={handleSave}
-          className={`flex items-center gap-1.5 text-sm font-semibold transition ml-auto ${saved ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}
-          title={saved ? 'Unsave' : 'Save post'}>
+        <button
+          onClick={handleSave}
+          className={'flex items-center gap-1.5 text-sm font-semibold transition ml-auto active:scale-90 ' + (saved ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500')}
+        >
           <Bookmark size={18} className={saved ? 'fill-blue-600' : ''} />
           {saveCount > 0 && <span className="text-xs">{saveCount}</span>}
         </button>
       </div>
 
-      {/* Comments */}
+      {/* ── Comments ─────────────────────────────────────────────────────── */}
       {showComments && (
         <div className="border-t border-gray-50 px-4 pt-3 pb-4 space-y-3">
-          {comments.length === 0
-            ? <p className="text-xs text-gray-400 text-center py-2">No comments yet. Be the first!</p>
-            : comments.map(c => {
-                const cAv   = avatarUrl(c.author?.avatar);
-                const cName = c.author?.fullName || 'Traveler';
-                // Support both `text` (postRoutes inline) and `content` (commentController)
-                const cText = c.text || c.content || '';
-                const isMyComment = String(c.author?._id) === String(myId);
-                return (
-                  <div key={c._id} className="flex items-start gap-2">
-                    <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 mt-0.5">
-                      {cAv
-                        ? <img src={cAv} alt={cName} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-gray-500">{cName.charAt(0)}</div>}
-                    </div>
-                    <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2 group">
-                      <div className="flex items-center justify-between">
-                        <Link to={`/profile/${c.author?._id}`} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition">{cName}</Link>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-gray-400">{timeAgo(c.createdAt)}</span>
-                          {(isMyComment || isAuthor) && (
-                            <button onClick={() => handleDeleteComment(c._id)}
-                              className="ml-1 p-0.5 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition">
-                              <Trash2 size={11} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-700 mt-0.5">{cText}</p>
-                    </div>
+          {comments.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">No comments yet. Be the first!</p>
+          ) : (
+            comments.map((c) => {
+              const cAv   = avatarUrl(c.author?.avatar);
+              const cName = c.author?.fullName || 'Traveler';
+              const cText = c.content || c.text || '';
+              const isMyComment = String(c.author?._id) === String(myId);
+              return (
+                <div key={c._id} className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 mt-0.5">
+                    {cAv
+                      ? <img src={cAv} alt={cName} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-gray-500">{cName.charAt(0)}</div>}
                   </div>
-                );
-              })
-          }
+                  <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2 group">
+                    <div className="flex items-center justify-between">
+                      <Link to={'/profile/' + (c.author?._id || '')} className="text-xs font-bold text-gray-900 hover:text-blue-600 transition">{cName}</Link>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-gray-400">{timeAgo(c.createdAt)}</span>
+                        {(isMyComment || isAuthor) && (
+                          <button
+                            onClick={() => handleDeleteComment(c._id)}
+                            className="ml-1 p-0.5 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-700 mt-0.5 leading-relaxed">{cText}</p>
+                  </div>
+                </div>
+              );
+            })
+          )}
 
           <form onSubmit={handleComment} className="flex items-center gap-2 mt-2">
-            <input value={commentText} onChange={e => setCommentText(e.target.value)}
+            <input
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
               placeholder="Write a comment..."
-              className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
-            <button type="submit" disabled={!commentText.trim() || submittingComment}
-              className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50">
+              className="flex-1 px-3 py-1.5 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+            />
+            <button
+              type="submit"
+              disabled={!commentText.trim() || submittingComment}
+              className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50"
+            >
               {submittingComment ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
             </button>
           </form>
