@@ -567,7 +567,7 @@ export default function FindBuddy() {
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <div className="relative w-full h-[260px] md:h-[320px] flex items-center justify-center text-center"
-        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1527631746610-bca00a040d60?q=80&w=1470&auto=format&fit=crop')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1613756505541-bf172d3cb8de?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div className="absolute inset-0 bg-black/50" />
         <div className="relative z-10 max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-1.5">Find Your Travel Buddy</h1>

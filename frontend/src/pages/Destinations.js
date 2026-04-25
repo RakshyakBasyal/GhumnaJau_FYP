@@ -392,7 +392,7 @@ const Destinations = () => {
 
                 {/* Reviews */}
                 <div className="mt-auto pt-3 border-t border-gray-100 text-xs text-gray-400 font-medium">
-                  {destination.reviews?.length || 0} reviews
+                  {destination.reviewCount || 0} reviews
                 </div>
               </div>
             </div>

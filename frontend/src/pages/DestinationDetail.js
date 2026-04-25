@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { MapPin, DollarSign, Calendar, Plane, Hotel, X, ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import { MapPin, DollarSign, Calendar, Plane, Hotel, X, ChevronLeft, ChevronRight, Star, MessageSquare, User } from 'lucide-react';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -30,21 +30,33 @@ const DestinationDetail = () => {
   const [destination, setDestination] = useState(null);
   const [hotels, setHotels] = useState([]);
   const [flights, setFlights] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [avgRating, setAvgRating] = useState(null);
+  const [reviewCount, setReviewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const destRes = await axios.get(`${BASE_URL}/api/destinations/${id}`);
+        const token = localStorage.getItem('token');
+        const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+
+        const [destRes, hotelsRes, flightsRes, reviewsRes] = await Promise.all([
+          axios.get(`${BASE_URL}/api/destinations/${id}`),
+          axios.get(`${BASE_URL}/api/hotels?destination=${id}`),
+          axios.get(`${BASE_URL}/api/flights?destination=${id}&isActive=true`),
+          axios.get(`${BASE_URL}/api/posts/reviews?reviewType=destination&reviewRefId=${id}`, config)
+        ]);
+
         setDestination(destRes.data);
-
-        const hotelsRes = await axios.get(`${BASE_URL}/api/hotels?destination=${id}`);
         setHotels(hotelsRes.data || []);
-
-        const flightsRes = await axios.get(`${BASE_URL}/api/flights?destination=${id}&isActive=true`);
         setFlights(flightsRes.data || []);
+        setReviews(reviewsRes.data.posts || []);
+        setAvgRating(reviewsRes.data.avgRating);
+        setReviewCount(reviewsRes.data.count || 0);
       } catch (err) {
         console.error("Error fetching destination data:", err);
       } finally {
@@ -78,9 +90,20 @@ const DestinationDetail = () => {
         <div className="absolute inset-0 bg-black bg-opacity-40" />
         <div className="relative z-10 flex flex-col items-center justify-center h-full text-white px-4 text-center">
           <h1 className="text-5xl md:text-6xl font-bold mb-4">{destination.name}</h1>
-          <div className="flex items-center gap-3 text-xl">
-            <MapPin className="w-6 h-6" />
-            <span>{destination.country || 'Nepal'}</span>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-3 text-xl mb-2">
+              <MapPin className="w-6 h-6" />
+              <span>{destination.country || 'Nepal'}</span>
+            </div>
+            {reviewCount > 0 && (
+              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full">
+                <div className="flex items-center gap-1">
+                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                  <span className="font-bold text-lg">{avgRating || '5.0'}</span>
+                </div>
+                <span className="text-white/80 text-sm">| {reviewCount} reviews from community</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -193,10 +216,13 @@ const DestinationDetail = () => {
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
-                          className={`w-4 h-4 ${i < Math.round(hotel.rating || 4) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                          className={`w-4 h-4 ${i < Math.round(hotel.rating || 5) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
                         />
                       ))}
-                      <span className="text-sm text-gray-600 ml-1">({hotel.rating || 4.0})</span>
+                      <span className="text-sm text-gray-600 ml-1">
+                        ({hotel.rating?.toFixed(1) || '5.0'})
+                        {hotel.reviewCount > 0 && <span className="text-[10px] ml-1">({hotel.reviewCount})</span>}
+                      </span>
                     </div>
                     <p className="text-gray-600 mb-4 line-clamp-2">
                       {hotel.shortDescription || hotel.description?.substring(0, 120) || 'No description available'}
@@ -288,7 +314,124 @@ const DestinationDetail = () => {
             </div>
           )}
         </div>
+
+        {/* Community Reviews */}
+        <div id="reviews" className="mt-24 mb-16">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <div className="bg-yellow-100 p-4 rounded-full">
+                <Star className="w-8 h-8 text-yellow-600" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900">Community Reviews</h2>
+            </div>
+            {reviews.length > 1 && (
+              <button
+                onClick={() => setShowAllReviews(true)}
+                className="text-blue-600 font-bold hover:underline"
+              >
+                View All Reviews ({reviews.length})
+              </button>
+            )}
+          </div>
+
+          {reviews.length === 0 ? (
+            <div className="bg-white rounded-xl shadow p-10 text-center text-gray-600">
+              No reviews from the community yet. Be the first to share your experience on the feed!
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Show only the latest review */}
+              {[reviews[0]].map((review) => (
+                <div key={review._id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100">
+                        {review.author?.avatar ? (
+                          <img src={`${BASE_URL}${review.author.avatar}`} alt={review.author.fullName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-600">
+                            <User className="w-6 h-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900">{review.author?.fullName || 'Anonymous'}</h4>
+                        <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 bg-amber-50 px-3 py-1 rounded-full">
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <span className="font-bold text-amber-700">{review.rating}</span>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 mb-4">{review.content}</p>
+                  {review.images?.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {review.images.map((img, idx) => (
+                        <img key={idx} src={`${BASE_URL}${img}`} alt="Review photo" className="h-24 w-24 object-cover rounded-lg flex-shrink-0 cursor-pointer hover:opacity-80 transition" onClick={() => { setCurrentPhotoIndex(idx); setShowPhotos(true); }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* View All Reviews Modal */}
+      {showAllReviews && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowAllReviews(false)}
+              className="absolute top-4 right-4 text-gray-600 hover:text-gray-900"
+            >
+              <X className="h-7 w-7" />
+            </button>
+
+            <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+              All Community Reviews for {destination.name}
+            </h2>
+
+            <div className="space-y-6">
+              {reviews.map((review) => (
+                <div key={review._id} className="bg-gray-50 rounded-2xl border border-gray-100 p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100">
+                        {review.author?.avatar ? (
+                          <img src={`${BASE_URL}${review.author.avatar}`} alt={review.author.fullName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-600">
+                            <User className="w-6 h-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900">{review.author?.fullName || 'Anonymous'}</h4>
+                        <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 bg-amber-50 px-3 py-1 rounded-full">
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <span className="font-bold text-amber-700">{review.rating}</span>
+                    </div>
+                  </div>
+                  <p className="text-gray-700 mb-4">{review.content}</p>
+                  {review.images?.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {review.images.map((img, idx) => (
+                        <img key={idx} src={`${BASE_URL}${img}`} alt="Review photo" className="h-32 w-32 object-cover rounded-xl flex-shrink-0 cursor-pointer hover:opacity-80 transition" onClick={() => { setCurrentPhotoIndex(idx); setShowPhotos(true); }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Full-screen Photo Viewer */}
       {showPhotos && allImages.length > 0 && (
