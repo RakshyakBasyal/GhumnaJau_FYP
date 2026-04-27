@@ -1,22 +1,143 @@
+// // backend/src/controllers/hotelController.js
+// const Hotel = require('../models/Hotel');
+
+// exports.createHotel = async (req, res) => {
+//   try {
+//     const {
+//       name,
+//       destination,
+//       country,
+//       description,
+//       shortDescription,
+//       rating,
+//       amenities,
+//       roomTypes,   
+//     } = req.body;
+
+//     // FIXED: Save images with /uploads/hotels/ prefix
+//     const images = req.files 
+//       ? req.files.map(file => `/uploads/hotels/${file.filename}`) 
+//       : [];
+
+//     const hotel = new Hotel({
+//       name,
+//       destination,
+//       country,
+//       description,
+//       shortDescription,
+//       rating: rating || 5,
+//       amenities: amenities ? amenities.split(',') : [],
+//       images,
+//       roomTypes: roomTypes ? JSON.parse(roomTypes) : [],  
+//     });
+
+//     const createdHotel = await hotel.save();
+//     await emitAdminStats(req.app.get('io'));
+//     res.status(201).json(createdHotel);
+//   } catch (err) {
+//     console.error('Create hotel error:', err);
+//     res.status(500).json({ msg: 'Server error' });
+//   }
+// };
+
+// exports.updateHotel = async (req, res) => {
+//   try {
+//     const hotel = await Hotel.findById(req.params.id);
+//     if (!hotel) return res.status(404).json({ msg: 'Not found' });
+
+//     const {
+//       name,
+//       destination,
+//       country,
+//       description,
+//       shortDescription,
+//       rating,
+//       amenities,
+//       roomTypes,   
+//     } = req.body;
+
+//     if (name) hotel.name = name;
+//     if (destination) hotel.destination = destination;
+//     if (country) hotel.country = country;
+//     if (description) hotel.description = description;
+//     if (shortDescription) hotel.shortDescription = shortDescription;
+//     if (rating) hotel.rating = rating;
+//     if (amenities) hotel.amenities = amenities.split(',');
+
+//     if (roomTypes) {
+//       hotel.roomTypes = JSON.parse(roomTypes);
+//     }
+
+//     // FIXED: New images now saved in /uploads/hotels/
+//     if (req.files && req.files.length > 0) {
+//       const newImages = req.files.map(file => `/uploads/hotels/${file.filename}`);
+//       hotel.images = [...hotel.images, ...newImages];
+//     }
+
+//     if (req.body.deleteImages) {
+//       const deleteImages = JSON.parse(req.body.deleteImages);
+//       hotel.images = hotel.images.filter(img => !deleteImages.includes(img));
+//     }
+
+//     const updated = await hotel.save();
+//     await emitAdminStats(req.app.get('io'));
+//     res.json(updated);
+//   } catch (err) {
+//     console.error('Update hotel error:', err);
+//     res.status(500).json({ msg: 'Server error' });
+//   }
+// };
+
+// const { emitAdminStats } = require("./adminController");
+
+// // @desc    Get all hotels
+// // @route   GET /api/hotels
+// exports.getAllHotels = async (req, res) => {
+//   try {
+//     const { destination } = req.query;
+//     const filter = destination ? { destination } : {};
+//     const hotels = await Hotel.find(filter)
+//       .populate('destination', 'name country')
+//       .sort({ rating: -1, name: 1 });
+//     res.json(hotels);
+//   } catch (err) {
+//     res.status(500).json({ msg: 'Server error' });
+//   }
+// };
+
+// exports.getHotel = async (req, res) => {
+//   try {
+//     const hotel = await Hotel.findById(req.params.id).populate('destination', 'name');
+//     if (!hotel) return res.status(404).json({ msg: 'Hotel not found' });
+//     res.json(hotel);
+//   } catch (err) {
+//     res.status(500).json({ msg: 'Server error' });
+//   }
+// };
+
+// exports.deleteHotel = async (req, res) => {
+//   try {
+//     await Hotel.findByIdAndDelete(req.params.id);
+//     await emitAdminStats(req.app.get('io'));
+//     res.json({ msg: 'Hotel deleted' });
+//   } catch (err) {
+//     res.status(500).json({ msg: 'Server error' });
+//   }
+// };
+
 // backend/src/controllers/hotelController.js
 const Hotel = require('../models/Hotel');
+const { emitAdminStats } = require('./adminController');
 
 exports.createHotel = async (req, res) => {
   try {
     const {
-      name,
-      destination,
-      country,
-      description,
-      shortDescription,
-      rating,
-      amenities,
-      roomTypes,   
+      name, destination, country, description,
+      shortDescription, amenities, roomTypes, lat, lng,
     } = req.body;
 
-    // FIXED: Save images with /uploads/hotels/ prefix
-    const images = req.files 
-      ? req.files.map(file => `/uploads/hotels/${file.filename}`) 
+    const images = req.files
+      ? req.files.map(file => `/uploads/hotels/${file.filename}`)
       : [];
 
     const hotel = new Hotel({
@@ -25,15 +146,18 @@ exports.createHotel = async (req, res) => {
       country,
       description,
       shortDescription,
-      rating: rating || 5,
-      amenities: amenities ? amenities.split(',') : [],
+      amenities: amenities ? amenities.split(',').map(a => a.trim()).filter(Boolean) : [],
       images,
-      roomTypes: roomTypes ? JSON.parse(roomTypes) : [],  
+      roomTypes: roomTypes ? JSON.parse(roomTypes) : [],
+      location: {
+        lat: lat ? parseFloat(lat) : null,
+        lng: lng ? parseFloat(lng) : null,
+      },
     });
 
-    const createdHotel = await hotel.save();
+    const created = await hotel.save();
     await emitAdminStats(req.app.get('io'));
-    res.status(201).json(createdHotel);
+    res.status(201).json(created);
   } catch (err) {
     console.error('Create hotel error:', err);
     res.status(500).json({ msg: 'Server error' });
@@ -46,37 +170,31 @@ exports.updateHotel = async (req, res) => {
     if (!hotel) return res.status(404).json({ msg: 'Not found' });
 
     const {
-      name,
-      destination,
-      country,
-      description,
-      shortDescription,
-      rating,
-      amenities,
-      roomTypes,   
+      name, destination, country, description,
+      shortDescription, amenities, roomTypes,
+      deleteImages, lat, lng,
     } = req.body;
 
-    if (name) hotel.name = name;
-    if (destination) hotel.destination = destination;
-    if (country) hotel.country = country;
-    if (description) hotel.description = description;
+    if (name)             hotel.name             = name;
+    if (destination)      hotel.destination      = destination;
+    if (country)          hotel.country          = country;
+    if (description)      hotel.description      = description;
     if (shortDescription) hotel.shortDescription = shortDescription;
-    if (rating) hotel.rating = rating;
-    if (amenities) hotel.amenities = amenities.split(',');
+    if (amenities)        hotel.amenities        = amenities.split(',').map(a => a.trim()).filter(Boolean);
+    if (roomTypes)        hotel.roomTypes        = JSON.parse(roomTypes);
 
-    if (roomTypes) {
-      hotel.roomTypes = JSON.parse(roomTypes);
-    }
+    // Location — save if provided, clear if explicitly sent as empty string
+    if (lat !== undefined) hotel.location.lat = lat === '' ? null : parseFloat(lat);
+    if (lng !== undefined) hotel.location.lng = lng === '' ? null : parseFloat(lng);
 
-    // FIXED: New images now saved in /uploads/hotels/
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(file => `/uploads/hotels/${file.filename}`);
+      const newImages = req.files.map(f => `/uploads/hotels/${f.filename}`);
       hotel.images = [...hotel.images, ...newImages];
     }
 
-    if (req.body.deleteImages) {
-      const deleteImages = JSON.parse(req.body.deleteImages);
-      hotel.images = hotel.images.filter(img => !deleteImages.includes(img));
+    if (deleteImages) {
+      const toDelete = JSON.parse(deleteImages);
+      hotel.images = hotel.images.filter(img => !toDelete.includes(img));
     }
 
     const updated = await hotel.save();
@@ -88,10 +206,6 @@ exports.updateHotel = async (req, res) => {
   }
 };
 
-const { emitAdminStats } = require("./adminController");
-
-// @desc    Get all hotels
-// @route   GET /api/hotels
 exports.getAllHotels = async (req, res) => {
   try {
     const { destination } = req.query;
