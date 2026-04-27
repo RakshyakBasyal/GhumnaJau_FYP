@@ -753,6 +753,7 @@ import {
 } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import ConfirmDialog from "../components/ConfirmDialog";
+import Modal from "../components/Modal";
 
 const BASE_URL = "http://localhost:5000";
 
@@ -956,8 +957,12 @@ const ManageDestinations = () => {
         </div>
 
         {showForm && (
-          <div ref={formRef} className="bg-white rounded-xl shadow-md p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingId ? "Edit Destination" : "Add New Destination"}</h2>
+          <Modal
+            isOpen={showForm}
+            onClose={resetForm}
+            title={editingId ? "Edit Destination" : "Add New Destination"}
+            size="xl"
+          >
             <form onSubmit={handleSubmit} className="space-y-6">
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -991,12 +996,6 @@ const ManageDestinations = () => {
                 <input type="text" name="bestTimeToVisit" required value={formData.bestTimeToVisit} onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="e.g., October - December" />
-              </div>
-
-              {/* ✅ Rating field REMOVED — auto-computed from user reviews */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700 flex items-start gap-2">
-                <Star className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-500" />
-                <p><strong>Ratings are automatic.</strong> The destination rating is now calculated from user reviews submitted in the Community feed. You don't need to set it manually.</p>
               </div>
 
               {/* Average Cost Section */}
@@ -1107,7 +1106,7 @@ const ManageDestinations = () => {
                 </button>
               </div>
             </form>
-          </div>
+          </Modal>
         )}
 
         {/* Destinations grid */}
