@@ -1,37 +1,36 @@
-// // frontend/src/pages/ManageHotels.jsx
+// frontend/src/pages/ManageHotels.jsx
 import { useEffect, useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Star } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Star, MapPin } from 'lucide-react';
 import AdminNavbar from '../components/AdminNavbar';
 import { getHotels, createHotel, updateHotel, deleteHotel, getDestinations } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
+import LocationPicker from '../components/admin/LocationPicker';
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = 'http://localhost:5000';
 
 const ManageHotels = () => {
-  const [hotels, setHotels] = useState([]);
+  const [hotels,       setHotels]       = useState([]);
   const [destinations, setDestinations] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [showForm,     setShowForm]     = useState(false);
+  const [editingId,    setEditingId]    = useState(null);
+  const [loading,      setLoading]      = useState(false);
 
-  // ✅ rating removed from formData
   const [formData, setFormData] = useState({
-    name: '',
-    destination: '',
-    country: '',
-    description: '',
-    shortDescription: '',
-    amenities: '',
-    roomTypes: [],
+    name: '', destination: '', country: '',
+    description: '', shortDescription: '',
+    amenities: '', roomTypes: [],
   });
 
-  const [files, setFiles] = useState([]);
-  const [previewImages, setPreviewImages] = useState([]);
-  const [existingImages, setExistingImages] = useState([]);
-  const [imagesToDelete, setImagesToDelete] = useState([]);
+  // Map location
+  const [pinLat, setPinLat] = useState(null);
+  const [pinLng, setPinLng] = useState(null);
+
+  const [files,           setFiles]           = useState([]);
+  const [existingImages,  setExistingImages]  = useState([]);
+  const [imagesToDelete,  setImagesToDelete]  = useState([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
+  const [deleteId,        setDeleteId]        = useState(null);
   const { showToast } = useToast();
   const formRef = useRef(null);
 
@@ -55,77 +54,106 @@ const ManageHotels = () => {
   const handleFileChange = (e) => {
     const newFiles = Array.from(e.target.files);
     setFiles(prev => [...prev, ...newFiles]);
-    setPreviewImages(prev => [...prev, ...newFiles.map(f => URL.createObjectURL(f))]);
   };
 
   const removeNewFile = (index) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
-    setPreviewImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const toggleDeleteExisting = (imgPath) => {
-    setImagesToDelete(prev => prev.includes(imgPath) ? prev.filter(p => p !== imgPath) : [...prev, imgPath]);
+    setImagesToDelete(prev =>
+      prev.includes(imgPath) ? prev.filter(p => p !== imgPath) : [...prev, imgPath]
+    );
     setExistingImages(prev => prev.filter(img => img !== imgPath));
   };
 
   const addRoomType = () => {
-    setFormData(prev => ({ ...prev, roomTypes: [...(prev.roomTypes || []), { name: '', pricePerNight: '', maxCapacity: 2 }] }));
+    setFormData(prev => ({
+      ...prev,
+      roomTypes: [...(prev.roomTypes || []), { name: '', pricePerNight: '', maxCapacity: 2 }],
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
     const data = new FormData();
-    data.append('name', formData.name);
-    data.append('destination', formData.destination);
-    data.append('country', formData.country);
-    data.append('description', formData.description);
+    data.append('name',             formData.name);
+    data.append('destination',      formData.destination);
+    data.append('country',          formData.country);
+    data.append('description',      formData.description);
     data.append('shortDescription', formData.shortDescription);
-    data.append('amenities', formData.amenities);
-    // ✅ rating NOT appended — computed from user reviews
-    data.append('roomTypes', JSON.stringify(formData.roomTypes));
+    data.append('amenities',        formData.amenities);
+    data.append('roomTypes',        JSON.stringify(formData.roomTypes));
+
+    // Send coordinates (or empty string to clear)
+    data.append('lat', pinLat !== null ? pinLat : '');
+    data.append('lng', pinLng !== null ? pinLng : '');
+
     files.forEach(file => data.append('images', file));
-    if (editingId && imagesToDelete.length > 0) data.append('deleteImages', JSON.stringify(imagesToDelete));
+    if (editingId && imagesToDelete.length > 0) {
+      data.append('deleteImages', JSON.stringify(imagesToDelete));
+    }
 
     try {
-      if (editingId) { await updateHotel(editingId, data); showToast('Hotel updated successfully!', 'success'); }
-      else { await createHotel(data); showToast('Hotel added successfully!', 'success'); }
+      if (editingId) {
+        await updateHotel(editingId, data);
+        showToast('Hotel updated successfully!', 'success');
+      } else {
+        await createHotel(data);
+        showToast('Hotel added successfully!', 'success');
+      }
       resetForm();
       fetchHotels();
-    } catch (_) { showToast('Failed to save hotel', 'error'); }
-    finally { setLoading(false); }
+    } catch (_) {
+      showToast('Failed to save hotel', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const startEdit = (hotel) => {
     setFormData({
-      name: hotel.name || '',
-      destination: hotel.destination?._id || '',
-      country: hotel.country || '',
-      description: hotel.description || '',
+      name:             hotel.name || '',
+      destination:      hotel.destination?._id || '',
+      country:          hotel.country || '',
+      description:      hotel.description || '',
       shortDescription: hotel.shortDescription || '',
-      amenities: hotel.amenities?.join(', ') || '',
-      roomTypes: hotel.roomTypes || [],
+      amenities:        hotel.amenities?.join(', ') || '',
+      roomTypes:        hotel.roomTypes || [],
     });
     setExistingImages(hotel.images || []);
     setImagesToDelete([]);
     setFiles([]);
-    setPreviewImages([]);
+    setPinLat(hotel.location?.lat || null);
+    setPinLng(hotel.location?.lng || null);
     setEditingId(hotel._id);
     setShowForm(true);
-    setTimeout(() => { if (formRef.current) formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+    setTimeout(() => {
+      if (formRef.current) formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleDelete = (id) => { setDeleteId(id); setShowDeleteConfirm(true); };
 
   const confirmDelete = async () => {
-    try { await deleteHotel(deleteId); showToast('Hotel deleted successfully!', 'success'); fetchHotels(); }
-    catch (_) { showToast('Delete failed', 'error'); }
-    finally { setShowDeleteConfirm(false); setDeleteId(null); }
+    try {
+      await deleteHotel(deleteId);
+      showToast('Hotel deleted successfully!', 'success');
+      fetchHotels();
+    } catch (_) {
+      showToast('Delete failed', 'error');
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteId(null);
+    }
   };
 
   const resetForm = () => {
     setFormData({ name: '', destination: '', country: '', description: '', shortDescription: '', amenities: '', roomTypes: [] });
-    setFiles([]); setPreviewImages([]); setExistingImages([]); setImagesToDelete([]);
+    setFiles([]); setExistingImages([]); setImagesToDelete([]);
+    setPinLat(null); setPinLng(null);
     setEditingId(null); setShowForm(false);
   };
 
@@ -133,20 +161,28 @@ const ManageHotels = () => {
     <div className="min-h-screen bg-gray-100">
       <AdminNavbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Manage Hotels</h1>
             <p className="text-gray-600 mt-2">Add, edit, or remove hotels</p>
           </div>
-          <button onClick={() => setShowForm(!showForm)}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
-            {showForm ? <><X className="h-5 w-5" /><span>Close</span></> : <><Plus className="h-5 w-5" /><span>Add Hotel</span></>}
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition flex items-center space-x-2"
+          >
+            {showForm
+              ? <><X className="h-5 w-5" /><span>Close</span></>
+              : <><Plus className="h-5 w-5" /><span>Add Hotel</span></>}
           </button>
         </div>
 
         {showForm && (
           <div ref={formRef} className="bg-white rounded-xl shadow-md p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingId ? 'Edit Hotel' : 'Add New Hotel'}</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              {editingId ? 'Edit Hotel' : 'Add New Hotel'}
+            </h2>
+
             <form onSubmit={handleSubmit} className="space-y-6">
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -185,12 +221,6 @@ const ManageHotels = () => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
               </div>
 
-              {/* ✅ Rating field REMOVED — auto-computed from user reviews */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700 flex items-start gap-2">
-                <Star className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-500" />
-                <p><strong>Ratings are automatic.</strong> Hotel ratings are calculated from user reviews submitted in the Community feed. You don't need to set them manually.</p>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Amenities (comma separated)</label>
                 <input type="text" name="amenities" value={formData.amenities} onChange={handleChange}
@@ -204,18 +234,30 @@ const ManageHotels = () => {
                 {formData.roomTypes.map((room, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 p-4 border rounded-lg bg-gray-50">
                     <input type="text" placeholder="Room Name (e.g. Single)" value={room.name} required
-                      onChange={e => { const t = [...formData.roomTypes]; t[index].name = e.target.value; setFormData({ ...formData, roomTypes: t }); }}
+                      onChange={e => {
+                        const t = [...formData.roomTypes]; t[index].name = e.target.value;
+                        setFormData({ ...formData, roomTypes: t });
+                      }}
                       className="px-4 py-2 border rounded-lg" />
                     <input type="number" placeholder="Price per night" value={room.pricePerNight} required min="0"
                       onWheel={e => e.target.blur()}
-                      onChange={e => { const t = [...formData.roomTypes]; t[index].pricePerNight = e.target.value; setFormData({ ...formData, roomTypes: t }); }}
+                      onChange={e => {
+                        const t = [...formData.roomTypes]; t[index].pricePerNight = e.target.value;
+                        setFormData({ ...formData, roomTypes: t });
+                      }}
                       className="px-4 py-2 border rounded-lg" />
                     <input type="number" placeholder="Max Guests" value={room.maxCapacity} min="1"
                       onWheel={e => e.target.blur()}
-                      onChange={e => { const t = [...formData.roomTypes]; t[index].maxCapacity = e.target.value; setFormData({ ...formData, roomTypes: t }); }}
+                      onChange={e => {
+                        const t = [...formData.roomTypes]; t[index].maxCapacity = e.target.value;
+                        setFormData({ ...formData, roomTypes: t });
+                      }}
                       className="px-4 py-2 border rounded-lg" />
-                    <button type="button" onClick={() => setFormData({ ...formData, roomTypes: formData.roomTypes.filter((_, i) => i !== index) })}
-                      className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200">Remove</button>
+                    <button type="button"
+                      onClick={() => setFormData({ ...formData, roomTypes: formData.roomTypes.filter((_, i) => i !== index) })}
+                      className="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200">
+                      Remove
+                    </button>
                   </div>
                 ))}
                 <button type="button" onClick={addRoomType}
@@ -224,7 +266,20 @@ const ManageHotels = () => {
                 </button>
               </div>
 
-              {/* Images */}
+              {/* ── Location Map Picker ─────────────────────────────────────── */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hotel Location on Map <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <LocationPicker
+                  lat={pinLat}
+                  lng={pinLng}
+                  onChange={(lat, lng) => { setPinLat(lat); setPinLng(lng); }}
+                  onClear={() => { setPinLat(null); setPinLng(null); }}
+                />
+              </div>
+
+              {/* Existing Images */}
               {editingId && existingImages.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Current Images</label>
@@ -290,9 +345,17 @@ const ManageHotels = () => {
                   </div>
                 )}
                 <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{hotel.name}</h3>
-                  <p className="text-gray-600 text-sm mb-3">{hotel.shortDescription || 'No description'}</p>
-                  {/* ✅ Rating shown as read-only, computed from user reviews */}
+                  <h3 className="text-xl font-bold text-gray-900 mb-1">{hotel.name}</h3>
+                  <p className="text-gray-600 text-sm mb-2">{hotel.shortDescription || 'No description'}</p>
+
+                  {/* Pin status badge */}
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <MapPin className={`h-3.5 w-3.5 ${hotel.location?.lat ? 'text-green-500' : 'text-gray-300'}`} />
+                    <span className={`text-xs font-medium ${hotel.location?.lat ? 'text-green-600' : 'text-gray-400'}`}>
+                      {hotel.location?.lat ? 'Map pin set' : 'No map pin'}
+                    </span>
+                  </div>
+
                   <div className="flex items-center gap-1.5 mb-4">
                     <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
                     <span className="text-sm font-semibold text-gray-700">
@@ -300,6 +363,7 @@ const ManageHotels = () => {
                     </span>
                     <span className="text-xs text-gray-400">(from user reviews)</span>
                   </div>
+
                   <div className="flex items-center justify-end space-x-2">
                     <button onClick={() => startEdit(hotel)}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition">

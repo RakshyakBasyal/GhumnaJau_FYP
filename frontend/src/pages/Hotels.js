@@ -119,7 +119,7 @@ const Hotels = () => {
       <div
         className="relative w-full h-[280px] md:h-[360px] flex items-center justify-center text-center"
         style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=1470&auto=format&fit=crop')`,
+          backgroundImage: `url('https://images.unsplash.com/photo-1584132967334-10e028bd69f7?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
