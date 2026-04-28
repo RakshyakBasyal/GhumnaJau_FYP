@@ -6,19 +6,11 @@ const Flight  = require('../models/Flight');
 const auth    = require('../middleware/auth');
 const admin   = require('../middleware/admin');
 const { sendBookingConfirmationEmail, sendRefundConfirmationEmail } = require('../utils/bookingEmail');
-const { 
-  getAdminStats, 
-  emitAdminStats 
-} = require("../controllers/adminController");
+const { emitAdminStats } = require('../controllers/adminController');
 
-// Must match paymentController.js and frontend AUTO_REFUND_REASONS
 const PREDEFINED_REASONS = [
-  'Booking mistake',
-  'Change of plans',
-  'Found a better deal',
-  'Duplicate booking',
-  'Medical emergency',
-  'Weather or natural issues',
+  'Booking mistake', 'Change of plans', 'Found a better deal',
+  'Duplicate booking', 'Medical emergency', 'Weather or natural issues',
 ];
 module.exports.PREDEFINED_REASONS = PREDEFINED_REASONS;
 
@@ -32,23 +24,26 @@ const flightPop = {
   path: 'flight',
   select: 'airline flightNumber from to departureTime arrivalTime departureDate price class',
 };
-const userPop = { path: 'user', select: 'fullName email' };
+const restaurantPop = { path: 'restaurant', select: 'name cuisine address images openingHours' };
+const activityPop   = { path: 'activity',   select: 'name category duration price images' };
+const tripDestPop   = { path: 'tripPlanDestination', select: 'name country images' };
+const userPop       = { path: 'user', select: 'fullName email' };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/bookings  — all bookings (admin only)
-// Query: ?includeArchived=true  to also return archived bookings
-// ─────────────────────────────────────────────────────────────────────────────
+function populateAll(query) {
+  return query
+    .populate(userPop)
+    .populate(hotelPop)
+    .populate(flightPop)
+    .populate(restaurantPop)
+    .populate(activityPop)
+    .populate(tripDestPop);
+}
+
+// ── GET /api/bookings  — admin all bookings ───────────────────────────────────
 router.get('/', auth, admin, async (req, res) => {
   try {
-    const includeArchived = req.query.includeArchived === 'true';
-    const filter = includeArchived ? {} : { isArchived: false };
-
-    const bookings = await Booking.find(filter)
-      .populate(userPop)
-      .populate(hotelPop)
-      .populate(flightPop)
-      .sort({ createdAt: -1 });
-
+    const filter = req.query.includeArchived === 'true' ? {} : { isArchived: false };
+    const bookings = await populateAll(Booking.find(filter).sort({ createdAt: -1 }));
     res.json(bookings);
   } catch (err) {
     console.error('Admin get bookings error:', err);
@@ -56,200 +51,192 @@ router.get('/', auth, admin, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/bookings/refund-review  — bookings waiting for admin refund decision
-// ─────────────────────────────────────────────────────────────────────────────
+// ── GET /api/bookings/refund-review ───────────────────────────────────────────
 router.get('/refund-review', auth, admin, async (req, res) => {
   try {
-    const bookings = await Booking.find({ refundReviewStatus: 'pending_review' })
-      .populate(userPop)
-      .populate(hotelPop)
-      .populate(flightPop)
-      .sort({ cancelledAt: 1 }); // oldest first — handle in order
+    const bookings = await populateAll(
+      Booking.find({ refundReviewStatus: 'pending_review' }).sort({ cancelledAt: 1 })
+    );
     res.json(bookings);
   } catch (err) {
-    console.error('Refund review queue error:', err);
     res.status(500).json({ message: 'Failed to load refund queue' });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/bookings/my  — current user's own bookings
-// ─────────────────────────────────────────────────────────────────────────────
+// ── GET /api/bookings/my ──────────────────────────────────────────────────────
 router.get('/my', auth, async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.user.id })
-      .populate(hotelPop)
-      .populate(flightPop)
-      .sort({ createdAt: -1 });
+    const bookings = await populateAll(
+      Booking.find({ user: req.user.id }).sort({ createdAt: -1 })
+    );
     res.json(bookings);
   } catch (err) {
-    console.error('Get my bookings error:', err);
     res.status(500).json({ message: 'Failed to load your bookings' });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/bookings  — create a new booking (authenticated user)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── POST /api/bookings ────────────────────────────────────────────────────────
 router.post('/', auth, async (req, res) => {
   try {
     const {
-      type, hotelId, flightId, totalAmount,
-      passengersCount, contactInfo, ...rest
+      type, totalAmount,
+      // hotel
+      hotelId, roomType, checkIn, checkOut, guests,
+      // flight
+      flightId, passengersCount, contactInfo,
+      // restaurant reservation
+      restaurantId, reservationDate, reservationTime, tableSize,
+      // activity
+      activityId, activityDate, activityGuests,
+      // trip plan
+      tripPlanName, tripPlanDestination, tripPlanItems,
     } = req.body;
 
-    if (!type || !['hotel', 'flight'].includes(type))
-      return res.status(400).json({ message: 'type must be "hotel" or "flight"' });
+    const VALID = ['hotel', 'flight', 'reservation', 'activity', 'trip_plan'];
+    if (!type || !VALID.includes(type))
+      return res.status(400).json({ message: 'Invalid booking type' });
+    if (totalAmount === undefined || totalAmount < 0)
+      return res.status(400).json({ message: 'totalAmount is required' });
 
-    if (!totalAmount || totalAmount <= 0)
-      return res.status(400).json({ message: 'totalAmount is required and must be positive' });
+    const bookingData = { user: req.user.id, type, totalAmount };
 
-    const bookingData = { user: req.user.id, type, totalAmount, ...rest };
-
-    // ── Hotel booking ─────────────────────────────────────────────────────────
+    // ── Hotel ─────────────────────────────────────────────────────────────────
     if (type === 'hotel') {
       if (!hotelId) return res.status(400).json({ message: 'hotelId required' });
-      bookingData.hotel = hotelId;
+      bookingData.hotel    = hotelId;
+      bookingData.roomType = roomType;
+      bookingData.checkIn  = checkIn;
+      bookingData.checkOut = checkOut;
+      bookingData.guests   = guests;
     }
 
-    // ── Flight booking ────────────────────────────────────────────────────────
+    // ── Flight ────────────────────────────────────────────────────────────────
     if (type === 'flight') {
       if (!flightId) return res.status(400).json({ message: 'flightId required' });
       if (!passengersCount?.adults)
         return res.status(400).json({ message: 'passengersCount.adults required' });
 
-      bookingData.flight          = flightId;
-      bookingData.passengersCount = passengersCount;
-      bookingData.contactInfo     = contactInfo || {};
-
       const flight = await Flight.findById(flightId);
       if (!flight)          return res.status(404).json({ message: 'Flight not found' });
-      if (!flight.isActive) return res.status(400).json({ message: 'Flight is not active' });
+      if (!flight.isActive) return res.status(400).json({ message: 'Flight not active' });
 
-      const totalPax =
-        (passengersCount.adults   || 0) +
-        (passengersCount.children || 0) +
-        (passengersCount.infants  || 0);
-
+      const totalPax = (passengersCount.adults || 0) + (passengersCount.children || 0) + (passengersCount.infants || 0);
       if (flight.availableSeats < totalPax)
         return res.status(400).json({ message: 'Not enough seats available' });
 
       flight.availableSeats -= totalPax;
       await flight.save();
+
+      bookingData.flight          = flightId;
+      bookingData.passengersCount = passengersCount;
+      bookingData.contactInfo     = contactInfo || {};
+    }
+
+    // ── Restaurant reservation ────────────────────────────────────────────────
+    if (type === 'reservation') {
+      if (!restaurantId) return res.status(400).json({ message: 'restaurantId required' });
+      bookingData.restaurant      = restaurantId;
+      bookingData.reservationDate = reservationDate;
+      bookingData.reservationTime = reservationTime;
+      bookingData.tableSize       = tableSize || 2;
+    }
+
+    // ── Activity ──────────────────────────────────────────────────────────────
+    if (type === 'activity') {
+      if (!activityId) return res.status(400).json({ message: 'activityId required' });
+      bookingData.activity       = activityId;
+      bookingData.activityDate   = activityDate;
+      bookingData.activityGuests = activityGuests || 1;
+    }
+
+    // ── Trip plan ─────────────────────────────────────────────────────────────
+    if (type === 'trip_plan') {
+      if (!tripPlanItems || tripPlanItems.length === 0)
+        return res.status(400).json({ message: 'Trip plan must have at least one item' });
+      bookingData.tripPlanName        = tripPlanName || 'My Trip';
+      bookingData.tripPlanDestination = tripPlanDestination;
+      bookingData.tripPlanItems       = tripPlanItems;
+
+      // Deduct flight seats if flight is included in plan
+      const flightItem = tripPlanItems.find(i => i.type === 'flight' && i.flight);
+      if (flightItem) {
+        const flight = await Flight.findById(flightItem.flight);
+        if (flight && flight.isActive && flight.availableSeats >= 1) {
+          flight.availableSeats -= 1;
+          await flight.save();
+        }
+      }
     }
 
     const booking   = new Booking(bookingData);
     await booking.save();
 
-    const populated = await Booking.findById(booking._id)
-      .populate(type === 'hotel' ? hotelPop : flightPop)
-      .populate(userPop);
-
+    const populated = await populateAll(Booking.findById(booking._id));
     req.app.get('io')?.emit('newBooking', populated);
     await emitAdminStats(req.app.get('io'));
-    res.status(201).json({ message: `${type} booking created`, booking: populated });
+    res.status(201).json({ message: type + ' booking created', booking: populated });
   } catch (err) {
     console.error('Booking creation error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/:id/status  — admin confirms or cancels a PENDING UNPAID booking
-//
-// Rules:
-//   • Only works on status === 'pending' bookings
-//   • Blocks paid bookings (they are auto-confirmed by Stripe)
-//   • On confirm  → sends confirmation email; user can pay later from MyBookings
-//   • On cancel   → restores flight seats if applicable
-// ─────────────────────────────────────────────────────────────────────────────
+// ── PATCH /:id/status — admin confirm/cancel ──────────────────────────────────
 router.patch('/:id/status', auth, admin, async (req, res) => {
   try {
     const { status } = req.body;
     if (!['confirmed', 'cancelled'].includes(status))
-      return res.status(400).json({ message: 'Invalid status. Must be "confirmed" or "cancelled".' });
+      return res.status(400).json({ message: 'Invalid status' });
 
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
-
     if (booking.status !== 'pending')
       return res.status(400).json({ message: 'Only pending bookings can be updated' });
-
-    // Paid bookings are auto-confirmed by Stripe — admin should not touch them here
     if (booking.paymentStatus === 'completed')
-      return res.status(400).json({
-        message: 'Paid bookings are auto-confirmed by Stripe. Use the refund flow to cancel them.',
-      });
+      return res.status(400).json({ message: 'Paid bookings are auto-confirmed by Stripe' });
 
     booking.status = status;
-
     if (status === 'cancelled') {
       booking.cancelledBy = 'admin';
       booking.cancelledAt = new Date();
-
-      // Restore flight seats on admin cancellation
       if (booking.type === 'flight' && booking.flight && booking.passengersCount) {
         const flight = await Flight.findById(booking.flight);
         if (flight) {
-          const totalPax =
-            (booking.passengersCount.adults   || 0) +
-            (booking.passengersCount.children || 0) +
-            (booking.passengersCount.infants  || 0);
-          flight.availableSeats += totalPax;
+          const pax = (booking.passengersCount.adults || 0) + (booking.passengersCount.children || 0) + (booking.passengersCount.infants || 0);
+          flight.availableSeats += pax;
           await flight.save();
         }
       }
     }
 
     await booking.save();
+    const updated = await populateAll(Booking.findById(booking._id));
 
-    const updated = await Booking.findById(booking._id)
-      .populate(userPop)
-      .populate(hotelPop)
-      .populate(flightPop);
-
-    // Send confirmation email when admin confirms an unpaid booking
     if (status === 'confirmed') {
-      try {
-        await sendBookingConfirmationEmail({ booking: updated, source: 'admin' });
-      } catch (mailErr) {
-        console.error('Confirmation email failed (admin):', mailErr.message);
-      }
+      try { await sendBookingConfirmationEmail({ booking: updated, source: 'admin' }); }
+      catch (e) { console.error('Email failed:', e.message); }
     }
 
     req.app.get('io')?.emit('bookingUpdated', updated);
     await emitAdminStats(req.app.get('io'));
-    res.json({ message: `Booking ${status}`, booking: updated });
+    res.json({ message: 'Booking ' + status, booking: updated });
   } catch (err) {
     console.error('Update status error:', err);
     res.status(500).json({ message: 'Failed to update status' });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/my/:id/cancel  — user cancels an UNPAID booking
-//
-// No Stripe refund is processed here (booking was never paid).
-// For PAID booking cancellations → POST /api/payments/stripe/refund/:bookingId
-// ─────────────────────────────────────────────────────────────────────────────
+// ── PATCH /my/:id/cancel — user cancels unpaid booking ───────────────────────
 router.patch('/my/:id/cancel', auth, async (req, res) => {
   try {
     const { cancellationReason = '', cancellationNote = '' } = req.body || {};
-
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
-
-    if (booking.user.toString() !== req.user.id)
-      return res.status(403).json({ message: 'Not your booking' });
-
+    if (booking.user.toString() !== req.user.id) return res.status(403).json({ message: 'Not your booking' });
     if (!['pending', 'confirmed'].includes(booking.status))
-      return res.status(400).json({ message: 'Booking cannot be cancelled in its current status' });
-
+      return res.status(400).json({ message: 'Cannot cancel in current status' });
     if (booking.paymentStatus === 'completed')
-      return res.status(400).json({
-        message: 'This booking is paid. Use the refund cancellation flow instead.',
-      });
+      return res.status(400).json({ message: 'Use the refund flow instead' });
 
     booking.status             = 'cancelled';
     booking.cancelledBy        = 'user';
@@ -261,226 +248,132 @@ router.patch('/my/:id/cancel', auth, async (req, res) => {
     booking.refundReviewStatus = 'none';
     await booking.save();
 
-    // Restore flight seats
     if (booking.type === 'flight' && booking.flight && booking.passengersCount) {
       const flight = await Flight.findById(booking.flight);
       if (flight) {
-        const totalPax =
-          (booking.passengersCount.adults   || 0) +
-          (booking.passengersCount.children || 0) +
-          (booking.passengersCount.infants  || 0);
-        flight.availableSeats += totalPax;
+        const pax = (booking.passengersCount.adults || 0) + (booking.passengersCount.children || 0) + (booking.passengersCount.infants || 0);
+        flight.availableSeats += pax;
         await flight.save();
       }
     }
 
-    const updated = await Booking.findById(booking._id)
-      .populate(userPop)
-      .populate(booking.type === 'hotel' ? hotelPop : flightPop);
-
+    const updated = await populateAll(Booking.findById(booking._id));
     req.app.get('io')?.emit('bookingCancelled', updated);
     req.app.get('io')?.emit('bookingUpdated', updated);
     await emitAdminStats(req.app.get('io'));
-    res.json({ message: 'Booking cancelled successfully', booking: updated });
+    res.json({ message: 'Booking cancelled', booking: updated });
   } catch (err) {
-    console.error('Cancel booking error:', err);
     res.status(500).json({ message: 'Failed to cancel booking' });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/:id/refund-review  — admin approves or rejects a refund request
-//
-// Called after a user cancels a PAID booking with a CUSTOM reason.
-// On admin_approved → Stripe refund is triggered for the pre-calculated refundAmount.
-// On admin_rejected → booking stays cancelled, no money returned to user.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── PATCH /:id/refund-review ──────────────────────────────────────────────────
 router.patch('/:id/refund-review', auth, admin, async (req, res) => {
   try {
     const { decision, adminRefundNote = '', isManualRefund } = req.body;
-
     if (!['admin_approved', 'admin_rejected'].includes(decision))
-      return res.status(400).json({ message: 'decision must be "admin_approved" or "admin_rejected"' });
+      return res.status(400).json({ message: 'Invalid decision' });
 
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
-
     if (booking.refundReviewStatus !== 'pending_review')
-      return res.status(400).json({ message: 'This booking is not awaiting refund review' });
+      return res.status(400).json({ message: 'Not awaiting review' });
 
     booking.refundReviewStatus = decision;
     booking.adminRefundNote    = adminRefundNote;
     booking.refundReviewedAt   = new Date();
     booking.refundReviewedBy   = req.user.id;
 
-    // ── If admin approves refund, process Stripe ─────────────────────────────
     if (decision === 'admin_approved' && booking.transactionId && booking.refundAmount > 0) {
       if (isManualRefund) {
-        // Skip Stripe, just mark as refunded
         booking.paymentStatus     = 'refunded';
         booking.refundProcessedAt = new Date();
-        booking.adminRefundNote   = (adminRefundNote ? adminRefundNote + ' | ' : '') + '[Manually marked as refunded by admin]';
       } else {
         try {
           const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-          
-          // Use a timeout to avoid hanging if Stripe is unreachable
-          const refund = await stripe.refunds.create({
-            payment_intent: booking.transactionId,
-            amount: Math.round(booking.refundAmount * 100),
-          }, {
-            timeout: 10000, // 10s timeout
-          });
-
+          const refund = await stripe.refunds.create(
+            { payment_intent: booking.transactionId, amount: Math.round(booking.refundAmount * 100) },
+            { timeout: 10000 }
+          );
           booking.refundId          = refund.id;
           booking.paymentStatus     = 'refunded';
           booking.refundProcessedAt = new Date();
         } catch (stripeErr) {
-          console.error('Stripe refund failed during admin review:', stripeErr.message);
-          
-          // Provide more descriptive error to admin
-          let errorMsg = 'Stripe connection failed. Please check your internet or Stripe API key.';
-          if (stripeErr.type === 'StripeInvalidRequestError') {
-            errorMsg = 'Invalid request to Stripe: ' + stripeErr.message;
-          } else if (stripeErr.message) {
-            errorMsg = stripeErr.message;
-          }
-          
-          return res.status(500).json({ 
-            message: 'Stripe refund failed: ' + errorMsg,
-            details: stripeErr.message,
-            canManual: true // Hint to frontend to show manual option
-          });
+          return res.status(500).json({ message: 'Stripe refund failed: ' + stripeErr.message, canManual: true });
         }
       }
     }
 
     await booking.save();
-
-    const updated = await Booking.findById(booking._id)
-      .populate(userPop)
-      .populate(hotelPop)
-      .populate(flightPop);
-
+    const updated = await populateAll(Booking.findById(booking._id));
     req.app.get('io')?.emit('bookingRefundReviewed', updated);
     await emitAdminStats(req.app.get('io'));
 
-    // Send refund email if approved
     if (decision === 'admin_approved') {
-      try {
-        await sendRefundConfirmationEmail({ booking: updated });
-      } catch (mailErr) {
-        console.error('Refund confirmation email failed (admin):', mailErr.message);
-      }
+      try { await sendRefundConfirmationEmail({ booking: updated }); }
+      catch (e) { console.error('Refund email failed:', e.message); }
     }
 
-    res.json({
-      message: decision === 'admin_approved'
-        ? 'Refund approved and processed via Stripe'
-        : 'Refund request rejected',
-      booking: updated,
-    });
+    res.json({ message: decision === 'admin_approved' ? 'Refund approved' : 'Refund rejected', booking: updated });
   } catch (err) {
-    console.error('Refund review error:', err);
     res.status(500).json({ message: 'Failed to process refund review' });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/my/:id/archive  — user archives a booking from their list
-// Only confirmed or cancelled bookings can be archived
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Archive routes ────────────────────────────────────────────────────────────
 router.patch('/my/:id/archive', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-    if (booking.user.toString() !== req.user.id)
-      return res.status(403).json({ message: 'Not your booking' });
-    if (booking.isUserArchived)
-      return res.status(400).json({ message: 'Already archived' });
+    if (!booking) return res.status(404).json({ message: 'Not found' });
+    if (booking.user.toString() !== req.user.id) return res.status(403).json({ message: 'Not your booking' });
+    if (booking.isUserArchived) return res.status(400).json({ message: 'Already archived' });
     if (!['confirmed', 'cancelled'].includes(booking.status))
       return res.status(400).json({ message: 'Only confirmed or cancelled bookings can be archived' });
-
     booking.isUserArchived = true;
     await booking.save();
-    res.json({ message: 'Booking archived', booking });
-  } catch (err) {
-    console.error('User archive error:', err);
-    res.status(500).json({ message: 'Failed to archive' });
-  }
+    res.json({ message: 'Archived', booking });
+  } catch (err) { res.status(500).json({ message: 'Failed' }); }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/my/:id/unarchive  — user restores a booking to their main list
-// ─────────────────────────────────────────────────────────────────────────────
 router.patch('/my/:id/unarchive', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: 'Booking not found' });
-    if (booking.user.toString() !== req.user.id)
-      return res.status(403).json({ message: 'Not your booking' });
-    if (!booking.isUserArchived)
-      return res.status(400).json({ message: 'Not archived' });
-
+    if (!booking) return res.status(404).json({ message: 'Not found' });
+    if (booking.user.toString() !== req.user.id) return res.status(403).json({ message: 'Not your booking' });
     booking.isUserArchived = false;
     await booking.save();
-    res.json({ message: 'Booking unarchived', booking });
-  } catch (err) {
-    console.error('User unarchive error:', err);
-    res.status(500).json({ message: 'Failed to unarchive' });
-  }
+    res.json({ message: 'Unarchived', booking });
+  } catch (err) { res.status(500).json({ message: 'Failed' }); }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/clear-completed  — admin bulk-archives all confirmed/cancelled
-// ─────────────────────────────────────────────────────────────────────────────
 router.patch('/clear-completed', auth, admin, async (req, res) => {
   try {
     const result = await Booking.updateMany(
       { status: { $in: ['confirmed', 'cancelled'] }, isArchived: false },
       { $set: { isArchived: true } }
     );
-    res.json({ message: `Archived ${result.modifiedCount} bookings` });
-  } catch (err) {
-    console.error('Bulk archive error:', err);
-    res.status(500).json({ message: 'Failed to archive' });
-  }
+    res.json({ message: 'Archived ' + result.modifiedCount + ' bookings' });
+  } catch (err) { res.status(500).json({ message: 'Failed' }); }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/:id/archive  — admin archives a single booking
-// ─────────────────────────────────────────────────────────────────────────────
 router.patch('/:id/archive', auth, admin, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    if (!booking)           return res.status(404).json({ message: 'Booking not found' });
-    if (booking.isArchived) return res.status(400).json({ message: 'Already archived' });
-
+    if (!booking) return res.status(404).json({ message: 'Not found' });
     booking.isArchived = true;
     await booking.save();
     res.json({ message: 'Archived', booking });
-  } catch (err) {
-    console.error('Admin archive error:', err);
-    res.status(500).json({ message: 'Failed to archive' });
-  }
+  } catch (err) { res.status(500).json({ message: 'Failed' }); }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/bookings/:id/unarchive  — admin unarchives a single booking
-// ─────────────────────────────────────────────────────────────────────────────
 router.patch('/:id/unarchive', auth, admin, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    if (!booking)            return res.status(404).json({ message: 'Booking not found' });
-    if (!booking.isArchived) return res.status(400).json({ message: 'Not archived' });
-
+    if (!booking) return res.status(404).json({ message: 'Not found' });
     booking.isArchived = false;
     await booking.save();
     res.json({ message: 'Unarchived', booking });
-  } catch (err) {
-    console.error('Admin unarchive error:', err);
-    res.status(500).json({ message: 'Failed to unarchive' });
-  }
+  } catch (err) { res.status(500).json({ message: 'Failed' }); }
 });
 
 module.exports = router;
