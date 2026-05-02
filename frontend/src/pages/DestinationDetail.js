@@ -6,7 +6,7 @@ import {
   MapPin, DollarSign, Calendar, Plane, Hotel, X,
   ChevronLeft, ChevronRight, Star, User, Utensils,
   Zap, Package, Clock, CheckCircle, CreditCard,
-  Loader2, Plus, Minus, ChevronDown, ChevronUp,
+  Loader2, Plus, Minus, ChevronDown, ChevronUp, ClipboardList, Info
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
@@ -146,11 +146,11 @@ function BookTableModal({ restaurant, onClose }) {
                 </div>
               )}
               <div className="bg-orange-50 rounded-lg p-3 text-sm text-orange-700 flex items-center gap-2">
-                <span>ℹ️</span> Booking is free — you pay at the restaurant.
+                <Info size={14} /> Booking is free — you pay at the restaurant.
               </div>
               <button type="submit" disabled={submitting}
                 className={'w-full py-3 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 ' + (submitting ? 'bg-orange-400' : 'bg-orange-500 hover:bg-orange-600')}>
-                {submitting ? <><Loader2 size={15} className="animate-spin" /> Booking...</> : '🍽️ Book a Table'}
+                {submitting ? <><Loader2 size={15} className="animate-spin" /> Booking...</> : <><Utensils size={15} /> Book a Table</>}
               </button>
             </form>
           )}
@@ -522,30 +522,44 @@ function PlanMyTrip({ destination, hotels, flights, restaurants, activities }) {
       {/* Summary */}
       {items.length > 0 ? (
         <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-5 text-white">
-          <h3 className="font-bold text-lg mb-3">📋 Your Trip Summary</h3>
-          <div className="space-y-2 mb-4">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <ClipboardList size={20} className="text-blue-200" /> Your Trip Summary
+          </h3>
+          <div className="space-y-3 mb-4">
             {selHotel && (
-              <div className="flex justify-between text-sm">
-                <span className="text-blue-200">🏨 {selHotel.name} ({hotelNights}n{hotelNights > 1 ? 's' : ''})</span>
-                <span className="font-semibold">NPR {hotelCost.toLocaleString()}</span>
+              <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2 text-blue-100">
+                  <Hotel size={14} className="flex-shrink-0" />
+                  <span className="truncate">{selHotel.name} ({hotelNights}n{hotelNights > 1 ? 's' : ''})</span>
+                </div>
+                <span className="font-semibold whitespace-nowrap">NPR {hotelCost.toLocaleString()}</span>
               </div>
             )}
             {selFlight && (
-              <div className="flex justify-between text-sm">
-                <span className="text-blue-200">✈️ {selFlight.airline} {selFlight.flightNumber}</span>
-                <span className="font-semibold">NPR {flightCost.toLocaleString()}</span>
+              <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2 text-blue-100">
+                  <Plane size={14} className="flex-shrink-0" />
+                  <span className="truncate">{selFlight.airline} {selFlight.flightNumber}</span>
+                </div>
+                <span className="font-semibold whitespace-nowrap">NPR {flightCost.toLocaleString()}</span>
               </div>
             )}
             {selRests.map(r => (
-              <div key={r._id} className="flex justify-between text-sm">
-                <span className="text-blue-200">🍽️ {r.name}</span>
-                <span className="font-semibold text-blue-300">Included</span>
+              <div key={r._id} className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2 text-blue-100">
+                  <Utensils size={14} className="flex-shrink-0" />
+                  <span className="truncate">{r.name}</span>
+                </div>
+                <span className="font-semibold text-blue-300 whitespace-nowrap">Included</span>
               </div>
             ))}
             {selActs.map(a => (
-              <div key={a._id} className="flex justify-between text-sm">
-                <span className="text-blue-200">⚡ {a.name}</span>
-                <span className="font-semibold">{a.price ? 'NPR ' + a.price.toLocaleString() : 'Free'}</span>
+              <div key={a._id} className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2 text-blue-100">
+                  <Zap size={14} className="flex-shrink-0" />
+                  <span className="truncate">{a.name}</span>
+                </div>
+                <span className="font-semibold whitespace-nowrap">{a.price ? 'NPR ' + a.price.toLocaleString() : 'Free'}</span>
               </div>
             ))}
           </div>
@@ -773,8 +787,8 @@ const DestinationDetail = () => {
                         <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + (rest.priceRange === 'Budget' ? 'bg-green-50 text-green-700' : rest.priceRange === 'Fine Dining' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700')}>
                           {rest.priceRange}
                         </span>
-                        <button onClick={() => setBookingTableRest(rest)} className="px-3 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-lg hover:bg-orange-600 transition flex items-center gap-1">
-                          🍽️ Book a Table
+                        <button onClick={() => setBookingTableRest(rest)} className="px-3 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-lg hover:bg-orange-600 transition flex items-center gap-1.5">
+                          <Utensils size={12} /> Book a Table
                         </button>
                       </div>
                     </div>
