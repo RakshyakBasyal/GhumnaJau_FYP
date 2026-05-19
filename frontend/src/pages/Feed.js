@@ -228,8 +228,11 @@ export default function Feed({ isCommunityView = false }) {
 
   useEffect(function () {
     getMe().then(function (res) { setCurrentUser(res.data); }).catch(function () {});
-    getDiscoverUsers({ limit: 5 }).then(function (res) {
-      setSuggested((res.data.users || []).filter(function (u) { return String(u._id) !== String(myId); }).slice(0, 5));
+    getDiscoverUsers({ limit: 15 }).then(function (res) {
+      const users = (res.data.users || []).filter(function (u) { return String(u._id) !== String(myId); });
+      // Sort by compatibilityScore descending
+      const sorted = users.sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
+      setSuggested(sorted.slice(0, 5));
     }).catch(function () {});
     Promise.all([getBuddyRequests(), getBuddyConnections()]).then(function (results) {
       var reqRes = results[0]; var connRes = results[1];
@@ -347,20 +350,20 @@ export default function Feed({ isCommunityView = false }) {
     <div className={isCommunityView ? '' : 'min-h-screen bg-slate-50'}>
 
       {!isCommunityView && (
-        <div className="max-w-7xl mx-auto px-4 pt-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 pt-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
             <div>
-              <h2 className="text-2xl font-black text-gray-900 tracking-tight">Travel Feed</h2>
-              <p className="text-sm text-gray-500 mt-1">Explore stories and moments from fellow travelers</p>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight">Community Feed</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Explore stories and moments from fellow travelers</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button onClick={function () { setEditingPost(null); setShowCreate(true); }}
-                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl shadow-lg shadow-blue-100 transition-all">
-                <PenSquare size={18} /> Share Moment
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-100 transition-all">
+                <PenSquare size={16} /> Share Moment
               </button>
               <button onClick={function () { setHasNew(false); fetchPosts(true); }}
-                className="p-2.5 rounded-2xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-all border border-gray-100">
-                <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
+                className="p-2 rounded-xl bg-gray-50 text-gray-500 hover:bg-gray-100 transition-all border border-gray-100">
+                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
             </div>
           </div>
@@ -396,9 +399,9 @@ export default function Feed({ isCommunityView = false }) {
         </div>
       )}
 
-      <div className={(isCommunityView ? 'max-w-full' : 'max-w-7xl mx-auto') + ' px-4 py-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-8'}>
+      <div className={(isCommunityView ? 'max-w-full' : 'max-w-6xl mx-auto') + ' px-4 py-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8'}>
 
-        <div className="space-y-5 max-w-2xl w-full mx-auto lg:mx-0">
+        <div className="space-y-4 max-w-2xl w-full mx-auto lg:mx-0">
 
           {(groupedStories.length > 0 || myId) && (
             <div className="bg-white border border-gray-100 rounded-2xl px-4 py-4 shadow-sm">
@@ -537,42 +540,44 @@ export default function Feed({ isCommunityView = false }) {
           )}
         </div>
 
-        <aside className="space-y-7 hidden lg:block pt-2">
-          <div className="flex items-center justify-between mb-8 px-1">
+        <aside className="space-y-6 hidden lg:block pt-2">
+          <div className="flex items-center justify-between mb-6 px-1">
             <Link to="/profile" className="flex items-center gap-3 group">
               {userAvatar
-                ? <img src={userAvatar} alt={firstName} className="w-12 h-12 rounded-full object-cover border border-gray-100 shadow-sm" />
-                : <div className="w-12 h-12 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">{firstName.charAt(0).toUpperCase()}</div>}
+                ? <img src={userAvatar} alt={firstName} className="w-10 h-10 rounded-full object-cover border border-gray-100 shadow-sm" />
+                : <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shadow-sm">{firstName.charAt(0).toUpperCase()}</div>}
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-gray-900 group-hover:text-gray-600 transition">{firstName}</span>
-                <span className="text-xs text-gray-500">{userName}</span>
+                <span className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition">{firstName}</span>
+                <span className="text-[10px] text-gray-400">{userName}</span>
               </div>
             </Link>
-            <Link to="/profile" className="text-xs font-bold text-blue-600 hover:text-blue-800 transition">Switch</Link>
+            <Link to="/profile" className="text-[10px] font-bold text-blue-600 hover:text-blue-800 transition">Switch</Link>
           </div>
 
-          <div className="space-y-4 px-1">
+          <div className="space-y-4 px-1 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-gray-500 text-sm">Suggested for you</h3>
-              <button onClick={function () { navigate('/community/buddies'); }} className="text-xs font-bold text-gray-900 hover:text-gray-500 transition">See All</button>
+              <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-wider">Suggested for you</h3>
+              <button onClick={function () { navigate('/community/buddies'); }} className="text-[10px] font-bold text-gray-900 hover:text-gray-500 transition">See All</button>
             </div>
             {suggested.length > 0 ? (
               <div className="space-y-4">
                 {suggested.map(function (person) {
                   var status = connectMap[person._id] || 'none';
                   return (
-                    <div key={person._id} className="flex items-center justify-between group">
-                      <Link to={'/profile/' + person._id} className="flex items-center gap-3">
-                        {person.avatar
-                          ? <img src={avatarUrl(person.avatar)} alt={person.fullName} className="w-9 h-9 rounded-full object-cover border border-gray-100" />
-                          : <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-500 font-bold flex items-center justify-center text-xs">{person.fullName && person.fullName.charAt(0)}</div>}
+                    <div key={person._id} className="flex items-center justify-between group px-1">
+                      <Link to={'/profile/' + person._id} className="flex items-center gap-3 min-w-0">
+                        <div className="relative flex-shrink-0">
+                          {person.avatar
+                            ? <img src={avatarUrl(person.avatar)} alt={person.fullName} className="w-10 h-10 rounded-full object-cover border border-gray-100" />
+                            : <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 font-bold flex items-center justify-center text-sm">{person.fullName && person.fullName.charAt(0)}</div>}
+                        </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-bold text-gray-900 truncate group-hover:text-gray-600 transition">{person.fullName.split(' ')[0]}</span>
-                          <span className="text-xs text-gray-500 truncate">Suggested for you</span>
+                          <span className="text-sm font-bold text-gray-900 truncate group-hover:text-blue-600 transition">{person.fullName.split(' ')[0]}</span>
+                          <span className="text-[10px] text-gray-400 truncate">{person.city || 'Traveler'}</span>
                         </div>
                       </Link>
                       <button onClick={function () { if (status === 'none') handleConnect(person._id); }} disabled={status !== 'none'}
-                        className={'text-xs font-bold transition ' + (status === 'none' ? 'text-blue-600 hover:text-blue-800' : 'text-gray-300')}>
+                        className={'text-xs font-bold transition px-3 py-1 rounded-lg ' + (status === 'none' ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400')}>
                         {status === 'none' ? 'Follow' : status === 'sent' ? 'Sent' : status === 'connected' ? 'Following' : 'Review'}
                       </button>
                     </div>
@@ -584,30 +589,29 @@ export default function Feed({ isCommunityView = false }) {
             )}
           </div>
 
-          <div className="space-y-4 px-1 mt-8">
+          <div className="space-y-4 px-1 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-gray-500 text-sm">Trending Now</h3>
-              <Link to="/destinations" className="text-xs font-bold text-gray-900 hover:text-gray-500 transition">Explore</Link>
+              <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-wider">Trending Now</h3>
+              <Link to="/destinations" className="text-[10px] font-bold text-gray-900 hover:text-gray-500 transition">Explore</Link>
             </div>
             {trendingDestinations.length > 0 ? (
               <div className="space-y-4">
                 {trendingDestinations.map(function (dest) {
                   return (
-                    <Link key={dest._id} to={'/destinations/' + dest._id} className="flex items-center justify-between group">
+                    <Link key={dest._id} to={'/destinations/' + dest._id} className="flex items-center justify-between group px-1">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 border border-gray-100">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 border border-gray-100">
                           {dest.images && dest.images[0]
                             ? <img src={BASE_URL + dest.images[0]} alt={dest.name} className="w-full h-full object-cover" />
-                            : <div className="w-full h-full flex items-center justify-center text-gray-300"><MapPin size={12} /></div>}
+                            : <div className="w-full h-full flex items-center justify-center text-gray-300"><MapPin size={10} /></div>}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-bold text-gray-900 truncate group-hover:text-gray-600 transition">{dest.name}</span>
-                          <span className="text-xs text-gray-500 truncate">{dest.country || 'Nepal'}</span>
+                          <span className="text-xs font-bold text-gray-900 truncate group-hover:text-blue-600 transition">{dest.name}</span>
+                          <span className="text-[10px] text-gray-400 truncate">{dest.country || 'Nepal'}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 rounded-full flex-shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                        <span className="text-[10px] font-bold text-blue-600 uppercase">Hot</span>
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 rounded-full flex-shrink-0">
+                        <span className="text-[8px] font-black text-blue-600 uppercase">Hot</span>
                       </div>
                     </Link>
                   );
