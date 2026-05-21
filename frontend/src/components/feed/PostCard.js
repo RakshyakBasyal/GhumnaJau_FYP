@@ -302,7 +302,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
 
         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
           {post.budget && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full flex items-center gap-0.5">
+            <span className="text-[10px] font-semibold px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-lg flex items-center gap-0.5">
               <DollarSign size={9} /> {post.budget}
             </span>
           )}

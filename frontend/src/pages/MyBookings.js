@@ -1,7 +1,7 @@
 // frontend/src/pages/MyBookings.jsx
 import { useEffect, useState } from 'react';
 import {
-  Calendar, Users, MapPin, Plane, X, Loader2, Archive,
+  Calendar, Users, MapPin, Plane, Hotel, X, Loader2, Archive,
   RotateCcw, CreditCard, Clock, CheckCircle2, Utensils,
   Zap, Package,
 } from 'lucide-react';
@@ -172,7 +172,7 @@ function BookingCardImage({ booking }) {
     trip_plan: 'from-purple-500 to-indigo-600',
     hotel:     'from-blue-400 to-blue-600',
   };
-  const Icons = { flight: Plane, reservation: Utensils, activity: Zap, trip_plan: Package, hotel: MapPin };
+  const Icons = { flight: Plane, reservation: Utensils, activity: Zap, trip_plan: Package, hotel: Hotel };
   const Ic = Icons[booking.type] || Package;
   return (
     <div className={'w-full h-full bg-gradient-to-br ' + (gradients[booking.type] || 'from-gray-400 to-gray-600') + ' flex items-center justify-center'}>
