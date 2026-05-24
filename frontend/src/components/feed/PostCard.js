@@ -9,7 +9,8 @@ import { Link } from 'react-router-dom';
 import {
   Heart, MessageCircle, Bookmark, MoreHorizontal, Trash2,
   Edit2, MapPin, Star, Send, Loader2, DollarSign,
-  ChevronDown, ChevronUp, HelpCircle, Check,
+  ChevronDown, ChevronUp, HelpCircle, Check, X,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import {
   likePost, unlikePost, savePost, unsavePost,
@@ -17,7 +18,6 @@ import {
   addAnswer, likeAnswer,
 } from '../../services/feedApi';
 import { useToast } from '../../context/ToastContext';
-import ImageCarousel from './ImageCarousel';
 
 const BASE_URL = 'http://localhost:5000';
 
@@ -48,6 +48,69 @@ const StarDisplay = ({ rating, size = 13 }) => (
     ))}
   </div>
 );
+
+const PhotoGrid = ({ images, onPhotoClick }) => {
+  const count = images.length;
+  if (count === 0) return null;
+
+  const renderImage = (img, className, idx) => (
+    <div key={idx} className={'relative overflow-hidden cursor-pointer ' + className} onClick={() => onPhotoClick(idx)}>
+      <img src={BASE_URL + img} alt="" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
+    </div>
+  );
+
+  if (count === 1) {
+    return (
+      <div className="w-full max-h-[500px] overflow-hidden bg-gray-50 cursor-pointer" onClick={() => onPhotoClick(0)}>
+        <img src={BASE_URL + images[0]} alt="" className="w-full h-auto object-contain max-h-[500px]" />
+      </div>
+    );
+  }
+
+  if (count === 2) {
+    return (
+      <div className="grid grid-cols-2 gap-0.5 h-72">
+        {images.map((img, i) => renderImage(img, 'h-full', i))}
+      </div>
+    );
+  }
+
+  if (count === 3) {
+    return (
+      <div className="grid grid-cols-2 gap-0.5 h-80">
+        {renderImage(images[0], 'h-full row-span-2', 0)}
+        {renderImage(images[1], 'h-full', 1)}
+        {renderImage(images[2], 'h-full', 2)}
+      </div>
+    );
+  }
+
+  if (count === 4) {
+    return (
+      <div className="grid grid-cols-2 gap-0.5 h-80">
+        {images.slice(0, 4).map((img, i) => renderImage(img, 'h-full', i))}
+      </div>
+    );
+  }
+
+  // 5 or more
+  return (
+    <div className="grid grid-cols-6 gap-0.5 h-80">
+      {renderImage(images[0], 'col-span-3 row-span-2 h-full', 0)}
+      {renderImage(images[1], 'col-span-3 row-span-1 h-full', 1)}
+      {renderImage(images[2], 'col-span-1 row-span-1 h-full', 2)}
+      {renderImage(images[3], 'col-span-1 row-span-1 h-full', 3)}
+      <div className="col-span-1 row-span-1 relative cursor-pointer" onClick={() => onPhotoClick(4)}>
+        <img src={BASE_URL + images[4]} alt="" className="w-full h-full object-cover" />
+        {count > 5 && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <span className="text-white text-xl font-bold">+{count - 4}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const CAT_STYLE = {
   photo:    'bg-blue-50 text-blue-700 border-blue-100',
@@ -89,6 +152,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   const [answers,      setAnswers]      = useState(() => post.answers || []);
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [showHeart,  setShowHeart]  = useState(false);
+  const [viewerIdx,   setViewerIdx]  = useState(-1);
 
   const menuRef  = useRef(null);
   const isAuthor = String(post.author?._id || post.author) === String(myId);
@@ -215,9 +279,9 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <Link to={'/profile/' + (post.author?._id || '')} className="flex items-center gap-2.5 group min-w-0">
-          <div className="w-9 h-9 rounded-full overflow-hidden bg-blue-100 flex-shrink-0">
+      <div className="flex items-center justify-between px-3.5 pt-3.5 pb-2.5">
+        <Link to={'/profile/' + (post.author?._id || '')} className="flex items-center gap-3 group min-w-0">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-100 flex-shrink-0">
             {authorAv
               ? <img src={authorAv} alt={authorName} className="w-full h-full object-cover" />
               : <div className="w-full h-full flex items-center justify-center text-blue-700 font-bold text-sm">{authorName.charAt(0).toUpperCase()}</div>}
@@ -225,20 +289,20 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
           <div className="min-w-0">
             <p className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition leading-tight truncate">{authorName}</p>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={'text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ' + catStyle}>{catLabel}</span>
+              <span className={'text-[9px] font-bold px-1.5 py-0.5 rounded-md border ' + catStyle}>{catLabel}</span>
               {post.destinationName && (
-                <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                  <MapPin size={9} /> {post.destinationName}
+                <span className="text-[9px] text-gray-400 flex items-center gap-0.5 font-medium">
+                  <MapPin size={8} /> {post.destinationName}
                 </span>
               )}
-              <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(post.createdAt)}</span>
+              <span className="text-[9px] text-gray-400 flex-shrink-0 font-medium">{timeAgo(post.createdAt)}</span>
             </div>
           </div>
         </Link>
 
         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
           {post.budget && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full flex items-center gap-0.5">
+            <span className="text-[10px] font-semibold px-2 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-lg flex items-center gap-0.5">
               <DollarSign size={9} /> {post.budget}
             </span>
           )}
@@ -284,8 +348,8 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
 
       {/* ── Images ───────────────────────────────────────────────────────── */}
       {images.length > 0 && (
-        <div className="relative">
-          <ImageCarousel images={images} onDoubleTap={handleDoubleTap} />
+        <div className="relative" onDoubleClick={handleDoubleTap}>
+          <PhotoGrid images={images} onPhotoClick={(idx) => setViewerIdx(idx)} />
           {showHeart && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
               <Heart
@@ -301,10 +365,39 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
         </div>
       )}
 
+      {/* ── Photo Viewer Modal ─────────────────────────────────────────── */}
+      {viewerIdx >= 0 && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center overflow-hidden" onClick={() => setViewerIdx(-1)}>
+          <button onClick={(e) => { e.stopPropagation(); setViewerIdx(-1); }} className="absolute top-6 right-6 z-[110] bg-white/10 p-4 rounded-full hover:bg-white/20 transition text-white">
+            <X size={32} />
+          </button>
+          
+          {images.length > 1 && (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); setViewerIdx((p) => (p - 1 + images.length) % images.length); }} 
+                className="absolute left-6 top-1/2 -translate-y-1/2 z-[110] bg-white/10 p-5 rounded-full hover:bg-white/20 transition text-white">
+                <ChevronLeft size={40} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setViewerIdx((p) => (p + 1) % images.length); }} 
+                className="absolute right-6 top-1/2 -translate-y-1/2 z-[110] bg-white/10 p-5 rounded-full hover:bg-white/20 transition text-white">
+                <ChevronRight size={40} />
+              </button>
+            </>
+          )}
+
+          <div className="relative max-w-5xl w-full h-full flex flex-col items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+            <img src={BASE_URL + images[viewerIdx]} alt="" className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl transition-all duration-300" />
+            {images.length > 1 && (
+              <p className="text-white mt-6 text-lg font-bold tracking-widest">{viewerIdx + 1} / {images.length}</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Content ──────────────────────────────────────────────────────── */}
       {post.content && (
-        <div className="px-4 pt-3 pb-1">
-          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{post.content}</p>
+        <div className="px-3.5 pt-2.5 pb-1">
+          <p className="text-[13px] text-gray-800 leading-relaxed whitespace-pre-line">{post.content}</p>
         </div>
       )}
 
@@ -373,29 +466,28 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
       )}
 
       {/* ── Action bar ───────────────────────────────────────────────────── */}
-      <div className="px-4 py-3 flex items-center gap-4 border-t border-gray-50 mt-1">
+      <div className="px-3.5 py-2.5 flex items-center gap-4 border-t border-gray-50 mt-1">
         <button
           onClick={handleLike}
-          className={'flex items-center gap-1.5 text-sm font-semibold transition-all active:scale-90 ' + (liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400')}
+          className={'flex items-center gap-1 text-xs font-bold transition-all active:scale-90 ' + (liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400')}
         >
-          <Heart size={18} className={liked ? 'fill-red-500' : ''} />
+          <Heart size={16} className={liked ? 'fill-red-500' : ''} />
           {likeCount > 0 && <span>{likeCount}</span>}
         </button>
 
         <button
           onClick={() => setShowComments((v) => !v)}
-          className={'flex items-center gap-1.5 text-sm font-semibold transition ' + (showComments ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500')}
+          className={'flex items-center gap-1 text-xs font-bold transition ' + (showComments ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500')}
         >
-          <MessageCircle size={18} />
+          <MessageCircle size={16} />
           {commentCount > 0 && <span>{commentCount}</span>}
         </button>
 
         <button
           onClick={handleSave}
-          className={'flex items-center gap-1.5 text-sm font-semibold transition ml-auto active:scale-90 ' + (saved ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500')}
+          className={'flex items-center gap-1 text-xs font-bold transition ml-auto active:scale-90 ' + (saved ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500')}
         >
-          <Bookmark size={18} className={saved ? 'fill-blue-600' : ''} />
-          {saveCount > 0 && <span className="text-xs">{saveCount}</span>}
+          <Bookmark size={16} className={saved ? 'fill-blue-600' : ''} />
         </button>
       </div>
 

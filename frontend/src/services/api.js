@@ -1,3 +1,119 @@
+// // frontend/src/services/api.js
+// import axios from 'axios';
+
+// const API = axios.create({
+//   baseURL: 'http://localhost:5000/api',
+// });
+
+// // Request interceptor: add token to every request
+// API.interceptors.request.use((req) => {
+//   const token = localStorage.getItem('token');
+//   if (token) {
+//     req.headers.Authorization = `Bearer ${token}`;
+//   }
+//   return req;
+// });
+
+// // Response interceptor: global 401 handling for session invalidation
+// API.interceptors.response.use(
+//   (response) => response,
+//   (error) => {
+//     if (error.response?.status === 401) {
+//       const msg = error.response.data?.msg || '';
+//       const isLoginRequest = error.config?.url?.includes('/auth/login');
+
+//       if (!isLoginRequest && (
+//         msg.includes('Session has been invalidated') ||
+//         msg.includes('Session invalidated') ||
+//         msg.includes('User no longer exists') ||
+//         msg.includes('Token is not valid') ||
+//         msg.includes('No token')
+//       )) {
+//         console.warn('401 detected - session invalidated, logging out');
+//         localStorage.clear();
+//         window.location.href = '/login?sessionExpired=true';
+//       }
+//     }
+//     return Promise.reject(error);
+//   }
+// );
+
+// // ── Auth ──────────────────────────────────────────────────────────────────────
+// export const register = (data) => API.post('/auth/register', data);
+// export const login    = (data) => API.post('/auth/login', data);
+
+// // ── Destinations ──────────────────────────────────────────────────────────────
+// export const getDestinations    = ()           => API.get('/destinations');
+// export const getDestination     = (id)         => API.get(`/destinations/${id}`);
+// export const createDestination  = (formData)   => API.post('/destinations', formData);
+// export const updateDestination  = (id, formData) => API.put(`/destinations/${id}`, formData);
+// export const deleteDestination  = (id)         => API.delete(`/destinations/${id}`);
+
+// // ── Users / Profile ───────────────────────────────────────────────────────────
+// export const getUsers           = ()     => API.get('/users');
+// export const deleteUser         = (id)   => API.delete(`/users/${id}`);
+// export const getAdminStats      = ()     => API.get('/admin/stats');
+// export const deleteMyAccount    = ()     => API.delete('/users/me');
+// export const getMe              = ()     => API.get('/users/me');
+// export const updateMe           = (formData) => API.patch('/users/profile', formData);
+// export const getUserProfileById = (id)   => API.get(`/users/${id}`);
+// export const getDiscoverUsers   = (params = {}) => API.get('/users/discover', { params });
+
+// // ── Buddy system ──────────────────────────────────────────────────────────────
+// // New: instant connect (no approval) — creates a chat immediately
+// export const connectUser         = (userId)              => API.post('/buddies/connect', { userId });
+// // New: get all users I have a conversation with
+// export const getConnections      = ()                    => API.get('/buddies/connections');
+// export const sendBuddyRequest    = (userId)              => API.post('/buddies/requests', { userId });
+// export const getBuddyRequests    = ()                    => API.get('/buddies/requests');
+// export const respondBuddyRequest = (requestId, action)  => API.patch(`/buddies/requests/${requestId}`, { action });
+// export const getBuddyConnections = ()                    => API.get('/buddies/legacy-connections'); // legacy for profile buddy count
+// export const getBuddyStatus      = (userId)              => API.get(`/buddies/status/${userId}`);
+// export const getBuddyMessages    = (userId)              => API.get(`/buddies/messages/${userId}`);
+// export const sendBuddyMessage    = (userId, text)        => API.post('/buddies/messages', { userId, text });
+
+// // ── Trips ─────────────────────────────────────────────────────────────────────
+// export const createTrip              = (data)       => API.post('/trips', data);
+// export const getTrips                = ()            => API.get('/trips');
+// export const deleteTrip              = (id)          => API.delete(`/trips/${id}`);
+// export const getDiscoverTrips        = (params = {}) => API.get('/trips/discover', { params });
+// export const getGeneralDiscoveryTrips = (params = {}) => API.get('/trips/general-discovery', { params });
+
+// // Create a trip + shared group from inside a 1-on-1 chat
+// // Body: { partnerId, destination, startDate, endDate?, budget?, description? }
+// export const createTripFromChat = (data) => API.post('/trips/from-chat', data);
+
+// // ── Trip Rooms (Groups) ───────────────────────────────────────────────────────
+// export const getTripRooms       = (params = {}) => API.get('/trips/rooms', { params });
+// export const getMyTripRooms     = ()             => API.get('/trips/rooms/mine');  // rooms I'm in
+// export const createTripRoom     = (data)        => API.post('/trips/rooms', data);
+// export const getTripRoomById    = (id)           => API.get(`/trips/rooms/${id}`);
+// export const joinTripRoom       = (id)           => API.post(`/trips/rooms/${id}/join`);
+// export const leaveTripRoom      = (id)           => API.post(`/trips/rooms/${id}/leave`);
+// export const sendRoomMessage    = (id, text)     => API.post(`/trips/rooms/${id}/messages`, { text });
+// export const updateRoomItinerary = (id, itinerary) => API.patch(`/trips/rooms/${id}/itinerary`, { itinerary });
+// export const updateRoomNotes    = (id, notes)    => API.patch(`/trips/rooms/${id}/notes`, { notes });
+// export const respondToRoomRequest = (data)       => API.post('/trips/rooms/respond-request', data);
+// export const inviteBuddyToRoom  = (data)         => API.post('/trips/rooms/invite', data);
+// export const acceptRoomInvite   = (roomId)       => API.post(`/trips/rooms/${roomId}/accept-invite`);
+
+// // ── Hotels ────────────────────────────────────────────────────────────────────
+// export const getHotels    = ()           => API.get('/hotels');
+// export const getHotel     = (id)         => API.get(`/hotels/${id}`);
+// export const createHotel  = (formData)   => API.post('/hotels', formData);
+// export const updateHotel  = (id, formData) => API.put(`/hotels/${id}`, formData);
+// export const deleteHotel  = (id)         => API.delete(`/hotels/${id}`);
+
+// // ── Flights ───────────────────────────────────────────────────────────────────
+// export const getFlights    = ()       => API.get('/flights/admin');
+// export const createFlight  = (data)   => API.post('/flights', data);
+// export const updateFlight  = (id, data) => API.patch(`/flights/${id}`, data);
+// export const deleteFlight  = (id)     => API.delete(`/flights/${id}`);
+
+// export default API;
+
+
+
 // frontend/src/services/api.js
 import axios from 'axios';
 
@@ -5,23 +121,18 @@ const API = axios.create({
   baseURL: 'http://localhost:5000/api',
 });
 
-// Request interceptor: add token to every request
 API.interceptors.request.use((req) => {
   const token = localStorage.getItem('token');
-  if (token) {
-    req.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) req.headers.Authorization = `Bearer ${token}`;
   return req;
 });
 
-// Response interceptor: global 401 handling for session invalidation
 API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       const msg = error.response.data?.msg || '';
       const isLoginRequest = error.config?.url?.includes('/auth/login');
-
       if (!isLoginRequest && (
         msg.includes('Session has been invalidated') ||
         msg.includes('Session invalidated') ||
@@ -29,7 +140,6 @@ API.interceptors.response.use(
         msg.includes('Token is not valid') ||
         msg.includes('No token')
       )) {
-        console.warn('401 detected - session invalidated, logging out');
         localStorage.clear();
         window.location.href = '/login?sessionExpired=true';
       }
@@ -43,71 +153,66 @@ export const register = (data) => API.post('/auth/register', data);
 export const login    = (data) => API.post('/auth/login', data);
 
 // ── Destinations ──────────────────────────────────────────────────────────────
-export const getDestinations    = ()           => API.get('/destinations');
-export const getDestination     = (id)         => API.get(`/destinations/${id}`);
-export const createDestination  = (formData)   => API.post('/destinations', formData);
-export const updateDestination  = (id, formData) => API.put(`/destinations/${id}`, formData);
-export const deleteDestination  = (id)         => API.delete(`/destinations/${id}`);
+export const getDestinations   = ()               => API.get('/destinations');
+export const getDestination    = (id)             => API.get(`/destinations/${id}`);
+export const createDestination = (formData)       => API.post('/destinations', formData);
+export const updateDestination = (id, formData)   => API.put(`/destinations/${id}`, formData);
+export const deleteDestination = (id)             => API.delete(`/destinations/${id}`);
 
 // ── Users / Profile ───────────────────────────────────────────────────────────
-export const getUsers           = ()     => API.get('/users');
-export const deleteUser         = (id)   => API.delete(`/users/${id}`);
-export const getAdminStats      = ()     => API.get('/admin/stats');
-export const deleteMyAccount    = ()     => API.delete('/users/me');
-export const getMe              = ()     => API.get('/users/me');
-export const updateMe           = (formData) => API.patch('/users/profile', formData);
-export const getUserProfileById = (id)   => API.get(`/users/${id}`);
-export const getDiscoverUsers   = (params = {}) => API.get('/users/discover', { params });
+export const getUsers           = ()              => API.get('/users');
+export const deleteUser         = (id)            => API.delete(`/users/${id}`);
+export const getAdminStats      = ()              => API.get('/admin/stats');
+export const deleteMyAccount    = ()              => API.delete('/users/me');
+export const getMe              = ()              => API.get('/users/me');
+export const updateMe           = (formData)      => API.patch('/users/profile', formData);
+export const getUserProfileById = (id)            => API.get(`/users/${id}`);
+export const getDiscoverUsers   = (params = {})   => API.get('/users/discover', { params });
 
-// ── Buddy system ──────────────────────────────────────────────────────────────
-// New: instant connect (no approval) — creates a chat immediately
-export const connectUser         = (userId)              => API.post('/buddies/connect', { userId });
-// New: get all users I have a conversation with
-export const getConnections      = ()                    => API.get('/buddies/connections');
-export const sendBuddyRequest    = (userId)              => API.post('/buddies/requests', { userId });
-export const getBuddyRequests    = ()                    => API.get('/buddies/requests');
-export const respondBuddyRequest = (requestId, action)  => API.patch(`/buddies/requests/${requestId}`, { action });
-export const getBuddyConnections = ()                    => API.get('/buddies/legacy-connections'); // legacy for profile buddy count
-export const getBuddyStatus      = (userId)              => API.get(`/buddies/status/${userId}`);
-export const getBuddyMessages    = (userId)              => API.get(`/buddies/messages/${userId}`);
-export const sendBuddyMessage    = (userId, text)        => API.post('/buddies/messages', { userId, text });
+// ── Buddy / Messaging ─────────────────────────────────────────────────────────
+// Connect instantly — seeds a conversation, no approval needed
+export const connectUser      = (userId)       => API.post('/buddies/connect', { userId });
+// All users I have a conversation with
+export const getConnections   = ()             => API.get('/buddies/connections');
+// Connection status: { status: 'connected' | 'none' }
+export const getBuddyStatus   = (userId)       => API.get(`/buddies/status/${userId}`);
+// Messages
+export const getBuddyMessages = (userId)       => API.get(`/buddies/messages/${userId}`);
+export const sendBuddyMessage = (userId, text) => API.post('/buddies/messages', { userId, text });
 
 // ── Trips ─────────────────────────────────────────────────────────────────────
-export const createTrip              = (data)       => API.post('/trips', data);
-export const getTrips                = ()            => API.get('/trips');
-export const deleteTrip              = (id)          => API.delete(`/trips/${id}`);
-export const getDiscoverTrips        = (params = {}) => API.get('/trips/discover', { params });
+export const createTrip               = (data)       => API.post('/trips', data);
+export const getTrips                 = ()            => API.get('/trips');
+export const deleteTrip               = (id)          => API.delete(`/trips/${id}`);
+export const getDiscoverTrips         = (params = {}) => API.get('/trips/discover', { params });
 export const getGeneralDiscoveryTrips = (params = {}) => API.get('/trips/general-discovery', { params });
-
-// Create a trip + shared group from inside a 1-on-1 chat
-// Body: { partnerId, destination, startDate, endDate?, budget?, description? }
-export const createTripFromChat = (data) => API.post('/trips/from-chat', data);
+export const createTripFromChat       = (data)        => API.post('/trips/from-chat', data);
 
 // ── Trip Rooms (Groups) ───────────────────────────────────────────────────────
-export const getTripRooms       = (params = {}) => API.get('/trips/rooms', { params });
-export const getMyTripRooms     = ()             => API.get('/trips/rooms/mine');  // rooms I'm in
-export const createTripRoom     = (data)        => API.post('/trips/rooms', data);
-export const getTripRoomById    = (id)           => API.get(`/trips/rooms/${id}`);
-export const joinTripRoom       = (id)           => API.post(`/trips/rooms/${id}/join`);
-export const leaveTripRoom      = (id)           => API.post(`/trips/rooms/${id}/leave`);
-export const sendRoomMessage    = (id, text)     => API.post(`/trips/rooms/${id}/messages`, { text });
-export const updateRoomItinerary = (id, itinerary) => API.patch(`/trips/rooms/${id}/itinerary`, { itinerary });
-export const updateRoomNotes    = (id, notes)    => API.patch(`/trips/rooms/${id}/notes`, { notes });
-export const respondToRoomRequest = (data)       => API.post('/trips/rooms/respond-request', data);
-export const inviteBuddyToRoom  = (data)         => API.post('/trips/rooms/invite', data);
-export const acceptRoomInvite   = (roomId)       => API.post(`/trips/rooms/${roomId}/accept-invite`);
+export const getTripRooms         = (params = {}) => API.get('/trips/rooms', { params });
+export const getMyTripRooms       = ()             => API.get('/trips/rooms/mine');
+export const createTripRoom       = (data)         => API.post('/trips/rooms', data);
+export const getTripRoomById      = (id)            => API.get(`/trips/rooms/${id}`);
+export const joinTripRoom         = (id)            => API.post(`/trips/rooms/${id}/join`);
+export const leaveTripRoom        = (id)            => API.post(`/trips/rooms/${id}/leave`);
+export const sendRoomMessage      = (id, text)      => API.post(`/trips/rooms/${id}/messages`, { text });
+export const updateRoomItinerary  = (id, itinerary) => API.patch(`/trips/rooms/${id}/itinerary`, { itinerary });
+export const updateRoomNotes      = (id, notes)     => API.patch(`/trips/rooms/${id}/notes`, { notes });
+export const respondToRoomRequest = (data)          => API.post('/trips/rooms/respond-request', data);
+export const inviteBuddyToRoom    = (data)          => API.post('/trips/rooms/invite', data);
+export const acceptRoomInvite     = (roomId)        => API.post(`/trips/rooms/${roomId}/accept-invite`);
 
 // ── Hotels ────────────────────────────────────────────────────────────────────
-export const getHotels    = ()           => API.get('/hotels');
-export const getHotel     = (id)         => API.get(`/hotels/${id}`);
-export const createHotel  = (formData)   => API.post('/hotels', formData);
-export const updateHotel  = (id, formData) => API.put(`/hotels/${id}`, formData);
-export const deleteHotel  = (id)         => API.delete(`/hotels/${id}`);
+export const getHotels    = ()               => API.get('/hotels');
+export const getHotel     = (id)             => API.get(`/hotels/${id}`);
+export const createHotel  = (formData)       => API.post('/hotels', formData);
+export const updateHotel  = (id, formData)   => API.put(`/hotels/${id}`, formData);
+export const deleteHotel  = (id)             => API.delete(`/hotels/${id}`);
 
 // ── Flights ───────────────────────────────────────────────────────────────────
-export const getFlights    = ()       => API.get('/flights/admin');
-export const createFlight  = (data)   => API.post('/flights', data);
-export const updateFlight  = (id, data) => API.patch(`/flights/${id}`, data);
-export const deleteFlight  = (id)     => API.delete(`/flights/${id}`);
+export const getFlights   = ()           => API.get('/flights/admin');
+export const createFlight = (data)       => API.post('/flights', data);
+export const updateFlight = (id, data)   => API.patch(`/flights/${id}`, data);
+export const deleteFlight = (id)         => API.delete(`/flights/${id}`);
 
 export default API;

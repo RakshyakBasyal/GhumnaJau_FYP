@@ -10,6 +10,7 @@ import {
 } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Modal from '../components/Modal';
 
 const BASE_URL = "http://localhost:5000";
 
@@ -45,6 +46,11 @@ const ManageFlights = () => {
     fetchFlights();
     fetchDestinations();
   }, []);
+
+  const preventWheelChange = (e) => {
+    e.target.blur();
+    setTimeout(() => e.target.focus(), 0);
+  };
 
   const fetchFlights = async () => {
     try {
@@ -195,19 +201,12 @@ const ManageFlights = () => {
 
         {/* Inline Form */}
         {showForm && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-10">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {editingId ? 'Edit Flight' : 'Add New Flight'}
-              </h2>
-              <button
-                onClick={resetForm}
-                className="p-2 hover:bg-gray-100 rounded-full transition"
-              >
-                <X className="h-6 w-6 text-gray-600" />
-              </button>
-            </div>
-
+          <Modal
+            isOpen={showForm}
+            onClose={resetForm}
+            title={editingId ? 'Edit Flight' : 'Add New Flight'}
+            size="lg"
+          >
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div>
@@ -252,12 +251,12 @@ const ManageFlights = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Price (NPR) *</label>
-                  <input type="number" name="price" value={formData.price} onChange={handleChange} required min="0" className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" />
+                  <input type="number" name="price" value={formData.price} onChange={handleChange} onWheel={preventWheelChange} required min="0" className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Available Seats *</label>
-                  <input type="number" name="availableSeats" value={formData.availableSeats} onChange={handleChange} required min="1" className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" />
+                  <input type="number" name="availableSeats" value={formData.availableSeats} onChange={handleChange} onWheel={preventWheelChange} required min="1" className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500" />
                 </div>
 
                 <div>
@@ -318,7 +317,7 @@ const ManageFlights = () => {
                 </button>
               </div>
             </form>
-          </div>
+          </Modal>
         )}
 
         {/* Flight Cards Grid */}

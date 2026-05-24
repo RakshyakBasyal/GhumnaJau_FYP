@@ -6,6 +6,7 @@ import { getHotels, createHotel, updateHotel, deleteHotel, getDestinations } fro
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import LocationPicker from '../components/admin/LocationPicker';
+import Modal from '../components/Modal';
 
 const BASE_URL = 'http://localhost:5000';
 
@@ -44,6 +45,11 @@ const ManageHotels = () => {
   const fetchDestinations = async () => {
     try { const res = await getDestinations(); setDestinations(res.data || []); }
     catch (_) {}
+  };
+
+  const preventWheelChange = (e) => {
+    e.target.blur();
+    setTimeout(() => e.target.focus(), 0);
   };
 
   const handleChange = (e) => {
@@ -178,11 +184,12 @@ const ManageHotels = () => {
         </div>
 
         {showForm && (
-          <div ref={formRef} className="bg-white rounded-xl shadow-md p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              {editingId ? 'Edit Hotel' : 'Add New Hotel'}
-            </h2>
-
+          <Modal
+            isOpen={showForm}
+            onClose={resetForm}
+            title={editingId ? 'Edit Hotel' : 'Add New Hotel'}
+            size="xl"
+          >
             <form onSubmit={handleSubmit} className="space-y-6">
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -240,14 +247,14 @@ const ManageHotels = () => {
                       }}
                       className="px-4 py-2 border rounded-lg" />
                     <input type="number" placeholder="Price per night" value={room.pricePerNight} required min="0"
-                      onWheel={e => e.target.blur()}
+                      onWheel={preventWheelChange}
                       onChange={e => {
                         const t = [...formData.roomTypes]; t[index].pricePerNight = e.target.value;
                         setFormData({ ...formData, roomTypes: t });
                       }}
                       className="px-4 py-2 border rounded-lg" />
                     <input type="number" placeholder="Max Guests" value={room.maxCapacity} min="1"
-                      onWheel={e => e.target.blur()}
+                      onWheel={preventWheelChange}
                       onChange={e => {
                         const t = [...formData.roomTypes]; t[index].maxCapacity = e.target.value;
                         setFormData({ ...formData, roomTypes: t });
@@ -327,8 +334,8 @@ const ManageHotels = () => {
                 </button>
               </div>
             </form>
-          </div>
-        )}
+            </Modal>
+          )}
 
         {/* Hotels grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

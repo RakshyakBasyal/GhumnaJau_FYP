@@ -1,6 +1,5 @@
+// backend/src/utils/bookingEmail.js
 const transporter = require('../config/mailer');
-
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 const fmtDate = (value) => {
   if (!value) return 'N/A';
@@ -19,57 +18,113 @@ const escapeHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const getDetailsRows = (booking) => {
+// ── Per-type label and details ────────────────────────────────────────────────
+function getTypeLabel(booking) {
+  const map = {
+    hotel:       'Hotel Booking',
+    flight:      'Flight Booking',
+    reservation: 'Table Reservation',
+    activity:    'Activity Booking',
+    trip_plan:   'Trip Plan',
+  };
+  return map[booking.type] || 'Booking';
+}
+
+function getDetailsRows(booking) {
   if (booking.type === 'hotel') {
     return [
-      ['Hotel', booking.hotel?.name || 'N/A'],
-      ['Destination', booking.hotel?.destination?.name || booking.hotel?.country || 'N/A'],
-      ['Check-in', fmtDate(booking.checkIn)],
-      ['Check-out', fmtDate(booking.checkOut)],
-      ['Guests', booking.guests ?? 'N/A'],
+      ['Hotel',        booking.hotel?.name || 'N/A'],
+      ['Destination',  booking.hotel?.destination?.name || booking.hotel?.country || 'N/A'],
+      ['Check-in',     fmtDate(booking.checkIn)],
+      ['Check-out',    fmtDate(booking.checkOut)],
+      ['Room Type',    booking.roomType || 'N/A'],
+      ['Guests',       String(booking.guests ?? 'N/A')],
     ];
   }
 
-  const pax = booking.passengersCount || {};
-  const totalPax = (pax.adults || 0) + (pax.children || 0) + (pax.infants || 0);
-  return [
-    ['Flight', [booking.flight?.airline, booking.flight?.flightNumber].filter(Boolean).join(' ') || 'N/A'],
-    ['Route', booking.flight ? `${booking.flight.from} -> ${booking.flight.to}` : 'N/A'],
-    ['Departure date', fmtDate(booking.flight?.departureDate)],
-    ['Departure / Arrival', booking.flight ? `${booking.flight.departureTime} / ${booking.flight.arrivalTime}` : 'N/A'],
-    ['Passengers', totalPax || 'N/A'],
-  ];
-};
+  if (booking.type === 'flight') {
+    const pax = booking.passengersCount || {};
+    const totalPax = (pax.adults || 0) + (pax.children || 0) + (pax.infants || 0);
+    return [
+      ['Flight',             [booking.flight?.airline, booking.flight?.flightNumber].filter(Boolean).join(' ') || 'N/A'],
+      ['Route',              booking.flight ? booking.flight.from + ' → ' + booking.flight.to : 'N/A'],
+      ['Departure Date',     fmtDate(booking.flight?.departureDate)],
+      ['Departure / Arrival',booking.flight ? booking.flight.departureTime + ' / ' + booking.flight.arrivalTime : 'N/A'],
+      ['Class',              booking.flight?.class || 'N/A'],
+      ['Passengers',         String(totalPax || 'N/A')],
+    ];
+  }
 
+  if (booking.type === 'reservation') {
+    return [
+      ['Restaurant',    booking.restaurant?.name || 'N/A'],
+      ['Date',          fmtDate(booking.reservationDate)],
+      ['Time',          booking.reservationTime || 'N/A'],
+      ['Table Size',    String(booking.tableSize || 'N/A') + ' people'],
+      ['Payment',       'Pay at restaurant'],
+    ];
+  }
+
+  if (booking.type === 'activity') {
+    return [
+      ['Activity',     booking.activity?.name || 'N/A'],
+      ['Category',     booking.activity?.category || 'N/A'],
+      ['Date',         fmtDate(booking.activityDate)],
+      ['Guests',       String(booking.activityGuests || 1) + ' people'],
+      ['Duration',     booking.activity?.duration || 'N/A'],
+    ];
+  }
+
+  if (booking.type === 'trip_plan') {
+    const rows = [
+      ['Trip Name',    booking.tripPlanName || 'My Trip'],
+      ['Destination',  booking.tripPlanDestination?.name || 'N/A'],
+      ['Items',        String((booking.tripPlanItems || []).length) + ' item(s)'],
+    ];
+    // Add each item as a row
+    (booking.tripPlanItems || []).forEach((item, i) => {
+      const typeLabels = { hotel: '🏨 Hotel', flight: '✈️ Flight', restaurant: '🍽️ Restaurant', activity: '⚡ Activity' };
+      const label = typeLabels[item.type] || item.type;
+      const amount = item.amount > 0 ? fmtMoney(item.amount) : 'Included';
+      rows.push([label, amount]);
+    });
+    return rows;
+  }
+
+  return [];
+}
+
+// ── HTML builder ──────────────────────────────────────────────────────────────
 const buildHtml = ({ booking, recipientName, triggerSource, isRefund = false }) => {
-  const typeLabel = booking.type === 'hotel' ? 'Hotel' : 'Flight';
+  const typeLabel  = getTypeLabel(booking);
   const amountPaid = booking.totalAmount || 0;
   const refundAmount = booking.refundAmount || 0;
   const netCharged = amountPaid - refundAmount;
 
   const detailsRows = getDetailsRows(booking)
-    .map(
-      ([label, value]) => `
-        <tr>
-          <td style="padding:10px 0;color:#6b7280;font-size:13px;">${escapeHtml(label)}</td>
-          <td style="padding:10px 0;color:#111827;font-size:13px;font-weight:600;text-align:right;">${escapeHtml(value)}</td>
-        </tr>
-      `
-    )
+    .map(([label, value]) => `
+      <tr>
+        <td style="padding:10px 0;color:#6b7280;font-size:13px;">${escapeHtml(label)}</td>
+        <td style="padding:10px 0;color:#111827;font-size:13px;font-weight:600;text-align:right;">${escapeHtml(String(value))}</td>
+      </tr>
+    `)
     .join('');
 
-  const title = isRefund ? 'Refund Processed' : 'Booking Confirmed';
-  const subTitle = isRefund 
-    ? `Your ${escapeHtml(typeLabel.toLowerCase())} booking refund details.`
-    : `Your ${escapeHtml(typeLabel.toLowerCase())} booking receipt is ready.`;
-  
-  const headerGradient = isRefund 
-    ? 'linear-gradient(120deg,#7c3aed,#a855f7)' 
+  const title    = isRefund ? 'Refund Processed' : 'Booking Confirmed';
+  const subTitle = isRefund
+    ? 'Your refund details for booking #' + escapeHtml(String(booking._id))
+    : 'Your ' + escapeHtml(typeLabel.toLowerCase()) + ' receipt is ready.';
+
+  const headerGradient = isRefund
+    ? 'linear-gradient(120deg,#7c3aed,#a855f7)'
+    : booking.type === 'reservation' ? 'linear-gradient(120deg,#ea580c,#f97316)'
+    : booking.type === 'activity'    ? 'linear-gradient(120deg,#16a34a,#22c55e)'
+    : booking.type === 'trip_plan'   ? 'linear-gradient(120deg,#7c3aed,#6366f1)'
     : 'linear-gradient(120deg,#1d4ed8,#3b82f6)';
 
   const introText = isRefund
-    ? `Hi ${escapeHtml(recipientName || 'Traveler')}, your refund for booking #${escapeHtml(booking._id)} has been processed.`
-    : `Hi ${escapeHtml(recipientName || 'Traveler')}, your booking has been confirmed (${escapeHtml(triggerSource)}).`;
+    ? 'Hi ' + escapeHtml(recipientName || 'Traveler') + ', your refund for booking #' + escapeHtml(String(booking._id)) + ' has been processed.'
+    : 'Hi ' + escapeHtml(recipientName || 'Traveler') + ', your booking has been confirmed (' + escapeHtml(triggerSource || '') + ').';
 
   const financialSummary = isRefund ? `
     <tr>
@@ -84,10 +139,15 @@ const buildHtml = ({ booking, recipientName, triggerSource, isRefund = false }) 
       <td style="padding:10px 0;color:#6b7280;font-size:13px;">Net charged</td>
       <td style="padding:10px 0;color:#111827;font-size:13px;font-weight:600;text-align:right;">${escapeHtml(fmtMoney(netCharged))}</td>
     </tr>
+  ` : amountPaid > 0 ? `
+    <tr>
+      <td style="padding:10px 0;color:#6b7280;font-size:13px;">Total amount</td>
+      <td style="padding:10px 0;color:#16a34a;font-size:15px;font-weight:800;text-align:right;">${escapeHtml(fmtMoney(amountPaid))}</td>
+    </tr>
   ` : `
     <tr>
-      <td style="padding:10px 0;color:#6b7280;font-size:13px;">Total amount paid</td>
-      <td style="padding:10px 0;color:#16a34a;font-size:15px;font-weight:800;text-align:right;">${escapeHtml(fmtMoney(amountPaid))}</td>
+      <td style="padding:10px 0;color:#6b7280;font-size:13px;">Cost</td>
+      <td style="padding:10px 0;color:#16a34a;font-size:14px;font-weight:700;text-align:right;">Free (pay at venue)</td>
     </tr>
   `;
 
@@ -97,21 +157,17 @@ const buildHtml = ({ booking, recipientName, triggerSource, isRefund = false }) 
         <div style="background:${headerGradient};padding:24px 26px;color:#ffffff;">
           <div style="font-size:13px;opacity:0.9;letter-spacing:0.3px;">Ghumna Jau</div>
           <h2 style="margin:8px 0 0;font-size:24px;line-height:1.2;">${title}</h2>
-          <p style="margin:8px 0 0;font-size:13px;opacity:0.95;">
-            ${subTitle}
-          </p>
+          <p style="margin:8px 0 0;font-size:13px;opacity:0.95;">${subTitle}</p>
         </div>
 
         <div style="padding:22px 26px;">
-          <p style="margin:0 0 14px;color:#111827;font-size:14px;">
-            ${introText}
-          </p>
+          <p style="margin:0 0 14px;color:#111827;font-size:14px;">${introText}</p>
 
           <div style="border:1px dashed #d1d5db;border-radius:14px;padding:16px 18px;background:#fafcff;">
             <table style="width:100%;border-collapse:collapse;">
               <tr>
                 <td style="padding:0 0 10px;color:#6b7280;font-size:13px;">Booking ID</td>
-                <td style="padding:0 0 10px;color:#111827;font-size:13px;font-weight:700;text-align:right;">${escapeHtml(booking._id)}</td>
+                <td style="padding:0 0 10px;color:#111827;font-size:13px;font-weight:700;text-align:right;">${escapeHtml(String(booking._id))}</td>
               </tr>
               <tr>
                 <td style="padding:10px 0;color:#6b7280;font-size:13px;">Booking Type</td>
@@ -131,38 +187,29 @@ const buildHtml = ({ booking, recipientName, triggerSource, isRefund = false }) 
   `;
 };
 
+// ── Send functions ────────────────────────────────────────────────────────────
 async function sendBookingConfirmationEmail({ booking, source }) {
   if (!booking?.user?.email) return;
-
   const triggerSource = source === 'admin' ? 'admin confirmation' : 'payment confirmation';
-  const subjectPrefix = booking.type === 'hotel' ? 'Hotel' : 'Flight';
+  const typeLabel     = getTypeLabel(booking);
 
   await transporter.sendMail({
-    from: `"Ghumna Jau" <${process.env.GMAIL_USER}>`,
-    to: booking.user.email,
-    subject: `${subjectPrefix} Booking Confirmed - ${booking._id}`,
-    html: buildHtml({
-      booking,
-      recipientName: booking.user.fullName,
-      triggerSource,
-    }),
+    from:    '"Ghumna Jau" <' + process.env.GMAIL_USER + '>',
+    to:      booking.user.email,
+    subject: typeLabel + ' Confirmed - ' + booking._id,
+    html:    buildHtml({ booking, recipientName: booking.user.fullName, triggerSource }),
   });
 }
 
 async function sendRefundConfirmationEmail({ booking }) {
   if (!booking?.user?.email) return;
-
-  const subjectPrefix = booking.type === 'hotel' ? 'Hotel' : 'Flight';
+  const typeLabel = getTypeLabel(booking);
 
   await transporter.sendMail({
-    from: `"Ghumna Jau" <${process.env.GMAIL_USER}>`,
-    to: booking.user.email,
-    subject: `Refund Processed: ${subjectPrefix} Booking - ${booking._id}`,
-    html: buildHtml({
-      booking,
-      recipientName: booking.user.fullName,
-      isRefund: true,
-    }),
+    from:    '"Ghumna Jau" <' + process.env.GMAIL_USER + '>',
+    to:      booking.user.email,
+    subject: 'Refund Processed: ' + typeLabel + ' - ' + booking._id,
+    html:    buildHtml({ booking, recipientName: booking.user.fullName, isRefund: true }),
   });
 }
 
