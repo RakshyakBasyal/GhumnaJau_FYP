@@ -595,73 +595,100 @@ export default function UserProfile() {
     <div className="min-h-screen bg-gray-50 pb-20">
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <div className="relative h-56 md:h-72 overflow-hidden">
+      <div className="relative h-[300px] md:h-[400px] overflow-hidden">
         {displayAvatar
           ? <img src={displayAvatar} className="w-full h-full object-cover" alt={user.fullName} />
-          : <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center"><span className="text-white text-[120px] font-black opacity-20 select-none">{user.fullName?.charAt(0)}</span></div>}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          : <div className="w-full h-full bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 flex items-center justify-center">
+              <span className="text-white text-[150px] font-black opacity-20 select-none tracking-tighter">{user.fullName?.charAt(0)}</span>
+            </div>}
+        
+        {/* Modern Glassy Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
 
-        {displayAvatar && (
-          <button onClick={() => setShowPhotoView(true)}
-            className="absolute top-4 left-4 bg-black/40 text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-black/60 transition">
-            <Camera size={12} /> View Photo
-          </button>
-        )}
+        <div className="absolute top-6 left-6 flex gap-3">
+          {displayAvatar && (
+            <button onClick={() => setShowPhotoView(true)}
+              className="bg-white/10 backdrop-blur-md text-white text-xs font-black uppercase tracking-widest px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-white/20 transition-all border border-white/20">
+              <Camera size={14} /> View Photo
+            </button>
+          )}
+        </div>
 
-        {/* Name + location + actions */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8">
-          <div className="flex items-end justify-between gap-4">
+        {/* User Identity & Stats Overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl md:text-3xl font-black text-white leading-tight truncate">{user.fullName}</h1>
-              {user.city && <p className="text-white/75 text-sm flex items-center gap-1.5 mt-1"><MapPin size={13} />{user.city}</p>}
-
-              {/* Badges */}
-              <div className="flex flex-wrap gap-2 mt-3">
-                {user.intentStatus && <span className="px-2.5 py-1 bg-blue-500/80 text-white text-xs font-bold rounded-full">{user.intentStatus}</span>}
-                {user.travelStyle  && <span className="px-2.5 py-1 bg-white/20 text-white text-xs font-semibold rounded-full">{user.travelStyle}</span>}
-                {user.travelBudget && <span className="px-2.5 py-1 bg-white/20 text-white text-xs font-semibold rounded-full">{user.travelBudget}</span>}
-                {user.travelPace   && <span className="px-2.5 py-1 bg-white/20 text-white text-xs font-semibold rounded-full">{user.travelPace} pace</span>}
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-3xl md:text-5xl font-black text-white leading-tight truncate tracking-tight">{user.fullName}</h1>
+                {user.compatibilityScore > 0 && (
+                  <div className="px-3 py-1 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg shadow-emerald-900/20 animate-pulse">
+                    {user.compatibilityScore}% Match
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-y-2 gap-x-4">
+                {user.city && (
+                  <p className="text-white/80 text-sm flex items-center gap-1.5 font-bold">
+                    <MapPin size={16} className="text-blue-400" /> {user.city}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  {user.intentStatus && <span className="px-3 py-1 bg-blue-600/80 backdrop-blur-sm text-white text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10">{user.intentStatus}</span>}
+                  {user.travelStyle && <span className="px-3 py-1 bg-white/10 backdrop-blur-sm text-white text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10">{user.travelStyle}</span>}
+                </div>
               </div>
             </div>
 
-            {/* Action buttons */}
-            {!isSelf && (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button onClick={handleFollow} disabled={followBusy}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-1.5 ${stats.isFollowing ? 'bg-white/20 text-white border border-white/30 hover:bg-white/30' : 'bg-white text-blue-700 hover:bg-blue-50'}`}>
-                  {followBusy ? <Loader2 size={13} className="animate-spin" /> : null}
-                  {stats.isFollowing ? 'Following' : 'Follow'}
-                </button>
-                {isConnected
-                  ? <button onClick={() => navigate('/community/messages')}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 flex items-center gap-1.5">
-                      <MessageSquare size={14} /> Message
+            {/* Actions */}
+            <div className="flex items-center gap-3 shrink-0">
+              {!isSelf && (
+                <>
+                  <button onClick={handleFollow} disabled={followBusy}
+                    className={`px-6 py-2.5 rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-2 ${
+                      stats.isFollowing 
+                        ? 'bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20' 
+                        : 'bg-white text-blue-700 hover:bg-blue-50 hover:scale-105 active:scale-95'
+                    }`}>
+                    {followBusy ? <Loader2 size={14} className="animate-spin" /> : null}
+                    {stats.isFollowing ? 'Following' : 'Follow'}
+                  </button>
+                  {isConnected ? (
+                    <button onClick={() => navigate('/community/messages')}
+                      className="px-6 py-2.5 bg-blue-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-900/20 flex items-center gap-2">
+                      <MessageSquare size={16} /> Message
                     </button>
-                  : <button onClick={handleConnect} disabled={connectBusy}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 flex items-center gap-1.5 disabled:opacity-60">
-                      {connectBusy ? <Loader2 size={13} className="animate-spin" /> : <UserPlus size={14} />} Connect
-                    </button>}
-              </div>
-            )}
-            {isSelf && (
-              <button onClick={() => navigate('/profile')} className="px-4 py-2 bg-white/20 text-white border border-white/30 rounded-xl text-sm font-bold hover:bg-white/30">Edit Profile</button>
-            )}
+                  ) : (
+                    <button onClick={handleConnect} disabled={connectBusy}
+                      className="px-6 py-2.5 bg-blue-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-900/20 flex items-center gap-2 disabled:opacity-60">
+                      {connectBusy ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={16} />} Connect
+                    </button>
+                  )}
+                </>
+              )}
+              {isSelf && (
+                <button onClick={() => navigate('/profile')} 
+                  className="px-6 py-2.5 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-white/20 hover:scale-105 active:scale-95 transition-all shadow-xl">
+                  Edit My Profile
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-1 mt-4 bg-black/30 rounded-xl px-2 py-1 w-fit">
+          {/* Stats Bar */}
+          <div className="max-w-5xl mx-auto mt-8 flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-2xl p-1 w-fit border border-white/10">
             {[
               { val: postCount,                    label: 'Posts',     onClick: null },
               { val: stats.followersCount,          label: 'Followers', onClick: () => setFollowModal('followers') },
               { val: stats.followingCount,          label: 'Following', onClick: () => setFollowModal('following') },
-              { val: user.travelStats?.buddyCount || 0, label: 'Connected', onClick: null },
+              { val: user.travelStats?.buddyCount || 0, label: 'Buddies',   onClick: null },
             ].map((s, i) => (
               <div key={s.label} className="flex items-center">
-                {i > 0 && <div className="w-px h-6 bg-white/20 mx-1" />}
+                {i > 0 && <div className="w-px h-8 bg-white/10 mx-1" />}
                 <button onClick={s.onClick || undefined} disabled={!s.onClick}
-                  className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition ${s.onClick ? 'hover:bg-white/10 cursor-pointer' : 'cursor-default'}`}>
-                  <span className="text-base font-bold text-white leading-none">{s.val}</span>
-                  <span className="text-[9px] text-white/60 font-semibold uppercase tracking-wide mt-0.5">{s.label}</span>
+                  className={`flex flex-col items-center px-5 py-2 rounded-xl transition-all ${s.onClick ? 'hover:bg-white/10 cursor-pointer' : 'cursor-default'}`}>
+                  <span className="text-xl font-black text-white leading-none tracking-tight">{s.val}</span>
+                  <span className="text-[9px] text-white/50 font-black uppercase tracking-[0.2em] mt-1">{s.label}</span>
                 </button>
               </div>
             ))}
@@ -669,85 +696,130 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* ── Info section ─────────────────────────────────────────────── */}
-      <div className="max-w-4xl mx-auto px-4 mt-5 space-y-4">
+      {/* ── Main Content ─────────────────────────────────────────────── */}
+      <div className="max-w-5xl mx-auto px-6 mt-10 space-y-8">
+        
+        <div className="grid lg:grid-cols-3 gap-8">
+          
+          {/* Left Column: Bio & Details */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Bio Card */}
+            {user.bio && (
+              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-blue-600"/>
+                <p className="text-gray-600 text-sm leading-relaxed font-medium italic">"{user.bio}"</p>
+              </div>
+            )}
 
-        {/* Bio */}
-        {user.bio && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-            <p className="text-sm text-gray-600 leading-relaxed italic">"{user.bio}"</p>
-          </div>
-        )}
+            {/* Compatibility Reasons */}
+            {user.matchReasons?.length > 0 && (
+              <div className="bg-emerald-50 rounded-3xl border border-emerald-100 p-6">
+                <h3 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-4">Common Ground</h3>
+                <div className="flex flex-wrap gap-2">
+                  {user.matchReasons.map(r => (
+                    <span key={r} className="flex items-center gap-1.5 text-[10px] text-emerald-700 bg-white px-3 py-1.5 rounded-full font-black border border-emerald-100 uppercase tracking-wider">
+                      <CheckCircle2 size={12} className="text-emerald-500" /> {r}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Match reasons */}
-        {user.matchReasons?.length > 0 && (
-          <div className="bg-emerald-50 rounded-xl border border-emerald-100 px-5 py-4">
-            <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide mb-2">Why you match</p>
-            <div className="flex flex-wrap gap-2">
-              {user.matchReasons.map(r => (
-                <span key={r} className="flex items-center gap-1 text-xs text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full font-semibold">
-                  <CheckCircle2 size={10} /> {r}
-                </span>
-              ))}
+            {/* Details Grid */}
+            <div className="space-y-4">
+              {user.travelInterests?.length > 0 && (
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Heart size={14} className="text-orange-400" /> Interests
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {user.travelInterests.map(t => (
+                      <span key={t} className="px-3 py-1.5 bg-orange-50 text-orange-700 text-[10px] font-black uppercase tracking-wider rounded-xl border border-orange-100">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {user.languages?.length > 0 && (
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <LangIcon size={14} className="text-indigo-400" /> Languages
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {user.languages.map(l => (
+                      <span key={l} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-xl border border-indigo-100">{l}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Travel details */}
-        {(user.travelInterests?.length > 0 || user.preferredDestinations?.length > 0 || user.languages?.length > 0 || user.travelDateStart) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-            {user.travelInterests?.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5"><Heart size={11} className="text-orange-400" /> Interests</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {user.travelInterests.map(t => <span key={t} className={CHIP + " bg-orange-50 text-orange-700 border-orange-100"}>{t}</span>)}
-                </div>
-              </div>
-            )}
-
+          {/* Right Column: Destinations & Posts */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Preferred Destinations */}
             {user.preferredDestinations?.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5"><MapPin size={11} className="text-blue-400" /> Preferred Destinations</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {user.preferredDestinations.slice(0, 6).map(d => <span key={d} className={CHIP + " bg-blue-50 text-blue-700 border-blue-100"}>{d}</span>)}
+              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                  <MapPin size={14} className="text-blue-400" /> Dream Destinations
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {user.preferredDestinations.slice(0, 6).map(d => (
+                    <div key={d} className="bg-gray-50 px-4 py-3 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group">
+                      <p className="text-xs font-black text-gray-800 uppercase tracking-wider group-hover:text-blue-700 transition-colors">{d}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {user.languages?.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5"><LangIcon size={11} className="text-indigo-400" /> Languages</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {user.languages.map(l => <span key={l} className={CHIP + " bg-indigo-50 text-indigo-700 border-indigo-100"}>{l}</span>)}
-                </div>
-              </div>
-            )}
-
+            {/* Travel Dates */}
             {(user.travelDateStart || user.travelDateEnd) && (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5"><Clock size={11} className="text-green-400" /> Travel Window</p>
-                <p className="text-sm font-semibold text-gray-700">
-                  {user.travelDateStart ? new Date(user.travelDateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                  {' → '}
-                  {user.travelDateEnd   ? new Date(user.travelDateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })   : '—'}
-                </p>
+              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                    <Clock size={20} className="text-emerald-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Travel Window</h3>
+                    <p className="text-sm font-bold text-gray-800 mt-0.5">
+                      {user.travelDateStart ? new Date(user.travelDateStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Flexible'}
+                      {' — '}
+                      {user.travelDateEnd ? new Date(user.travelDateEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Flexible'}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* ── Posts ──────────────────────────────────────────────────── */}
-        <div className="pt-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Grid3X3 size={15} className="text-blue-600" /> Posts {postCount > 0 && <span className="text-xs font-normal text-gray-400">({postCount})</span>}
-            </h2>
-            {isSelf && <button onClick={() => setShowCreate(true)} className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700">+ New Post</button>}
+            {/* Posts Section */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight flex items-center gap-2">
+                  <Grid3X3 size={20} className="text-blue-600" /> 
+                  Timeline 
+                  {postCount > 0 && <span className="text-xs font-bold text-gray-400 ml-2 bg-gray-100 px-2 py-0.5 rounded-full">{postCount}</span>}
+                </h2>
+                {isSelf && <button onClick={() => setShowCreate(true)} className="px-5 py-2 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/10">+ New Post</button>}
+              </div>
+
+              {posts.length === 0 ? (
+                <div className="bg-white rounded-3xl border-2 border-dashed border-gray-100 p-16 text-center">
+                  <Camera size={40} className="text-gray-100 mx-auto mb-4" />
+                  <p className="font-bold text-gray-400 uppercase tracking-widest text-sm">{isSelf ? 'Share your first moment' : 'No posts yet'}</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {posts.map(post => (
+                    <PostCard key={post._id} post={post} 
+                      onUpdated={(p, a) => { if (a === 'edit') setEditingPost(p); }} 
+                      onDeleted={id => { setPosts(p => p.filter(x => x._id !== id)); setPostCount(c => c - 1); }} 
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          {posts.length === 0
-            ? <div className="bg-white rounded-xl border border-dashed border-gray-200 p-12 text-center"><Camera size={28} className="text-gray-200 mx-auto mb-2" /><p className="text-sm font-semibold text-gray-500">{isSelf ? 'Share your first moment!' : 'No posts yet'}</p></div>
-            : <div className="space-y-5">{posts.map(post => <PostCard key={post._id} post={post} onUpdated={(p, a) => { if (a === 'edit') setEditingPost(p); }} onDeleted={id => { setPosts(p => p.filter(x => x._id !== id)); setPostCount(c => c - 1); }} />)}</div>}
         </div>
       </div>
 
