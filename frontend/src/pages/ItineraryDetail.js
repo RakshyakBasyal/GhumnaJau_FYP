@@ -11,6 +11,8 @@ import {
   Receipt, Sparkles, Globe, ExternalLink
 } from 'lucide-react';
 import { TripModal, StatusButton, STATUS_CFG, Modal, ConfirmDelete } from './Itinerary';
+// ── CHANGE 1: Import AIPlannerModal ──────────────────────────────────────────
+import AIPlannerModal from '../components/AIPlannerModal';
 
 const BASE_URL = 'http://localhost:5000';
 const fmtNPR   = (n) => `NPR ${Math.round(n).toLocaleString()}`;
@@ -481,7 +483,6 @@ const SetBudgetModal = ({ current, grandEst, onClose, onSave }) => {
 // ── Share Modal ───────────────────────────────────────────────────────────────
 const ShareModal = ({ itin, onClose }) => {
   const [copied, setCopied] = useState(false);
-  // ✅ Use public URL so anyone with the link can view
   const url = `${window.location.origin}/itinerary/public/${itin._id}`;
   const copy = () => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   return (
@@ -647,10 +648,10 @@ const PLAN_ATTACH_TYPES = [
 ];
 
 const PlanCard = ({ plan, items, onDeletePlan, onDeleteItem, onMarkDone, onUndone, onEditCost, onAddItemToPlan, destinationIds, readOnly }) => {
-  const [modal, setModal]         = useState(null);
+  const [modal, setModal]               = useState(null);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [titleVal, setTitleVal]   = useState(plan.title);
-  const [savingTitle, setSavingTitle] = useState(false);
+  const [titleVal, setTitleVal]         = useState(plan.title);
+  const [savingTitle, setSavingTitle]   = useState(false);
 
   const planItems = items.filter(i => i.planId === plan._id);
   const doneCount = planItems.filter(i => i.isDone).length;
@@ -790,18 +791,18 @@ const AddPlanModal = ({ onClose, onAdd, plannedDate }) => {
 
 // ── Day Section ───────────────────────────────────────────────────────────────
 const DaySection = ({ day, dayNum, plans, items, onAddPlan, onDeletePlan, onAddItemToPlan, onDeleteItem, onMarkDone, onUndone, onEditCost, destinationIds, itinId, token, isToday, isTripActive, readOnly }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen]             = useState(true);
   const [showAddPlan, setShowAddPlan] = useState(false);
-  const dateStr = day.toISOString().slice(0, 10);
+  const dateStr  = day.toISOString().slice(0, 10);
   const dayPlans = plans.filter(p => p.plannedDate && isSameDay(p.plannedDate, day));
   const dayItems = items.filter(i => i.plannedDate && isSameDay(i.plannedDate, day) && !i.planId);
   const totalItems = dayPlans.reduce((s, p) => s + items.filter(i => i.planId === p._id).length, 0) + dayItems.length;
   const doneItems  = dayPlans.reduce((s, p) => s + items.filter(i => i.planId === p._id && i.isDone).length, 0) + dayItems.filter(i => i.isDone).length;
   const allDone    = totalItems > 0 && doneItems === totalItems;
-  const notesKey = `daynotes_${itinId}_${dateStr}`;
-  const [notes, setNotes] = useState(() => localStorage.getItem(notesKey) || '');
+  const notesKey   = `daynotes_${itinId}_${dateStr}`;
+  const [notes, setNotes]         = useState(() => localStorage.getItem(notesKey) || '');
   const [showNotes, setShowNotes] = useState(false);
-  const saveNotes = (val) => { setNotes(val); localStorage.setItem(notesKey, val); };
+  const saveNotes  = (val) => { setNotes(val); localStorage.setItem(notesKey, val); };
   const handleAddPlan = async (data) => { await onAddPlan({ ...data, plannedDate: dateStr }); };
 
   return (
@@ -877,106 +878,362 @@ const DaySection = ({ day, dayNum, plans, items, onAddPlan, onDeletePlan, onAddI
 };
 
 // ── Budget Card ───────────────────────────────────────────────────────────────
+// const BudgetCard = ({ items, budget, onSetBudget, readOnly }) => {
+//   const nonDest    = items.filter(i => i.type !== 'destination');
+//   const grandEst   = nonDest.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+//   const doneItems  = nonDest.filter(i => i.isDone && i.actualCost != null);
+//   const grandAct   = doneItems.reduce((s, i) => s + (i.actualCost || 0), 0);
+//   const hasActual  = doneItems.length > 0;
+//   const budgetDiff = budget != null ? grandEst - budget : null;
+//   const CATS = [
+//     { types: ['flight'],                label: 'Flights',    Icon: Plane   },
+//     { types: ['hotel'],                 label: 'Hotels',     Icon: Hotel   },
+//     { types: ['restaurant','activity'], label: 'Food & Fun', Icon: Zap     },
+//     { types: ['custom_expense'],        label: 'Expenses',   Icon: Receipt },
+//   ].map(c => {
+//     const catItems = items.filter(i => c.types.includes(i.type));
+//     const est = catItems.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+//     return { ...c, est };
+//   }).filter(c => c.est > 0);
+
+//   return (
+//     <div className="bg-white rounded-2xl shadow-sm p-5">
+//       <div className="flex items-center justify-between mb-4">
+//         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><DollarSign className="h-4 w-4 text-blue-600" />Budget</h3>
+//         {!readOnly && <button onClick={onSetBudget} className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition px-2 py-1 rounded-lg hover:bg-blue-50">{budget != null ? 'Edit' : '+ Set Budget'}</button>}
+//       </div>
+//       {budget != null && (
+//         <div className="mb-4 pb-4 border-b border-gray-100">
+//           <div className="flex items-center justify-between mb-1">
+//             <span className="text-sm font-semibold text-gray-700">Budget</span>
+//             <span className="text-base font-bold text-gray-900">{fmtNPR(budget)}</span>
+//           </div>
+//           {grandEst > 0 && (
+//             <>
+//               <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+//                 <span>Estimated spend</span>
+//                 <span className={budgetDiff > 0 ? 'text-red-500 font-semibold' : 'text-green-600 font-semibold'}>
+//                   {fmtNPR(grandEst)}{budgetDiff > 0 ? ` (+${fmtNPR(budgetDiff)} over)` : ` (${fmtNPR(Math.abs(budgetDiff))} left)`}
+//                 </span>
+//               </div>
+//               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+//                 <div className={`h-full rounded-full transition-all ${budgetDiff > 0 ? 'bg-red-400' : 'bg-blue-500'}`}
+//                   style={{ width: `${Math.min(100, (grandEst / budget) * 100)}%` }} />
+//               </div>
+//             </>
+//           )}
+//         </div>
+//       )}
+//       {CATS.length === 0 && <p className="text-gray-400 text-sm text-center py-3">No items added yet</p>}
+//       {CATS.length > 0 && (
+//         <div className="space-y-3">
+//           {CATS.map(c => (
+//             <div key={c.label} className="flex items-center justify-between text-sm">
+//               <span className="flex items-center gap-2 text-gray-500"><c.Icon className="h-3.5 w-3.5 flex-shrink-0" />{c.label}</span>
+//               <span className="font-semibold text-gray-900">{fmtNPR(c.est)}</span>
+//             </div>
+//           ))}
+//           <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+//             <span className="font-bold text-gray-900 text-sm">Total Estimated</span>
+//             <span className="font-bold text-blue-600 text-base">{fmtNPR(grandEst)}</span>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// ── Budget Card ───────────────────────────────────────────────────────────────
+// Replace the existing BudgetCard in ItineraryDetail.jsx with this one.
+//
+// LOGIC:
+//   Total Planned  = estimatedCost of ALL items (whether done or not)
+//   Actual Spent   = actualCost of items marked isDone only
+//   Your Budget    = the limit the user set via "Set Budget"
+//
+// Progress bar compares Actual Spent vs Budget — not planned vs budget —
+// because you only truly "use" budget when you actually spend money.
+
 const BudgetCard = ({ items, budget, onSetBudget, readOnly }) => {
   const nonDest   = items.filter(i => i.type !== 'destination');
-  const grandEst  = nonDest.reduce((s, i) => s + (i.estimatedCost || 0), 0);
-  const doneItems = nonDest.filter(i => i.isDone && i.actualCost != null);
-  const grandAct  = doneItems.reduce((s, i) => s + (i.actualCost || 0), 0);
-  const hasActual = doneItems.length > 0;
-  const budgetDiff = budget != null ? grandEst - budget : null;
+
+  // Total Planned: estimated cost of every item regardless of done status
+  const totalPlanned = nonDest.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+
+  // Actual Spent: only items that are marked done AND have an actualCost recorded
+  const doneWithCost = nonDest.filter(i => i.isDone && i.actualCost != null);
+  const actualSpent  = doneWithCost.reduce((s, i) => s + (i.actualCost || 0), 0);
+  const hasActual    = doneWithCost.length > 0;
+
+  // Budget difference compares actual spent vs budget (not planned)
+  const budgetDiff = budget != null && hasActual ? actualSpent - budget : null;
+
   const CATS = [
-    { types: ['flight'],               label: 'Flights',    Icon: Plane },
-    { types: ['hotel'],                label: 'Hotels',     Icon: Hotel },
-    { types: ['restaurant','activity'],label: 'Food & Fun', Icon: Zap   },
-    { types: ['custom_expense'],       label: 'Expenses',   Icon: Receipt },
+    { types: ['flight'],                label: 'Flights',    Icon: Plane   },
+    { types: ['hotel'],                 label: 'Hotels',     Icon: Hotel   },
+    { types: ['restaurant','activity'], label: 'Food & Fun', Icon: Zap     },
+    { types: ['custom_expense'],        label: 'Expenses',   Icon: Receipt },
   ].map(c => {
     const catItems = items.filter(i => c.types.includes(i.type));
-    const est = catItems.reduce((s, i) => s + (i.estimatedCost || 0), 0);
-    return { ...c, est };
-  }).filter(c => c.est > 0);
+    const planned  = catItems.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+    const spent    = catItems.filter(i => i.isDone && i.actualCost != null).reduce((s, i) => s + (i.actualCost || 0), 0);
+    return { ...c, planned, spent };
+  }).filter(c => c.planned > 0);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5">
+
+      {/* ── Header ── */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><DollarSign className="h-4 w-4 text-blue-600" />Budget</h3>
-        {!readOnly && <button onClick={onSetBudget} className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition px-2 py-1 rounded-lg hover:bg-blue-50">{budget != null ? 'Edit' : '+ Set Budget'}</button>}
+        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-blue-600" />Budget
+        </h3>
+        {!readOnly && (
+          <button
+            onClick={onSetBudget}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition px-2 py-1 rounded-lg hover:bg-blue-50"
+          >
+            {budget != null ? 'Edit' : '+ Set Budget'}
+          </button>
+        )}
       </div>
+
+      {/* ── Nothing added yet ── */}
+      {totalPlanned === 0 && (
+        <p className="text-gray-400 text-sm text-center py-3">No items added yet</p>
+      )}
+
+      {/* ── Budget limit rows ── */}
       {budget != null && (
-        <div className="mb-4 pb-4 border-b border-gray-100">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-semibold text-gray-700">Budget</span>
-            <span className="text-base font-bold text-gray-900">{fmtNPR(budget)}</span>
+        <div className="mb-4 pb-4 border-b border-gray-100 space-y-3">
+
+          {/* Your Budget */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500 font-medium">Your Budget</span>
+            <span className="font-bold text-gray-900">{fmtNPR(budget)}</span>
           </div>
-          {grandEst > 0 && (
-            <>
-              <div className="flex justify-between text-xs text-gray-400 mb-1.5">
-                <span>Estimated spend</span>
-                <span className={budgetDiff > 0 ? 'text-red-500 font-semibold' : 'text-green-600 font-semibold'}>
-                  {fmtNPR(grandEst)}{budgetDiff > 0 ? ` (+${fmtNPR(budgetDiff)} over)` : ` (${fmtNPR(Math.abs(budgetDiff))} left)`}
-                </span>
+
+          {/* Total Planned */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500 font-medium">Total Planned</span>
+            <span className="font-semibold text-gray-700">{fmtNPR(totalPlanned)}</span>
+          </div>
+
+          {/* Actual Spent — only shown if at least one done item has actualCost */}
+          {hasActual && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 font-medium">Actual Spent</span>
+              <span className="font-semibold text-gray-700">{fmtNPR(actualSpent)}</span>
+            </div>
+          )}
+
+          {/* Over / Under budget — only shown when there is actual spend */}
+          {hasActual && budgetDiff !== null && (
+            <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold ${
+              budgetDiff > 0
+                ? 'bg-red-50 text-red-600'
+                : budgetDiff < 0
+                ? 'bg-green-50 text-green-700'
+                : 'bg-gray-50 text-gray-600'
+            }`}>
+              <span>
+                {budgetDiff > 0 ? 'Over budget by' : budgetDiff < 0 ? 'Under budget by' : 'Exactly on budget'}
+              </span>
+              {budgetDiff !== 0 && <span>{fmtNPR(Math.abs(budgetDiff))}</span>}
+            </div>
+          )}
+
+          {/* Progress bar — actual spent vs budget, only when there is actual spend */}
+          {hasActual && (
+            <div>
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Spent of budget</span>
+                <span>{Math.round((actualSpent / budget) * 100)}%</span>
               </div>
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${budgetDiff > 0 ? 'bg-red-400' : 'bg-blue-500'}`}
-                  style={{ width: `${Math.min(100, (grandEst / budget) * 100)}%` }} />
+                <div
+                  className={`h-full rounded-full transition-all ${budgetDiff > 0 ? 'bg-red-400' : 'bg-blue-500'}`}
+                  style={{ width: `${Math.min(100, (actualSpent / budget) * 100)}%` }}
+                />
               </div>
-            </>
+            </div>
+          )}
+
+          {/* If no items done yet, show a soft hint */}
+          {!hasActual && (
+            <p className="text-xs text-gray-400 text-center pt-1">
+              Mark items as done to track actual spend
+            </p>
           )}
         </div>
       )}
-      {CATS.length === 0 && <p className="text-gray-400 text-sm text-center py-3">No items added yet</p>}
+
+      {/* ── Category breakdown ── */}
       {CATS.length > 0 && (
         <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Breakdown</p>
           {CATS.map(c => (
             <div key={c.label} className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2 text-gray-500"><c.Icon className="h-3.5 w-3.5 flex-shrink-0" />{c.label}</span>
-              <span className="font-semibold text-gray-900">{fmtNPR(c.est)}</span>
+              <span className="flex items-center gap-2 text-gray-500">
+                <c.Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                {c.label}
+              </span>
+              <div className="text-right">
+                <span className="font-semibold text-gray-900">{fmtNPR(c.planned)}</span>
+                {c.spent > 0 && (
+                  <span className="text-xs text-gray-400 ml-1">(spent {fmtNPR(c.spent)})</span>
+                )}
+              </div>
             </div>
           ))}
+
           <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-            <span className="font-bold text-gray-900 text-sm">Total Estimated</span>
-            <span className="font-bold text-blue-600 text-base">{fmtNPR(grandEst)}</span>
+            <span className="font-bold text-gray-900 text-sm">Total Planned</span>
+            <span className="font-bold text-blue-600 text-base">{fmtNPR(totalPlanned)}</span>
           </div>
+
+          {hasActual && (
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-gray-900 text-sm">Total Spent</span>
+              <span className="font-bold text-green-600 text-base">{fmtNPR(actualSpent)}</span>
+            </div>
+          )}
         </div>
       )}
+
     </div>
   );
 };
-
 // ── Trip Summary Banner ───────────────────────────────────────────────────────
+// const TripSummaryBanner = ({ itin, items, nights, budget }) => {
+//   const nonDest  = items.filter(i => i.type !== 'destination');
+//   const totalEst = nonDest.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+//   const doneCount = items.filter(i => i.isDone).length;
+//   const destNames = items.filter(i => i.type === 'destination').map(i => i.title);
+//   return (
+//     <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
+//       <div className="h-2 bg-blue-600" />
+//       <div className="p-6">
+//         <div className="flex items-center gap-3 mb-6">
+          
+//           <div><h2 className="text-xl font-bold text-gray-900">Trip Complete!</h2><p className="text-gray-500 text-sm mt-0.5">{itin.title}</p></div>
+//         </div>
+//         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+//           {[
+//             { label: 'Duration',   value: nights,          unit: `night${nights !== 1 ? 's' : ''}` },
+//             { label: 'Items Done', value: doneCount,        unit: `of ${items.length} planned`       },
+//             { label: 'Estimated',  value: fmtNPR(totalEst), unit: 'total planned'                    },
+//           ].map((s, i) => (
+//             <div key={i} className="bg-gray-50 rounded-xl p-4">
+//               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
+//               <p className="text-xl font-bold text-gray-900">{s.value}</p>
+//               <p className="text-sm text-gray-500">{s.unit}</p>
+//             </div>
+//           ))}
+//         </div>
+//         {destNames.length > 0 && (
+//           <div>
+//             <p className="text-sm font-semibold text-gray-500 mb-2">Destinations visited</p>
+//             <div className="flex flex-wrap gap-2">
+//               {destNames.map(name => <span key={name} className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-medium"><MapPin className="h-3.5 w-3.5" />{name}</span>)}
+//             </div>
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+// ── Trip Summary Banner ───────────────────────────────────────────────────────
+// Replace the existing TripSummaryBanner in ItineraryDetail.jsx with this one.
+//
+// LOGIC (same as BudgetCard):
+//   Total Planned = sum of estimatedCost of ALL items
+//   Actual Spent  = sum of actualCost of DONE items only
+//   Your Budget   = the limit set by user
+//   Remaining     = Your Budget - Actual Spent (only if budget set + items done)
+
 const TripSummaryBanner = ({ itin, items, nights, budget }) => {
-  const nonDest = items.filter(i => i.type !== 'destination');
-  const totalEst = nonDest.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+  const nonDest  = items.filter(i => i.type !== 'destination');
+
+  // Total Planned: all estimated costs
+  const totalPlanned = nonDest.reduce((s, i) => s + (i.estimatedCost || 0), 0);
+
+  // Actual Spent: only done items with actualCost recorded
+  const doneWithCost = nonDest.filter(i => i.isDone && i.actualCost != null);
+  const actualSpent  = doneWithCost.reduce((s, i) => s + (i.actualCost || 0), 0);
+  const hasActual    = doneWithCost.length > 0;
+
   const doneCount = items.filter(i => i.isDone).length;
   const destNames = items.filter(i => i.type === 'destination').map(i => i.title);
+
+  // Budget difference: actual spent vs budget
+  const budgetDiff = budget != null && hasActual ? actualSpent - budget : null;
+
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
       <div className="h-2 bg-blue-600" />
       <div className="p-6">
+
+        {/* ── Title ── */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0"><Sparkles className="h-5 w-5 text-blue-600" /></div>
-          <div><h2 className="text-xl font-bold text-gray-900">Trip Complete!</h2><p className="text-gray-500 text-sm mt-0.5">{itin.title}</p></div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Trip Complete!</h2>
+            <p className="text-gray-500 text-sm mt-0.5">{itin.title}</p>
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-          {[
-            { label: 'Duration',  value: nights, unit: `night${nights !== 1 ? 's' : ''}` },
-            { label: 'Items Done', value: doneCount, unit: `of ${items.length} planned` },
-            { label: 'Estimated', value: fmtNPR(totalEst), unit: 'total planned' },
-          ].map((s, i) => (
-            <div key={i} className="bg-gray-50 rounded-xl p-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
-              <p className="text-xl font-bold text-gray-900">{s.value}</p>
-              <p className="text-sm text-gray-500">{s.unit}</p>
-            </div>
-          ))}
+
+        {/* ── Stats grid ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+
+          {/* Duration */}
+          <div className="bg-gray-50 rounded-xl p-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Duration</p>
+            <p className="text-xl font-bold text-gray-900">{nights}</p>
+            <p className="text-sm text-gray-500">night{nights !== 1 ? 's' : ''}</p>
+          </div>
+
+          {/* Items Done */}
+          <div className="bg-gray-50 rounded-xl p-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Items Done</p>
+            <p className="text-xl font-bold text-gray-900">{doneCount}</p>
+            <p className="text-sm text-gray-500">of {items.length} planned</p>
+          </div>
+
+          {/* Total Planned */}
+          <div className="bg-gray-50 rounded-xl p-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Total Planned</p>
+            <p className="text-xl font-bold text-gray-900">{fmtNPR(totalPlanned)}</p>
+            <p className="text-sm text-gray-500">estimated cost</p>
+          </div>
+
+          {/* Actual Spent — show real number if available, else show dash */}
+          <div className={`rounded-xl p-4 ${hasActual ? 'bg-green-50' : 'bg-gray-50'}`}>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Actual Spent</p>
+            <p className={`text-xl font-bold ${hasActual ? 'text-green-700' : 'text-gray-400'}`}>
+              {hasActual ? fmtNPR(actualSpent) : '—'}
+            </p>
+            <p className="text-sm text-gray-500">
+              {hasActual ? 'total spent' : 'no data yet'}
+            </p>
+          </div>
         </div>
+
+        
+
+        {/* ── Destinations visited ── */}
         {destNames.length > 0 && (
           <div>
             <p className="text-sm font-semibold text-gray-500 mb-2">Destinations visited</p>
             <div className="flex flex-wrap gap-2">
-              {destNames.map(name => <span key={name} className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-medium"><MapPin className="h-3.5 w-3.5" />{name}</span>)}
+              {destNames.map(name => (
+                <span key={name} className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-sm font-medium">
+                  <MapPin className="h-3.5 w-3.5" />{name}
+                </span>
+              ))}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
@@ -997,31 +1254,30 @@ const AddPlanForNoDateSection = ({ onAdd }) => {
 };
 
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
-// ✅ publicView prop: when true, uses public endpoint, hides edit controls
 const ItineraryDetail = ({ publicView = false }) => {
   const { id }   = useParams();
   const navigate = useNavigate();
   const token    = tok();
 
-  const [itin,       setItin]       = useState(null);
-  const [items,      setItems]      = useState([]);
-  const [plans,      setPlans]      = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState(null);
-  const [deleteItem, setDeleteItem] = useState(null);
-  const [deletePlan, setDeletePlan] = useState(null);
-  const [markItem,   setMarkItem]   = useState(null);
-  const [editCost,   setEditCost]   = useState(null);
-  const [editTrip,   setEditTrip]   = useState(false);
-  const [showShare,  setShowShare]  = useState(false);
-  const [deleteTrip, setDeleteTrip] = useState(false);
-  const [showBudget, setShowBudget] = useState(false);
+  const [itin,        setItin]        = useState(null);
+  const [items,       setItems]       = useState([]);
+  const [plans,       setPlans]       = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [deleteItem,  setDeleteItem]  = useState(null);
+  const [deletePlan,  setDeletePlan]  = useState(null);
+  const [markItem,    setMarkItem]    = useState(null);
+  const [editCost,    setEditCost]    = useState(null);
+  const [editTrip,    setEditTrip]    = useState(false);
+  const [showShare,   setShowShare]   = useState(false);
+  const [deleteTrip,  setDeleteTrip]  = useState(false);
+  const [showBudget,  setShowBudget]  = useState(false);
   const [unschedModal, setUnschedModal] = useState(null);
+  // ── CHANGE 2: AI planner state ───────────────────────────────────────────
+  const [showAI, setShowAI] = useState(false);
 
-  // ✅ CHANGE 2: Branch on publicView for fetch
   useEffect(() => {
     if (publicView) {
-      // Public: no auth, anyone can view
       fetch(`${BASE_URL}/api/itineraries/public/${id}`)
         .then(r => { if (!r.ok) throw new Error('Not found'); return r.json(); })
         .then(data => { setItin(data); setItems(data.items || []); setPlans(data.plans || []); })
@@ -1029,7 +1285,6 @@ const ItineraryDetail = ({ publicView = false }) => {
         .finally(() => setLoading(false));
       return;
     }
-    // Private: require auth and ownership
     if (!token) { navigate('/login'); return; }
     fetch(`${BASE_URL}/api/itineraries/${id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => { if (!r.ok) throw new Error('Not found'); return r.json(); })
@@ -1165,8 +1420,8 @@ const ItineraryDetail = ({ publicView = false }) => {
     return itineraryDestinationId ? Array.from(new Set([...fromItems, itineraryDestinationId])) : fromItems;
   }, [items, itin?.destinationId]);
 
-  const destinationName = itin?.destinationName || items.find(i => i.type === 'destination')?.title || null;
-  const grandEst = items.filter(i => i.type !== 'destination').reduce((s, i) => s + (i.estimatedCost || 0), 0);
+  const destinationName  = itin?.destinationName || items.find(i => i.type === 'destination')?.title || null;
+  const grandEst         = items.filter(i => i.type !== 'destination').reduce((s, i) => s + (i.estimatedCost || 0), 0);
   const unscheduledPlans = hasDays ? plans.filter(p => !p.plannedDate) : plans;
 
   if (loading) return (
@@ -1185,15 +1440,24 @@ const ItineraryDetail = ({ publicView = false }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Modals — only shown when not in publicView */}
+      {/* Modals */}
       {!publicView && deleteItem && <ConfirmDelete label={deleteItem.title} onClose={() => setDeleteItem(null)} onConfirm={handleRemoveItem} />}
       {!publicView && deletePlan && <ConfirmDelete label={deletePlan.title} onClose={() => setDeletePlan(null)} onConfirm={handleDeletePlan} />}
       {!publicView && deleteTrip && <ConfirmDelete label={itin.title} onClose={() => setDeleteTrip(false)} onConfirm={handleDeleteTrip} />}
       {!publicView && markItem   && <MarkDoneModal item={markItem} onClose={() => setMarkItem(null)} onConfirm={handleMarkDone} />}
       {!publicView && editCost   && <EditCostModal item={editCost} onClose={() => setEditCost(null)} onConfirm={handleEditCost} />}
       {!publicView && editTrip   && <TripModal existing={itin} onClose={() => setEditTrip(false)} onSave={handleEditSave} />}
-      {showShare  && <ShareModal itin={itin} onClose={() => setShowShare(false)} />}
+      {showShare   && <ShareModal itin={itin} onClose={() => setShowShare(false)} />}
       {!publicView && showBudget && <SetBudgetModal current={itin.budget} grandEst={grandEst} onClose={() => setShowBudget(false)} onSave={handleSetBudget} />}
+      {/* ── CHANGE 3: AI Planner Modal ─────────────────────────────────────── */}
+      {!publicView && showAI && (
+        <AIPlannerModal
+          itin={itin}
+          onClose={() => setShowAI(false)}
+          onAddPlan={(plan) => setPlans(prev => [...prev, plan])}
+          onAddItemToPlan={handleAddItemToPlan}
+        />
+      )}
 
       {!publicView && !hasDays && unschedModal === 'flight'         && <AddFlightModal        onClose={() => setUnschedModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
       {!publicView && !hasDays && unschedModal === 'hotel'          && <AddHotelModal         onClose={() => setUnschedModal(null)} onAdd={handleAddItem} destinationIds={destinationIds} />}
@@ -1223,7 +1487,6 @@ const ItineraryDetail = ({ publicView = false }) => {
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/20 mb-4 text-white shadow-lg">
                 <span className={`w-2 h-2 rounded-full ${sCfg.dotColor} ${status === 'active' ? 'animate-pulse' : ''}`} />{sCfg.label}
-                {/* ✅ publicView badge */}
                 {publicView && <span className="ml-2 text-blue-200">· Shared View</span>}
               </span>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-3 tracking-tight" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.5)' }}>
@@ -1235,7 +1498,6 @@ const ItineraryDetail = ({ publicView = false }) => {
               </div>
             </div>
 
-            {/* ✅ CHANGE 3: Hide edit/delete/status buttons in publicView */}
             {!publicView && (
               <div className="flex items-center gap-3 flex-shrink-0">
                 <div className="bg-white/10 backdrop-blur-md border border-white/20 p-2 rounded-2xl shadow-2xl flex items-center gap-2">
@@ -1249,7 +1511,6 @@ const ItineraryDetail = ({ publicView = false }) => {
         </div>
       </div>
 
-      {/* ✅ CHANGE 4: Read-only banner for public view */}
       {publicView && (
         <div className="max-w-6xl mx-auto px-4 pt-4">
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700 flex items-center justify-between">
@@ -1370,6 +1631,17 @@ const ItineraryDetail = ({ publicView = false }) => {
               </div>
             )}
 
+            {/* ── CHANGE 4: Plan with AI button ──────────────────────────────── */}
+            {!publicView && (
+              <button
+                onClick={() => setShowAI(true)}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl hover:from-blue-700 hover:to-indigo-700 font-semibold text-sm shadow-sm transition"
+              >
+                <Sparkles className="h-4 w-4" />
+                Plan with AI
+              </button>
+            )}
+
             <BudgetCard items={items} budget={itin.budget ?? null} onSetBudget={() => setShowBudget(true)} readOnly={publicView} />
 
             <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -1418,3 +1690,4 @@ const ItineraryDetail = ({ publicView = false }) => {
 };
 
 export default ItineraryDetail;
+

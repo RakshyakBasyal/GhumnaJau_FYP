@@ -83,5 +83,6 @@ app.use('/api/buddies',        require('./routes/buddyRoutes'));
 app.use('/api/trips',          require('./routes/tripRoutes'));
 app.use('/api/restaurants',    require('./routes/restaurantRoutes'));
 app.use('/api/activities',     require('./routes/activityRoutes'));
+app.use('/api/ai', require('./routes/aiRoutes'));
 
 module.exports = app;
