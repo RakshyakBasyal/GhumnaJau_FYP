@@ -1,14 +1,19 @@
 // frontend/src/pages/Itinerary.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getImageUrl } from '../services/api';
 import {
   Plus, Calendar, Loader2, Edit2, Trash2, X, Check,
   AlertTriangle, MapPin, PlayCircle, Flag, ChevronRight, Search, Globe
 } from 'lucide-react';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const tok      = () => localStorage.getItem('token');
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => {
+  const d = new Date();
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+};
 
 const fmtDate  = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const fmtShort = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -116,7 +121,7 @@ export const TripModal = ({ existing, onClose, onSave }) => {
             className="w-full flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition group text-left border-b border-gray-50 last:border-0">
             <div className="w-10 h-10 rounded-xl overflow-hidden bg-green-50 flex-shrink-0">
               {dest.images?.[0]
-                ? <img src={`${BASE_URL}${dest.images[0]}`} alt="" className="w-full h-full object-cover" />
+                ? <img src={getImageUrl(dest.images[0])} alt="" className="w-full h-full object-cover" />
                 : <div className="w-full h-full flex items-center justify-center"><MapPin className="h-4 w-4 text-green-600" /></div>}
             </div>
             <div className="flex-1 min-w-0">
@@ -222,9 +227,9 @@ const TripCard = ({ itin, onOpen, onEdit, onDelete, onStatusChange }) => {
 
   // Cover: explicit coverImage > destinationImage > gradient
   const coverSrc = itin.coverImage
-    ? `${BASE_URL}${itin.coverImage}`
+    ? getImageUrl(itin.coverImage)
     : itin.destinationImage
-      ? `${BASE_URL}${itin.destinationImage}`
+      ? getImageUrl(itin.destinationImage)
       : null;
 
   return (

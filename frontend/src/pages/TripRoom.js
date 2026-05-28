@@ -5,7 +5,7 @@ import {
   Loader2, MapPin, Calendar, Users, Send, ArrowLeft,
   Check, X, UserPlus, Crown, MessageSquare, Share2,
   Plane, Hotel as HotelIcon, ClipboardList, ExternalLink,
-  ChevronRight, Search,
+  ChevronRight, Search, Receipt, PieChart, Plus, Trash2, Banknote,
 } from "lucide-react";
 import { io } from "socket.io-client";
 import { useToast } from "../context/ToastContext";
@@ -13,8 +13,9 @@ import {
   getTripRoomById, sendRoomMessage, respondToRoomRequest,
   inviteBuddyToRoom, getConnections, getMyTripRooms,
 } from "../services/api";
+import ExpensePanel from "../components/ExpensePanel";
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const tok = () => localStorage.getItem("token");
 
 const av = (v) => {
@@ -333,7 +334,7 @@ export default function TripRoom() {
   const [connections, setConnections] = useState([]);
   const [showInvite,  setShowInvite]  = useState(false);
   const [showShare,   setShowShare]   = useState(false);
-  const [activePanel, setActivePanel] = useState("chat"); // chat | members
+  const [activePanel, setActivePanel] = useState("chat"); // chat | members | expenses
 
   const chatRef  = useRef(null);
   const inputRef = useRef(null);
@@ -473,10 +474,18 @@ export default function TripRoom() {
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Members / Chat toggle */}
-            <button onClick={() => setActivePanel(p => p === "chat" ? "members" : "chat")}
+            {/* Members / Chat / Expenses toggle */}
+            <button onClick={() => setActivePanel("chat")}
+              className={`p-1.5 rounded-lg transition ${activePanel === "chat" ? "bg-white/30" : "hover:bg-white/20"}`} title="Chat">
+              <MessageSquare size={16} />
+            </button>
+            <button onClick={() => setActivePanel("members")}
               className={`p-1.5 rounded-lg transition ${activePanel === "members" ? "bg-white/30" : "hover:bg-white/20"}`} title="Members">
-              {activePanel === "chat" ? <Users size={16} /> : <MessageSquare size={16} />}
+              <Users size={16} />
+            </button>
+            <button onClick={() => setActivePanel("expenses")}
+              className={`p-1.5 rounded-lg transition ${activePanel === "expenses" ? "bg-white/30" : "hover:bg-white/20"}`} title="Expenses">
+              <Receipt size={16} />
             </button>
 
             {/* Invite */}
@@ -587,6 +596,11 @@ export default function TripRoom() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── EXPENSES panel ────────────────────────────────────────── */}
+          {activePanel === "expenses" && (
+            <ExpensePanel room={room} myId={myId} onUpdate={fetchRoom} />
           )}
 
           {/* ── CHAT panel ───────────────────────────────────────────── */}

@@ -1,22 +1,15 @@
 // backend/src/routes/itineraryRoutes.js
 const express   = require('express');
 const router    = express.Router();
-const multer    = require('multer');
 const path      = require('path');
 const auth      = require('../middleware/auth');
+const { uploadItinerary } = require('../middleware/upload');
 const Itinerary     = require('../models/Itinerary');
 const ItineraryItem = require('../models/ItineraryItem');
 const ItineraryPlan = require('../models/ItineraryPlan');
 
 let Destination;
 try { Destination = require('../models/Destination'); } catch { Destination = null; }
-
-// ── Multer ────────────────────────────────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename:    (req, file, cb) => cb(null, `cover_${Date.now()}${path.extname(file.originalname)}`),
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ── Create itinerary ──────────────────────────────────────────────────────────
 router.post('/', auth, async (req, res) => {
@@ -169,10 +162,10 @@ router.patch('/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.patch('/:id/cover', auth, upload.single('coverImage'), async (req, res) => {
+router.patch('/:id/cover', auth, uploadItinerary.single('coverImage'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ msg: 'No file uploaded' });
-    const coverImage = `/uploads/${req.file.filename}`;
+    const coverImage = req.file.path;
     const itinerary  = await Itinerary.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id }, { $set: { coverImage } }, { new: true }
     );

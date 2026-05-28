@@ -275,7 +275,11 @@ exports.getTripRoomById = async (req, res) => {
     const room = await TripRoom.findById(req.params.id)
       .populate('members',         'fullName avatar travelStyle')
       .populate('createdBy',       'fullName avatar')
-      .populate('messages.sender', 'fullName avatar');
+      .populate('messages.sender', 'fullName avatar')
+      .populate('expenses.paidBy', 'fullName avatar')
+      .populate('expenses.splitWith.user', 'fullName avatar')
+      .populate('settlements.from', 'fullName avatar')
+      .populate('settlements.to', 'fullName avatar');
     if (!room) return res.status(404).json({ msg: 'Room not found' });
     res.json(room);
   } catch (err) {
@@ -314,7 +318,10 @@ exports.respondToJoinRequest = async (req, res) => {
     const { roomId, userId, action } = req.body;
     const room = await TripRoom.findById(roomId);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
-    if (room.createdBy.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+
+    const isOwner = room.createdBy.toString() === req.user.id;
+    const isCoOwner = (room.coOwners || []).map(id => id.toString()).includes(req.user.id);
+    if (!isOwner && !isCoOwner) return res.status(401).json({ msg: 'Not authorized' });
 
     if (action === 'accept') {
       if (room.members.length >= room.maxMembers) return res.status(400).json({ msg: 'Room is full' });
@@ -337,7 +344,10 @@ exports.inviteBuddyToRoom = async (req, res) => {
     const { roomId, buddyId } = req.body;
     const room = await TripRoom.findById(roomId);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
-    if (room.createdBy.toString() !== req.user.id) return res.status(401).json({ msg: 'Not authorized' });
+
+    const isOwner = room.createdBy.toString() === req.user.id;
+    const isCoOwner = (room.coOwners || []).map(id => id.toString()).includes(req.user.id);
+    if (!isOwner && !isCoOwner) return res.status(401).json({ msg: 'Not authorized' });
     if (room.members.map(m => m.toString()).includes(buddyId))
       return res.status(400).json({ msg: 'Buddy already in room' });
 
@@ -433,6 +443,87 @@ exports.updateRoomNotes = async (req, res) => {
     room.notes = req.body.notes;
     await room.save();
     res.json({ notes: room.notes });
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+// ── EXPENSES ──────────────────────────────────────────────────────────────────
+exports.addExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description, amount, category, date, notes, splitWith } = req.body;
+    const room = await TripRoom.findById(id);
+    if (!room) return res.status(404).json({ msg: 'Room not found' });
+
+    room.expenses.push({
+      description,
+      amount,
+      paidBy: req.user.id,
+      category,
+      date: date || new Date(),
+      notes,
+      splitWith
+    });
+
+    await room.save();
+    const updated = await TripRoom.findById(id)
+      .populate('expenses.paidBy', 'fullName avatar')
+      .populate('expenses.splitWith.user', 'fullName avatar');
+    res.json(updated.expenses[updated.expenses.length - 1]);
+  } catch (err) {
+    console.error('Add expense error:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+exports.deleteExpense = async (req, res) => {
+  try {
+    const { id, expenseId } = req.params;
+    const room = await TripRoom.findById(id);
+    if (!room) return res.status(404).json({ msg: 'Room not found' });
+
+    room.expenses = room.expenses.filter(e => e._id.toString() !== expenseId);
+    await room.save();
+    res.json({ msg: 'Expense removed' });
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+exports.addSettlement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { to, amount, date } = req.body;
+    const room = await TripRoom.findById(id);
+    if (!room) return res.status(404).json({ msg: 'Room not found' });
+
+    room.settlements.push({
+      from: req.user.id,
+      to,
+      amount,
+      date: date || new Date()
+    });
+
+    await room.save();
+    const updated = await TripRoom.findById(id)
+      .populate('settlements.from', 'fullName avatar')
+      .populate('settlements.to', 'fullName avatar');
+    res.json(updated.settlements[updated.settlements.length - 1]);
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+exports.deleteSettlement = async (req, res) => {
+  try {
+    const { id, settlementId } = req.params;
+    const room = await TripRoom.findById(id);
+    if (!room) return res.status(404).json({ msg: 'Room not found' });
+
+    room.settlements = room.settlements.filter(s => s._id.toString() !== settlementId);
+    await room.save();
+    res.json({ msg: 'Settlement removed' });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }

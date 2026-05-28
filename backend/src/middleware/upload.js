@@ -1,75 +1,87 @@
 // backend/src/middleware/upload.js
-const multer = require('multer');
-const path = require('path');
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const multer = require("multer");
 
-const generateFilename = (file) => {
-  const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-  return uniqueSuffix + path.extname(file.originalname);
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) cb(null, true);
+  else cb(new Error("Only images allowed"), false);
 };
 
 // 1. User avatars
 const uploadAvatar = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/avatars/'),
-    filename:    (req, file, cb) => cb(null, generateFilename(file)),
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: { folder: "ghumna-jau/avatars", allowed_formats: ["jpg", "jpeg", "png", "webp"] },
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  },
+  fileFilter,
 });
 
 // 2. Hotel images
 const uploadHotel = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/hotels/'),
-    filename:    (req, file, cb) => cb(null, generateFilename(file)),
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: { folder: "ghumna-jau/hotels", allowed_formats: ["jpg", "jpeg", "png", "webp"] },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  },
+  fileFilter,
 });
 
 // 3. Destination images
 const uploadDestination = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/destinations/'),
-    filename:    (req, file, cb) => cb(null, generateFilename(file)),
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: { folder: "ghumna-jau/destinations", allowed_formats: ["jpg", "jpeg", "png", "webp"] },
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  },
+  fileFilter,
 });
 
 // 4. Restaurant images
 const uploadRestaurant = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/restaurants/'),
-    filename:    (req, file, cb) => cb(null, generateFilename(file)),
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: { folder: "ghumna-jau/restaurants", allowed_formats: ["jpg", "jpeg", "png", "webp"] },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  },
+  fileFilter,
 });
 
 // 5. Activity images
 const uploadActivity = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/activities/'),
-    filename:    (req, file, cb) => cb(null, generateFilename(file)),
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: { folder: "ghumna-jau/activities", allowed_formats: ["jpg", "jpeg", "png", "webp"] },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  },
+  fileFilter,
+});
+
+// 6. Community post images
+const uploadPost = multer({
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: { folder: "ghumna-jau/posts", allowed_formats: ["jpg", "jpeg", "png", "webp", "gif"] },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter,
+});
+
+// 7. Itinerary cover images
+const uploadItinerary = multer({
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: { folder: "ghumna-jau/itineraries", allowed_formats: ["jpg", "jpeg", "png", "webp"] },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter,
 });
 
 module.exports = {
@@ -78,4 +90,6 @@ module.exports = {
   uploadDestination,
   uploadRestaurant,
   uploadActivity,
+  uploadPost,
+  uploadItinerary,
 };

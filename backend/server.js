@@ -12,12 +12,13 @@ const server = http.createServer(app);
 // Attach Socket.io
 const io = require('socket.io')(server, {
   cors: {
-    origin: "http://localhost:3000", 
+    origin: [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+    ],
     methods: ["GET", "POST"],
     credentials: true
   }
 });
-
 // Store io in app so routes can access it
 app.set('io', io);
 

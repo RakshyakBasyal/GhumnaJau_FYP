@@ -25,7 +25,7 @@ exports.createPost = async (req, res) => {
     }
 
     const images = req.files
-      ? req.files.map(file => `/uploads/posts/${file.filename}`)
+      ? req.files.map(file => file.path)
       : [];
 
     const post = await Post.create({
@@ -218,7 +218,7 @@ exports.editPost = async (req, res) => {
 
     // New images
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(f => `/uploads/posts/${f.filename}`);
+      const newImages = req.files.map(f => f.path);
       post.images = [...post.images, ...newImages];
     }
 

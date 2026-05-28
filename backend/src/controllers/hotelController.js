@@ -10,7 +10,7 @@ exports.createHotel = async (req, res) => {
     } = req.body;
 
     const images = req.files
-      ? req.files.map(file => `/uploads/hotels/${file.filename}`)
+      ? req.files.map(file => file.path)
       : [];
 
     const hotel = new Hotel({
@@ -61,7 +61,7 @@ exports.updateHotel = async (req, res) => {
     if (lng !== undefined) hotel.location.lng = lng === '' ? null : parseFloat(lng);
 
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(f => `/uploads/hotels/${f.filename}`);
+     const newImages = req.files.map(f => f.path);
       hotel.images = [...hotel.images, ...newImages];
     }
 

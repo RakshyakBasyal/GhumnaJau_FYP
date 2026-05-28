@@ -12,7 +12,7 @@ import AdminNavbar from '../components/AdminNavbar';
 import { useToast } from '../context/ToastContext';
 import io from 'socket.io-client';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const AdminDashboard = () => {
   const navigate      = useNavigate();

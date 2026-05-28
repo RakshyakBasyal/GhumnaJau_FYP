@@ -150,8 +150,8 @@ exports.updateMe = async (req, res) => {
 
     const avatarFile = req.files?.avatar?.[0];
     const coverFile  = req.files?.coverImage?.[0];
-    if (avatarFile) updates.avatar     = `/uploads/avatars/${avatarFile.filename}`;
-    if (coverFile)  updates.coverImage = `/uploads/avatars/${coverFile.filename}`;
+    if (avatarFile) updates.avatar     = avatarFile.path;
+if (coverFile)  updates.coverImage = coverFile.path;
 
     const updated = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select("-password");
     if (!updated) return res.status(404).json({ msg: "User not found" });

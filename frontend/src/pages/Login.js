@@ -1,5 +1,4 @@
 // // frontend/src/pages/Login.js
-
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, Eye, EyeOff, Plane, X, ArrowLeft } from 'lucide-react';
@@ -351,13 +350,6 @@ const Login = () => {
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm text-center">
                   {error}
-                  {typeof error === 'string' && error.includes('Admin') && (
-                    <div className="mt-3">
-                      <Link to="/admin-login" className="font-semibold text-blue-600 hover:underline">
-                        Go to Admin Login →
-                      </Link>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -434,14 +426,17 @@ const Login = () => {
               </button>
             </form>
 
+            {/* Admin login access hidden from normal users */}
+            {/* 
             <div className="mt-8 text-center">
               <p className="text-sm text-gray-600">
                 Admin access?{' '}
                 <Link to="/admin-login" className="font-semibold text-blue-600 hover:text-blue-700 underline">
-                  Login here
+                  Login as Admin
                 </Link>
               </p>
             </div>
+            */}
           </div>
         </div>
       </div>

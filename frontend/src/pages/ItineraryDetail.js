@@ -11,10 +11,11 @@ import {
   Receipt, Sparkles, Globe, ExternalLink
 } from 'lucide-react';
 import { TripModal, StatusButton, STATUS_CFG, Modal, ConfirmDelete } from './Itinerary';
+import { getImageUrl } from '../services/api';
 // ── CHANGE 1: Import AIPlannerModal ──────────────────────────────────────────
 import AIPlannerModal from '../components/AIPlannerModal';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const fmtNPR   = (n) => `NPR ${Math.round(n).toLocaleString()}`;
 const tok      = () => localStorage.getItem('token');
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -153,7 +154,7 @@ const AddHotelModal = ({ onClose, onAdd, destinationIds, plannedDate }) => {
           <button key={hotel._id} onClick={() => setSelected(hotel)}
             className="w-full flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition group text-left border-b border-gray-50 last:border-0">
             <div className="w-10 h-10 rounded-xl overflow-hidden bg-blue-50 flex-shrink-0">
-              {hotel.images?.[0] ? <img src={`${BASE_URL}${hotel.images[0]}`} alt="" className="w-full h-full object-cover" /> : <Hotel className="h-4 w-4 text-blue-600 m-auto mt-3" />}
+              {hotel.images?.[0] ? <img src={getImageUrl(hotel.images[0])} alt="" className="w-full h-full object-cover" /> : <Hotel className="h-4 w-4 text-blue-600 m-auto mt-3" />}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-gray-900 text-sm">{hotel.name}</p>
@@ -1467,7 +1468,7 @@ const ItineraryDetail = ({ publicView = false }) => {
 
       {/* Hero */}
       <div className="relative h-[320px] md:h-[400px] bg-gradient-to-br from-blue-600 to-indigo-700 overflow-hidden flex items-center">
-        {itin.destinationImage && <img src={`${BASE_URL}${itin.destinationImage}`} alt={itin.title} className="w-full h-full object-cover" />}
+        {itin.destinationImage && <img src={getImageUrl(itin.destinationImage)} alt={itin.title} className="w-full h-full object-cover" />}
         <div className="absolute inset-0 bg-black/40" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 

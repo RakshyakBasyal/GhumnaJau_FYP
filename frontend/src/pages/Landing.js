@@ -1,11 +1,11 @@
 // frontend/src/pages/Landing.js
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDestinations } from '../services/api';
+import { getDestinations, getImageUrl } from '../services/api';
 import { Search, MapPin, Shield, Users, Star, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const Landing = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -179,7 +179,7 @@ const Landing = () => {
                         <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 shadow-sm">
                           {dest.images?.[0] ? (
                             <img
-                              src={`${BASE_URL}${dest.images[0]}`}
+                              src={getImageUrl(dest.images[0])}
                               alt={dest.name}
                               className="w-full h-full object-cover"
                             />
@@ -299,7 +299,7 @@ const Landing = () => {
                 onClick={() => navigate(`/destinations/${destination._id}`)}
                 style={{
                   backgroundImage: destination.images?.[0]
-                    ? `url(${BASE_URL}${destination.images[0]})`
+                    ? `url(${getImageUrl(destination.images[0])})`
                     : `url('https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg')`,
                 }}
               >

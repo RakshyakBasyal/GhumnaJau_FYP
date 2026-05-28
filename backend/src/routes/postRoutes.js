@@ -1,31 +1,16 @@
 // backend/src/routes/postRoutes.js
 const express  = require('express');
 const router   = express.Router();
-const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 const auth     = require('../middleware/auth');
+const { uploadPost } = require('../middleware/upload');
 const Post     = require('../models/Post');
 const Comment  = require('../models/Comment');
 const User     = require('../models/User');
 const Follow   = require('../models/Follow');
 const Destination = require('../models/Destination');
 const Hotel    = require('../models/Hotel');
-
-// ── Multer ────────────────────────────────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/posts/'),
-  filename:    (req, file, cb) =>
-    cb(null, `post_${Date.now()}_${Math.random().toString(36).slice(2)}${path.extname(file.originalname)}`),
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = /jpeg|jpg|png|gif|webp/.test(path.extname(file.originalname).toLowerCase());
-    cb(null, ok);
-  },
-});
 
 // ── Populate helper ───────────────────────────────────────────────────────────
 const populatePost = (q) =>
@@ -160,10 +145,10 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // ── Create post ───────────────────────────────────────────────────────────────
-router.post('/', auth, upload.array('images', 10), async (req, res) => {
+router.post('/', auth, uploadPost.array('images', 10), async (req, res) => {
   try {
     const { content, category, destinationId, destinationName, budget, taggedUsers, reviewType, reviewRefId, rating } = req.body;
-    const images = (req.files || []).map(f => `/uploads/posts/${f.filename}`);
+    const images = (req.files || []).map(f => f.path);
 
     const post = await Post.create({
       author: req.user.id,
@@ -196,7 +181,7 @@ router.post('/', auth, upload.array('images', 10), async (req, res) => {
 // ── Update post (supports image add + delete) ─────────────────────────────────
 // Accepts multipart/form-data with optional new image files and a JSON
 // `deleteImages` array of existing image paths to remove.
-router.patch('/:id', auth, upload.array('images', 10), async (req, res) => {
+router.patch('/:id', auth, uploadPost.array('images', 10), async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post || post.isDeleted) return res.status(404).json({ msg: 'Not found' });
@@ -212,21 +197,15 @@ router.patch('/:id', auth, upload.array('images', 10), async (req, res) => {
       try { toDelete = JSON.parse(req.body.deleteImages); } catch (_) {}
 
       if (toDelete.length > 0) {
-        // Remove files from disk
-        toDelete.forEach(imgPath => {
-          const fullPath = path.join(__dirname, '../../', imgPath);
-          if (fs.existsSync(fullPath)) {
-            fs.unlink(fullPath, err => { if (err) console.warn('Could not delete image:', imgPath); });
-          }
-        });
-        // Remove from post.images array
+        // Note: For Cloudinary, we'd need public_id to destroy. 
+        // For now, we just remove from post.images array.
         post.images = post.images.filter(img => !toDelete.includes(img));
       }
     }
 
     // ── Add new images ─────────────────────────────────────────────────────────
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(f => `/uploads/posts/${f.filename}`);
+      const newImages = req.files.map(f => f.path);
       post.images = [...post.images, ...newImages];
     }
 

@@ -4,7 +4,8 @@ const Restaurant = require('../models/Restaurant');
 exports.createRestaurant = async (req, res) => {
   try {
     const { name, destination, description, shortDescription, cuisine, priceRange, avgCostPerPerson, openingHours, address, phone } = req.body;
-    const images = req.files ? req.files.map(f => `/uploads/restaurants/${f.filename}`) : [];
+    const images = req.files ? req.files.map(file => file.path)
+ : [];
     const restaurant = new Restaurant({
       name, destination, description, shortDescription,
       cuisine: cuisine ? cuisine.split(',').map(c => c.trim()).filter(Boolean) : [],
@@ -34,7 +35,7 @@ exports.updateRestaurant = async (req, res) => {
     if (address)          rest.address          = address;
     if (phone)            rest.phone            = phone;
     if (isActive !== undefined) rest.isActive   = isActive === 'true' || isActive === true;
-    if (req.files && req.files.length > 0) rest.images = [...rest.images, ...req.files.map(f => `/uploads/restaurants/${f.filename}`)];
+    if (req.files && req.files.length > 0) rest.images = [...rest.images, ...req.files.map(f => f.path)];
     if (deleteImages) { const del = JSON.parse(deleteImages); rest.images = rest.images.filter(i => !del.includes(i)); }
     const updated = await rest.save();
     res.json(updated);

@@ -31,8 +31,8 @@ exports.createDestination = async (req, res) => {
 
     // FIXED: Save with correct subfolder path
     const images = req.files
-      ? req.files.map((file) => `/uploads/destinations/${file.filename}`)
-      : [];
+  ? req.files.map((file) => file.path)
+  : [];
 
     const avg = toNumberOrUndefined(averageCost);
     const min = toNumberOrUndefined(averageCostMin);
@@ -130,15 +130,13 @@ exports.updateDestination = async (req, res) => {
     }
 
     // FIXED: New images saved with /uploads/destinations/
-    if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(
-        (file) => `/uploads/destinations/${file.filename}`
-      );
-      destination.images = [
-        ...(destination.images || []),
-        ...newImages,
-      ];
-    }
+ if (req.files && req.files.length > 0) {
+  const newImages = req.files.map((file) => file.path);
+  destination.images = [
+    ...(destination.images || []),
+    ...newImages,
+  ];
+}
 
     // Delete images
     if (req.body.deleteImages) {
