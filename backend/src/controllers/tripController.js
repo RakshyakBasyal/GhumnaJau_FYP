@@ -1,6 +1,4 @@
 // backend/src/controllers/tripController.js
-// KEY FIX: getGeneralDiscovery now actually filters by destination when provided,
-// so users with Pokhara in preferredDestinations show up when you search "Pokhara"
 const Trip = require('../models/Trip');
 const TripRoom = require('../models/TripRoom');
 const User = require('../models/User');
@@ -63,7 +61,7 @@ exports.deleteTrip = async (req, res) => {
   }
 };
 
-// ── DISCOVER TRIPS (trip-based matching) ──────────────────────────────────────
+// DISCOVER TRIPS (trip-based matching) 
 exports.getDiscoverTrips = async (req, res) => {
   try {
     const { destination, startDate, endDate, budget, travelStyle } = req.query;

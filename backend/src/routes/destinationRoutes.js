@@ -1,4 +1,4 @@
-// // backend/src/routes/destinationRoutes.js
+// backend/src/routes/destinationRoutes.js
 const express = require('express');
 const { uploadDestination } = require('../middleware/upload'); // ← NEW IMPORT
 const auth = require('../middleware/auth');

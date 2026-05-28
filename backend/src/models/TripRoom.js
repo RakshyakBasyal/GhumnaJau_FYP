@@ -1,3 +1,4 @@
+// backend/src/mode/TripRoom.js
 const mongoose = require('mongoose');
 
 const tripRoomSchema = new mongoose.Schema({

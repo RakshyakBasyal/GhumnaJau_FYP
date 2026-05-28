@@ -1,4 +1,3 @@
-
 // backend/src/models/BuddyMessage.js
 const mongoose = require("mongoose");
 

@@ -1,3 +1,4 @@
+// frontend/src/components/feed/ImageCarousel.js
 import { useState, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 

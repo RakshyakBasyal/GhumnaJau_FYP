@@ -1,4 +1,4 @@
-// frontend/src/components/feed/CreatePostModal.jsx
+// frontend/src/components/feed/CreatePostModal.js
 import { useState, useEffect, useRef } from 'react';
 import {
   X, Image, MapPin, Loader2, Star, Search,
