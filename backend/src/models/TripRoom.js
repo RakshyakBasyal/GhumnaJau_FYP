@@ -76,6 +76,17 @@ const tripRoomSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    type: {
+      type: String,
+      enum: ['text', 'expense', 'settlement'],
+      default: 'text'
+    },
+    expenseRef: {
+      type: mongoose.Schema.Types.ObjectId
+    },
+    settlementRef: {
+      type: mongoose.Schema.Types.ObjectId
+    },
     createdAt: {
       type: Date,
       default: Date.now

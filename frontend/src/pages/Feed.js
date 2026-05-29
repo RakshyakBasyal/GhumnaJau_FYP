@@ -238,18 +238,35 @@ export default function Feed({ isCommunityView = false }) {
 
   useEffect(function () {
     getMe().then(function (res) { setCurrentUser(res.data); }).catch(function () {});
-    getDiscoverUsers({ limit: 5 }).then(function (res) {
-      setSuggested((res.data.users || []).filter(function (u) { return String(u._id) !== String(myId); }).slice(0, 5));
+    
+    // 1. Fetch suggested buddies based on matching scores
+    getDiscoverUsers({ limit: 20 }).then(function (res) {
+      // Fetch who I'm following first to filter
+      fetch(BASE_URL + '/api/follows/' + myId + '/following', { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var map = {};
+          (data.following || []).forEach(function (u) { if (u && u._id) map[u._id] = 'following'; });
+          setConnectMap(map);
+
+          // Now filter suggested users: not me AND not already followed
+          var users = (res.data.users || []).filter(function (u) { 
+            return String(u._id) !== String(myId) && !map[u._id]; 
+          });
+          
+          // Sort by match score (highest first) and limit to 4
+          users.sort(function(a, b) { return (b.matchScore || 0) - (a.matchScore || 0); });
+          setSuggested(users.slice(0, 4));
+        }).catch(function () {});
     }).catch(function () {});
-    // Build follow map: fetch who I'm following
-    fetch(BASE_URL + '/api/follows/' + myId + '/following', { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var map = {};
-        (data.following || []).forEach(function (u) { if (u && u._id) map[u._id] = 'following'; });
-        setConnectMap(map);
-      }).catch(function () {});
-    getDestinations().then(function (res) { setTrendingDestinations((res.data || []).slice(0, 3)); }).catch(function () {});
+
+    // 2. Fetch trending destinations based on highest review ratings
+    getDestinations().then(function (res) { 
+      var dests = (res.data || []).slice();
+      // Sort by rating (highest first) and limit to 4
+      dests.sort(function(a, b) { return (b.rating || 0) - (a.rating || 0); });
+      setTrendingDestinations(dests.slice(0, 4)); 
+    }).catch(function () {});
   }, [myId]);
 
   async function handleConnect(userId, currentStatus) {

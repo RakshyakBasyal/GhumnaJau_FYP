@@ -162,9 +162,11 @@ export default function ExpensePanel({ room, myId, onUpdate }) {
             <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600 mb-2">
               <PieChart size={16} />
             </div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">My Balance</p>
-            <p className={`text-lg font-bold ${stats.balances[myId] >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {stats.balances[myId] >= 0 ? '+' : ''} {Math.round(stats.balances[myId]).toLocaleString()}
+            <p className="text-[10px] font-bold text-gray-400 uppercase">
+              {stats.balances[myId] > 0 ? "To Receive" : stats.balances[myId] < 0 ? "To Pay" : "Settled up"}
+            </p>
+            <p className={`text-lg font-bold ${stats.balances[myId] >= 0 ? (stats.balances[myId] === 0 ? 'text-gray-500' : 'text-emerald-600') : 'text-red-600'}`}>
+              NPR {Math.abs(Math.round(stats.balances[myId])).toLocaleString()}
             </p>
           </div>
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -209,10 +211,14 @@ export default function ExpensePanel({ room, myId, onUpdate }) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className={`text-xs font-bold ${stats.balances[m._id] >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {stats.balances[m._id] >= 0 ? 'Owed' : 'Owes'} NPR {Math.abs(Math.round(stats.balances[m._id])).toLocaleString()}
+                  <p className={`text-xs font-bold ${stats.balances[m._id] >= 0 ? (stats.balances[m._id] === 0 ? 'text-gray-500' : 'text-emerald-600') : 'text-red-600'}`}>
+                    {stats.balances[m._id] > 0 
+                      ? `To Receive: NPR ${Math.round(stats.balances[m._id]).toLocaleString()}` 
+                      : stats.balances[m._id] < 0 
+                        ? `To Pay: NPR ${Math.abs(Math.round(stats.balances[m._id])).toLocaleString()}` 
+                        : 'Settled up'}
                   </p>
-                  <p className="text-[9px] text-gray-400 font-medium">Net Balance</p>
+                  <p className="text-[9px] text-gray-400 font-medium">Status</p>
                 </div>
               </div>
             ))}

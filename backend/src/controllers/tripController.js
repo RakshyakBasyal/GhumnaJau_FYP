@@ -456,7 +456,7 @@ exports.addExpense = async (req, res) => {
     const room = await TripRoom.findById(id);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
 
-    room.expenses.push({
+    const expense = {
       description,
       amount,
       paidBy: req.user.id,
@@ -464,12 +464,30 @@ exports.addExpense = async (req, res) => {
       date: date || new Date(),
       notes,
       splitWith
+    };
+
+    room.expenses.push(expense);
+    const savedExpense = room.expenses[room.expenses.length - 1];
+
+    // Add system message for expense
+    room.messages.push({
+      sender: req.user.id,
+      text: `Added expense: ${description} (NPR ${amount})`,
+      type: 'expense',
+      expenseRef: savedExpense._id
     });
 
     await room.save();
+    
     const updated = await TripRoom.findById(id)
       .populate('expenses.paidBy', 'fullName avatar')
-      .populate('expenses.splitWith.user', 'fullName avatar');
+      .populate('expenses.splitWith.user', 'fullName avatar')
+      .populate('messages.sender', 'fullName avatar');
+
+    // Emit socket event for the new message
+    const lastMsg = updated.messages[updated.messages.length - 1];
+    req.app.get('io')?.emit('room:message:new', { roomId: id, message: lastMsg });
+
     res.json(updated.expenses[updated.expenses.length - 1]);
   } catch (err) {
     console.error('Add expense error:', err);
@@ -498,17 +516,35 @@ exports.addSettlement = async (req, res) => {
     const room = await TripRoom.findById(id);
     if (!room) return res.status(404).json({ msg: 'Room not found' });
 
-    room.settlements.push({
+    const settlement = {
       from: req.user.id,
       to,
       amount,
       date: date || new Date()
+    };
+
+    room.settlements.push(settlement);
+    const savedSettlement = room.settlements[room.settlements.length - 1];
+
+    // Add system message for settlement
+    room.messages.push({
+      sender: req.user.id,
+      text: `Settled balance (NPR ${amount})`,
+      type: 'settlement',
+      settlementRef: savedSettlement._id
     });
 
     await room.save();
+
     const updated = await TripRoom.findById(id)
       .populate('settlements.from', 'fullName avatar')
-      .populate('settlements.to', 'fullName avatar');
+      .populate('settlements.to', 'fullName avatar')
+      .populate('messages.sender', 'fullName avatar');
+
+    // Emit socket event for the new message
+    const lastMsg = updated.messages[updated.messages.length - 1];
+    req.app.get('io')?.emit('room:message:new', { roomId: id, message: lastMsg });
+
     res.json(updated.settlements[updated.settlements.length - 1]);
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
