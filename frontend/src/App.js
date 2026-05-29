@@ -1,4 +1,4 @@
-// frontend/src/App.jsx
+// frontend/src/App.js
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
 import Layout from './components/Layout';
