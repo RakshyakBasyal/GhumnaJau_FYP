@@ -20,7 +20,7 @@ const AuthGoogleSuccess = () => {
         localStorage.setItem('token', token);
 
         // 2. Fetch full user info from backend (just like after normal login)
-        const res = await fetch('http://localhost:5000/api/users/me', {
+        const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/users/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',

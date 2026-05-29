@@ -9,7 +9,7 @@ import {
 import { useToast } from '../context/ToastContext';
 import axios from 'axios';
 
-const BASE_URL    = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 const LEAFLET_JS  = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 

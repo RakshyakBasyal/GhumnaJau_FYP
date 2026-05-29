@@ -216,7 +216,7 @@ export default function ExpensePanel({ room, myId, onUpdate }) {
               <div key={m._id} className="px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 overflow-hidden">
-                    {m.avatar ? <img src={m.avatar.startsWith('http') ? m.avatar : `http://localhost:5000${m.avatar}`} alt="" className="w-full h-full object-cover" /> : m.fullName.charAt(0)}
+                    {m.avatar ? <img src={m.avatar.startsWith('http') ? m.avatar : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${m.avatar}`} alt="" className="w-full h-full object-cover" /> : m.fullName.charAt(0)}
                   </div>
                   <div>
                     <p className="text-xs font-bold text-gray-900">{m.fullName} {m._id === myId && '(You)'}</p>

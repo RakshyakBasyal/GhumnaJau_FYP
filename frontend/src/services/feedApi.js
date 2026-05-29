@@ -1,7 +1,7 @@
 // frontend/src/services/feedApi.js
 import axios from 'axios';
 
-const BASE = 'http://localhost:5000/api';
+const BASE = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api`;
 
 const headers = () => ({
   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },

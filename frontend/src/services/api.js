@@ -2,10 +2,10 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: `${process.env.REACT_APP_API_URL}/api`,
 });
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export const getImageUrl = (path) => {
   if (!path) return '';

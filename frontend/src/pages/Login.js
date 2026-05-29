@@ -35,7 +35,7 @@ const ForgotPasswordModal = ({ onClose }) => {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      await axios.post('http://localhost:5000/api/password-reset/send-code', { email });
+      await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/password-reset/send-code`, { email });
       setStep(2);
       startCountdown();
     } catch (err) {
@@ -55,7 +55,7 @@ const ForgotPasswordModal = ({ onClose }) => {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      await axios.post('http://localhost:5000/api/password-reset/verify-code', { email, code });
+      await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/password-reset/verify-code`, { email, code });
       setStep(3);
     } catch (err) {
       setError(err.response?.data?.msg || 'Invalid or expired code.');
@@ -76,7 +76,7 @@ const ForgotPasswordModal = ({ onClose }) => {
     }
     setLoading(true);
     try {
-      await axios.post('http://localhost:5000/api/password-reset/reset', { email, code, newPassword });
+      await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/password-reset/reset`, { email, code, newPassword });
       setSuccess('Password reset successfully! You can now log in.');
     } catch (err) {
       setError(err.response?.data?.msg || 'Failed to reset password.');
@@ -311,7 +311,7 @@ const Login = () => {
             {serverMsg}{' '}
             <button
               type="button"
-              onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+              onClick={() => window.location.href = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/google`}
               className="font-semibold text-blue-600 underline hover:text-blue-700 transition"
             >
               Sign in with Google
@@ -404,7 +404,7 @@ const Login = () => {
               <div className="mt-6">
                 <button
                   type="button"
-                  onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+                  onClick={() => window.location.href = `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/google`}
                   className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition text-gray-700 font-medium shadow-sm"
                 >
                   <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
