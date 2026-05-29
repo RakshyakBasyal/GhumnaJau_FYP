@@ -12,7 +12,7 @@ import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Modal from '../components/Modal';
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const ManageFlights = () => {
   const [flights, setFlights] = useState([]);

@@ -1,13 +1,4 @@
 // frontend/src/components/AIPlannerModal.jsx
-//
-// Drop-in AI Planner for ItineraryDetail.jsx
-//
-// USAGE — in ItineraryDetail.jsx:
-//   1. import AIPlannerModal from '../components/AIPlannerModal';
-//   2. Add state:  const [showAI, setShowAI] = useState(false);
-//   3. Render:     {showAI && <AIPlannerModal itin={itin} onClose={() => setShowAI(false)} onAddPlan={handleAddPlan} onAddItemToPlan={handleAddItemToPlan} />}
-//   4. Add button in the sidebar (see bottom of this file for the button snippet)
-
 import { useState, useRef, useEffect } from 'react';
 import {
   X, Sparkles, Send, Loader2, Check, Plus, MessageCircle,
@@ -16,7 +7,7 @@ import {
   RotateCcw, CheckCircle2, Bot, User
 } from 'lucide-react';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const tok      = () => localStorage.getItem('token');
 
 // ── Icon map matching your TYPE_CFG ──────────────────────────────────────────

@@ -11,21 +11,12 @@ router.post('/login', login);
 
 // ── Google OAuth routes ───────────────────────────────────────────────────────
 
-// Step 1: Redirect user to Google
-// prompt options:
-//   'select_account'         → always show account picker (what you had)
-//   'consent'                → always show the permissions consent screen
-//   'select_account consent' → show both (best for dev/testing)
-//   omit prompt entirely     → Google decides (skips both if already granted)
 router.get(
   '/google',
   passport.authenticate('google', {
     scope: ['profile', 'email'],
-    // Use 'select_account consent' while developing so you always see the full flow.
-    // In production you can drop back to just 'select_account' — users only see
-    // the consent screen on their very first login, which is the correct UX.
     prompt: 'select_account consent',
-    access_type: 'offline', // needed if you ever want a refresh_token
+    access_type: 'offline', 
   })
 );
 

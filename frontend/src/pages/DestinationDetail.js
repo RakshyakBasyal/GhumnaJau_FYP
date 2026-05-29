@@ -9,8 +9,9 @@ import {
   Loader2, Plus, Minus, ChevronDown, ChevronUp, ClipboardList, Info
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { getImageUrl } from '../services/api';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const formatCostNPR = (dest) => {
   const hasAvg = dest.averageCost !== undefined && dest.averageCost !== null && dest.averageCost !== '';
@@ -381,7 +382,7 @@ function PlanMyTrip({ destination, hotels, flights, restaurants, activities }) {
                   <div key={h._id}
                     onClick={() => { if (selHotel?._id === h._id) { setSelHotel(null); } else { setSelHotel(h); setHotelOpts(p => ({ ...p, roomType: h.roomTypes?.[0]?.name || '' })); } }}
                     className={'flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ' + (selHotel?._id === h._id ? 'border-blue-400 bg-blue-50' : 'border-transparent bg-gray-50 hover:border-gray-200')}>
-                    {h.images?.[0] && <img src={BASE_URL + h.images[0]} alt={h.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
+                    {h.images?.[0] && <img src={getImageUrl(h.images[0])} alt={h.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-gray-900">{h.name}</p>
                       <p className="text-xs text-gray-400">From NPR {Math.min(...(h.roomTypes?.map(r => r.pricePerNight) || [0])).toLocaleString()}/night</p>
@@ -469,7 +470,7 @@ function PlanMyTrip({ destination, hotels, flights, restaurants, activities }) {
                   return (
                     <div key={r._id} onClick={() => toggleRest(r)}
                       className={'flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ' + (sel ? 'border-orange-400 bg-orange-50' : 'border-transparent bg-gray-50 hover:border-gray-200')}>
-                      {r.images?.[0] && <img src={BASE_URL + r.images[0]} alt={r.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
+                      {r.images?.[0] && <img src={getImageUrl(r.images[0])} alt={r.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm text-gray-900">{r.name}</p>
                         <p className="text-xs text-gray-400">{r.cuisine?.join(', ')} · {r.priceRange}{r.avgCostPerPerson ? ' · ~NPR ' + r.avgCostPerPerson + '/person' : ''}</p>
@@ -499,7 +500,7 @@ function PlanMyTrip({ destination, hotels, flights, restaurants, activities }) {
                   return (
                     <div key={a._id} onClick={() => toggleAct(a)}
                       className={'flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ' + (sel ? 'border-green-400 bg-green-50' : 'border-transparent bg-gray-50 hover:border-gray-200')}>
-                      {a.images?.[0] && <img src={BASE_URL + a.images[0]} alt={a.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
+                      {a.images?.[0] && <img src={getImageUrl(a.images[0])} alt={a.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm text-gray-900">{a.name}</p>
                         <p className="text-xs text-gray-400">{a.category}{a.duration ? ' · ' + a.duration : ''}{a.difficulty ? ' · ' + a.difficulty : ''}</p>
@@ -634,7 +635,7 @@ const DestinationDetail = () => {
   if (loading) return <p className="text-center py-20 text-xl">Loading...</p>;
   if (!destination) return <p className="text-center py-20 text-gray-600 text-xl">Destination not found</p>;
 
-  const coverImage    = destination.images?.[0] ? BASE_URL + destination.images[0] : 'https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg';
+  const coverImage    = destination.images?.[0] ? getImageUrl(destination.images[0]) : 'https://images.pexels.com/photos/2356045/pexels-photo-2356045.jpeg';
   const allImages     = destination.images || [];
   const previewImages = allImages.slice(0, 3);
   const nextPhoto     = () => setCurrentPhotoIndex(p => (p + 1) % allImages.length);
@@ -707,7 +708,7 @@ const DestinationDetail = () => {
                   {previewImages.map((img, i) => (
                     <div key={i} className="group relative overflow-hidden rounded-xl cursor-pointer aspect-video"
                       onClick={() => { setCurrentPhotoIndex(i); setShowPhotos(true); }}>
-                      <img src={BASE_URL + img} alt={destination.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                      <img src={img?.startsWith('http') ? img : BASE_URL + img} alt={destination.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
                     </div>
                   ))}
                 </div>
@@ -720,7 +721,7 @@ const DestinationDetail = () => {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {hotels.map(hotel => (
                     <Link key={hotel._id} to={'/hotels/' + hotel._id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition group">
-                      {hotel.images?.[0] && <div className="h-36 overflow-hidden"><img src={BASE_URL + hotel.images[0]} alt={hotel.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /></div>}
+                      {hotel.images?.[0] && <div className="h-36 overflow-hidden"><img src={getImageUrl(hotel.images[0])} alt={hotel.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" /></div>}
                       <div className="p-4">
                         <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition text-sm">{hotel.name}</h3>
                         <p className="text-xs text-blue-600 font-semibold">From NPR {Math.min(...(hotel.roomTypes?.map(r => r.pricePerNight) || [0])).toLocaleString()}/night</p>
@@ -771,7 +772,7 @@ const DestinationDetail = () => {
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {restaurants.map(rest => (
                   <div key={rest._id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition">
-                    {rest.images?.[0] ? <div className="h-44 overflow-hidden"><img src={BASE_URL + rest.images[0]} alt={rest.name} className="w-full h-full object-cover" /></div>
+                    {rest.images?.[0] ? <div className="h-44 overflow-hidden"><img src={getImageUrl(rest.images[0])} alt={rest.name} className="w-full h-full object-cover" /></div>
                       : <div className="h-44 bg-orange-50 flex items-center justify-center"><Utensils size={36} className="text-orange-200" /></div>}
                     <div className="p-4 flex flex-col flex-1">
                       <h3 className="font-bold text-gray-900 mb-1">{rest.name}</h3>
@@ -811,7 +812,7 @@ const DestinationDetail = () => {
                   const catColor = { Adventure: 'bg-red-50 text-red-700', Cultural: 'bg-purple-50 text-purple-700', Nature: 'bg-green-50 text-green-700', Sightseeing: 'bg-blue-50 text-blue-700', Spiritual: 'bg-amber-50 text-amber-700', 'Water Sports': 'bg-cyan-50 text-cyan-700', Other: 'bg-gray-50 text-gray-600' }[act.category] || 'bg-gray-50 text-gray-600';
                   return (
                     <div key={act._id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition">
-                      {act.images?.[0] ? <div className="h-44 overflow-hidden"><img src={BASE_URL + act.images[0]} alt={act.name} className="w-full h-full object-cover" /></div>
+                      {act.images?.[0] ? <div className="h-44 overflow-hidden"><img src={getImageUrl(act.images[0])} alt={act.name} className="w-full h-full object-cover" /></div>
                         : <div className="h-44 bg-green-50 flex items-center justify-center"><Zap size={36} className="text-green-200" /></div>}
                       <div className="p-4 flex flex-col flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -898,7 +899,7 @@ const DestinationDetail = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100">
-                        {review.author?.avatar ? <img src={BASE_URL + review.author.avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-blue-100"><User size={13} className="text-blue-600" /></div>}
+                        {review.author?.avatar ? <img src={getImageUrl(review.author.avatar)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-blue-100"><User size={13} className="text-blue-600" /></div>}
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{review.author?.fullName || 'Anonymous'}</p>
@@ -924,7 +925,7 @@ const DestinationDetail = () => {
           <button onClick={prevPhoto} className="absolute left-6 top-1/2 -translate-y-1/2 bg-white/20 p-4 rounded-full hover:bg-white/40 transition"><ChevronLeft size={24} className="text-white" /></button>
           <button onClick={nextPhoto} className="absolute right-6 top-1/2 -translate-y-1/2 bg-white/20 p-4 rounded-full hover:bg-white/40 transition"><ChevronRight size={24} className="text-white" /></button>
           <div className="max-w-5xl w-full px-4">
-            <img src={BASE_URL + allImages[currentPhotoIndex]} alt="" className="w-full max-h-[85vh] object-contain rounded-xl" />
+            <img src={getImageUrl(allImages[currentPhotoIndex])} alt="" className="w-full max-h-[85vh] object-contain rounded-xl" />
             <p className="text-white text-center mt-3 text-sm">{currentPhotoIndex + 1} / {allImages.length}</p>
           </div>
         </div>

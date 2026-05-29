@@ -1,3 +1,4 @@
+// backend/src/mode/TripRoom.js
 const mongoose = require('mongoose');
 
 const tripRoomSchema = new mongoose.Schema({
@@ -44,6 +45,28 @@ const tripRoomSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  coOwners: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  expenses: [{
+    description: String,
+    amount: { type: Number, required: true },
+    paidBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    category: { type: String, required: true },
+    date: { type: Date, default: Date.now },
+    notes: String,
+    splitWith: [{
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      amount: { type: Number }
+    }]
+  }],
+  settlements: [{
+    from: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    to: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    amount: { type: Number, required: true },
+    date: { type: Date, default: Date.now }
+  }],
   messages: [{
     sender: {
       type: mongoose.Schema.Types.ObjectId,
@@ -52,6 +75,17 @@ const tripRoomSchema = new mongoose.Schema({
     text: {
       type: String,
       required: true
+    },
+    type: {
+      type: String,
+      enum: ['text', 'expense', 'settlement'],
+      default: 'text'
+    },
+    expenseRef: {
+      type: mongoose.Schema.Types.ObjectId
+    },
+    settlementRef: {
+      type: mongoose.Schema.Types.ObjectId
     },
     createdAt: {
       type: Date,

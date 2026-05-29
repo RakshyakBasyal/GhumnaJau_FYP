@@ -8,6 +8,7 @@ const {
   addRoomMessage, updateRoomItinerary, updateRoomNotes,
   respondToJoinRequest, inviteBuddyToRoom, acceptRoomInvite,
   planTripTogether, createTripFromChat,
+  addExpense, deleteExpense, addSettlement, deleteSettlement
 } = require('../controllers/tripController');
 
 // ── Trip routes ────────────────────────────────────────────────────────────────
@@ -35,5 +36,11 @@ router.post('/rooms/:id/messages', auth, addRoomMessage);
 router.patch('/rooms/:id/itinerary', auth, updateRoomItinerary);
 router.patch('/rooms/:id/notes',   auth, updateRoomNotes);
 router.post('/rooms/:roomId/accept-invite', auth, acceptRoomInvite);
+
+// Expense routes
+router.post('/rooms/:id/expenses', auth, addExpense);
+router.delete('/rooms/:id/expenses/:expenseId', auth, deleteExpense);
+router.post('/rooms/:id/settlements', auth, addSettlement);
+router.delete('/rooms/:id/settlements/:settlementId', auth, deleteSettlement);
 
 module.exports = router;

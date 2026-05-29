@@ -1,10 +1,9 @@
 // frontend/src/pages/Destinations.js
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getDestinations } from '../services/api';
+import { getDestinations, getImageUrl } from '../services/api';
 import { MapPin, Calendar, DollarSign, Star, Search, X, ChevronDown } from 'lucide-react';
 
-const BASE_URL = "http://localhost:5000";
 
 // Returns a single numeric value used purely for sorting
 const getCostValue = (dest) => {
@@ -229,7 +228,7 @@ const Destinations = () => {
                       >
                         <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                           {dest.images?.[0] ? (
-                            <img src={`${BASE_URL}${dest.images[0]}`} alt={dest.name} className="w-full h-full object-cover" />
+                            <img src={getImageUrl(dest.images[0])} alt={dest.name} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center"><MapPin className="h-4 w-4 text-gray-300" /></div>
                           )}
@@ -321,7 +320,7 @@ const Destinations = () => {
               <div className="relative h-56 overflow-hidden">
                 {destination.images?.[0] ? (
                   <img
-                    src={`${BASE_URL}${destination.images[0]}`}
+                    src={getImageUrl(destination.images[0])}
                     alt={destination.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                   />

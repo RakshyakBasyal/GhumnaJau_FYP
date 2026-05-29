@@ -4,7 +4,7 @@ const Activity = require('../models/Activity');
 exports.createActivity = async (req, res) => {
   try {
     const { name, destination, description, shortDescription, category, duration, price, difficulty, includes, address, phone } = req.body;
-    const images = req.files ? req.files.map(f => `/uploads/activities/${f.filename}`) : [];
+   const images = req.files ? req.files.map(f => f.path) : [];
     const activity = new Activity({
       name, destination, description, shortDescription, category, duration, price, difficulty,
       includes: includes ? includes.split(',').map(i => i.trim()).filter(Boolean) : [],
@@ -35,7 +35,7 @@ exports.updateActivity = async (req, res) => {
     if (address)          act.address          = address;
     if (phone)            act.phone            = phone;
     if (isActive !== undefined) act.isActive   = isActive === 'true' || isActive === true;
-    if (req.files && req.files.length > 0) act.images = [...act.images, ...req.files.map(f => `/uploads/activities/${f.filename}`)];
+    if (req.files && req.files.length > 0) act.images = [...act.images, ...req.files.map(f => f.path)];
     if (deleteImages) { const del = JSON.parse(deleteImages); act.images = act.images.filter(i => !del.includes(i)); }
     const updated = await act.save();
     res.json(updated);

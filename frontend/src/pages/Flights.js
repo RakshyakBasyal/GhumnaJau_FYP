@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { Plane, Clock, ArrowRight, MapPin, Search, X, ChevronDown, Loader2, AlertTriangle, CheckCircle, CreditCard } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const Flights = () => {
   const [flights, setFlights] = useState([]);

@@ -1,4 +1,4 @@
-// frontend/src/components/feed/CreatePostModal.jsx
+// frontend/src/components/feed/CreatePostModal.js
 import { useState, useEffect, useRef } from 'react';
 import {
   X, Image, MapPin, Loader2, Star, Search,
@@ -6,9 +6,10 @@ import {
   Check, Sparkles, Trash2, Plus,
 } from 'lucide-react';
 import { createPost, updatePost } from '../../services/feedApi';
+import { getImageUrl } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const CATEGORIES = [
   { id: 'photo',    label: 'Photo',    icon: Camera,     color: 'blue'    },
@@ -50,7 +51,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost, initi
   // newFiles:       File objects the user added this session
   // newPreviews:    object-URL previews for newFiles
   const [existingImages, setExistingImages] = useState(
-    editingPost?.images?.map(img => (img.startsWith('http') ? img : `${BASE_URL}${img}`)) || []
+    editingPost?.images?.map(img => getImageUrl(img)) || []
   );
   const [existingPaths,  setExistingPaths]  = useState(editingPost?.images || []);
   const [imagesToDelete, setImagesToDelete] = useState([]);   // server paths to delete
@@ -279,7 +280,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost, initi
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0">
                         <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                           {item.images?.[0]
-                            ? <img src={`${BASE_URL}${item.images[0]}`} alt="" className="w-full h-full object-cover" />
+                            ? <img src={getImageUrl(item.images[0])} alt="" className="w-full h-full object-cover" />
                             : <MapPin size={12} className="m-auto text-gray-300 mt-2" />}
                         </div>
                         <div>
@@ -347,7 +348,7 @@ export default function CreatePostModal({ onClose, onCreated, editingPost, initi
                         className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0">
                         <div className="w-7 h-7 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                           {dest.images?.[0]
-                            ? <img src={`${BASE_URL}${dest.images[0]}`} alt="" className="w-full h-full object-cover" />
+                            ? <img src={getImageUrl(dest.images[0])} alt="" className="w-full h-full object-cover" />
                             : <MapPin size={10} className="text-gray-300 m-auto mt-2" />}
                         </div>
                         <div>

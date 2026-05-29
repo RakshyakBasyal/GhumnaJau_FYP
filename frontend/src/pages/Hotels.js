@@ -2,9 +2,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, MapPin, Search, X, ChevronDown } from 'lucide-react';
-import { getHotels, getDestinations } from '../services/api';
+import { getHotels, getDestinations, getImageUrl } from '../services/api';
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const Hotels = () => {
   const [hotels, setHotels] = useState([]);
@@ -174,7 +174,7 @@ const Hotels = () => {
                       >
                         <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                           {dest.images?.[0] ? (
-                            <img src={`${BASE_URL}${dest.images[0]}`} alt={dest.name} className="w-full h-full object-cover" />
+                            <img src={getImageUrl(dest.images[0])} alt={dest.name} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center"><MapPin className="h-4 w-4 text-gray-300" /></div>
                           )}
@@ -261,7 +261,7 @@ const Hotels = () => {
                   {/* Image with Overlays */}
                   <div className="relative h-56 overflow-hidden">
                     <img
-                      src={hotel.images?.[0] ? `${BASE_URL}${hotel.images[0]}` : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'}
+                      src={hotel.images?.[0] ? getImageUrl(hotel.images[0]) : 'https://images.pexels.com/photos/1134176/pexels-photo-1134176.jpeg'}
                       alt={hotel.name}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />

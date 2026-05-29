@@ -2,13 +2,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { Plus, Edit2, Trash2, X, Star, MapPin } from 'lucide-react';
 import AdminNavbar from '../components/AdminNavbar';
-import { getHotels, createHotel, updateHotel, deleteHotel, getDestinations } from '../services/api';
+import { getHotels, createHotel, updateHotel, deleteHotel, getDestinations, getImageUrl } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ConfirmDialog';
 import LocationPicker from '../components/admin/LocationPicker';
 import Modal from '../components/Modal';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const ManageHotels = () => {
   const [hotels,       setHotels]       = useState([]);
@@ -293,7 +293,7 @@ const ManageHotels = () => {
                   <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                     {existingImages.map((img) => (
                       <div key={img} className="relative">
-                        <img src={`${BASE_URL}${img}`} alt="existing" className="w-full h-24 object-cover rounded-lg" />
+                        <img src={getImageUrl(img)} alt="existing" className="w-full h-24 object-cover rounded-lg" />
                         <button type="button" onClick={() => toggleDeleteExisting(img)}
                           className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md">
                           <X className="h-4 w-4" />
@@ -345,7 +345,7 @@ const ManageHotels = () => {
             hotels.map((hotel) => (
               <div key={hotel._id} className="bg-white rounded-xl shadow-md overflow-hidden">
                 {hotel.images?.[0] ? (
-                  <img src={`${BASE_URL}${hotel.images[0]}`} alt={hotel.name} className="w-full h-48 object-cover" />
+                  <img src={getImageUrl(hotel.images[0])} alt={hotel.name} className="w-full h-48 object-cover" />
                 ) : (
                   <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
                     <span className="text-gray-500">No image</span>

@@ -7,9 +7,10 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { getImageUrl } from '../services/api';
 import { io } from 'socket.io-client';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const AUTO_REFUND_REASONS = [
   'Booking mistake', 'Change of plans', 'Found a better deal',
@@ -146,19 +147,19 @@ const CancelModal = ({ booking, onConfirm, onClose, cancelling }) => {
 // ── Booking card header image / icon ──────────────────────────────────────────
 function BookingCardImage({ booking }) {
   if (booking.type === 'hotel' && booking.hotel?.images?.[0]) {
-    return <img src={BASE_URL + booking.hotel.images[0]} alt={booking.hotel.name} className="w-full h-full object-cover" />;
+    return <img src={getImageUrl(booking.hotel.images[0])} alt={booking.hotel.name} className="w-full h-full object-cover" />;
   }
   if (booking.type === 'reservation' && booking.restaurant?.images?.[0]) {
-    return <img src={BASE_URL + booking.restaurant.images[0]} alt="" className="w-full h-full object-cover" />;
+    return <img src={getImageUrl(booking.restaurant.images[0])} alt="" className="w-full h-full object-cover" />;
   }
   if (booking.type === 'activity' && booking.activity?.images?.[0]) {
-    return <img src={BASE_URL + booking.activity.images[0]} alt="" className="w-full h-full object-cover" />;
+    return <img src={getImageUrl(booking.activity.images[0])} alt="" className="w-full h-full object-cover" />;
   }
   // Trip plan: show destination image if available
   if (booking.type === 'trip_plan' && booking.tripPlanDestination?.images?.[0]) {
     return (
       <div className="w-full h-full relative">
-        <img src={BASE_URL + booking.tripPlanDestination.images[0]} alt="" className="w-full h-full object-cover" />
+        <img src={getImageUrl(booking.tripPlanDestination.images[0])} alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-purple-900/60 to-transparent flex items-end p-3">
           <span className="text-white text-xs font-bold flex items-center gap-1"><Package size={12} /> Trip Plan</span>
         </div>

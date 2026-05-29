@@ -3,10 +3,11 @@ import { useEffect, useState, useRef } from 'react';
 import { Plus, Edit2, Trash2, X, Utensils } from 'lucide-react';
 import AdminNavbar from '../components/AdminNavbar';
 import { useToast } from '../context/ToastContext';
+import { getImageUrl } from '../services/api';
 import ConfirmDialog from '../components/ConfirmDialog';
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const EMPTY = { name: '', destination: '', description: '', shortDescription: '', cuisine: '', priceRange: 'Mid-range', avgCostPerPerson: '', openingHours: '', address: '', phone: '' };
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none';
 
@@ -139,7 +140,7 @@ const ManageRestaurants = () => {
                   <div className="flex flex-wrap gap-2">
                     {existingImgs.map(img => (
                       <div key={img} className="relative">
-                        <img src={BASE_URL + img} alt="" className="h-20 w-20 object-cover rounded-lg" />
+                        <img src={img?.startsWith('http') ? img : BASE_URL + img} alt="" className="h-20 w-20 object-cover rounded-lg" />
                         <button type="button" onClick={() => { setToDelete(p => [...p, img]); setExistingImgs(p => p.filter(i => i !== img)); }}
                           className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
                       </div>
@@ -178,7 +179,7 @@ const ManageRestaurants = () => {
             ? <p className="col-span-full text-center text-gray-400 py-12">No restaurants yet</p>
             : restaurants.map(r => (
               <div key={r._id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                {r.images?.[0] ? <img src={BASE_URL + r.images[0]} alt={r.name} className="w-full h-40 object-cover" />
+                {r.images?.[0] ? <img src={getImageUrl(r.images[0])} alt={r.name} className="w-full h-40 object-cover" />
                   : <div className="w-full h-40 bg-orange-50 flex items-center justify-center"><Utensils size={36} className="text-orange-200" /></div>}
                 <div className="p-4">
                   <h3 className="font-bold text-gray-900 mb-1">{r.name}</h3>

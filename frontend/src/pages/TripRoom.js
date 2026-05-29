@@ -5,7 +5,8 @@ import {
   Loader2, MapPin, Calendar, Users, Send, ArrowLeft,
   Check, X, UserPlus, Crown, MessageSquare, Share2,
   Plane, Hotel as HotelIcon, ClipboardList, ExternalLink,
-  ChevronRight, Search,
+  ChevronRight, Search, Receipt, PieChart, Plus, Trash2, Banknote,
+  ArrowRight, CheckCircle2,
 } from "lucide-react";
 import { io } from "socket.io-client";
 import { useToast } from "../context/ToastContext";
@@ -13,8 +14,9 @@ import {
   getTripRoomById, sendRoomMessage, respondToRoomRequest,
   inviteBuddyToRoom, getConnections, getMyTripRooms,
 } from "../services/api";
+import ExpensePanel from "../components/ExpensePanel";
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const tok = () => localStorage.getItem("token");
 
 const av = (v) => {
@@ -333,7 +335,7 @@ export default function TripRoom() {
   const [connections, setConnections] = useState([]);
   const [showInvite,  setShowInvite]  = useState(false);
   const [showShare,   setShowShare]   = useState(false);
-  const [activePanel, setActivePanel] = useState("chat"); // chat | members
+  const [activePanel, setActivePanel] = useState("chat"); // chat | members | expenses
 
   const chatRef  = useRef(null);
   const inputRef = useRef(null);
@@ -374,6 +376,9 @@ export default function TripRoom() {
     socket.on("room:message:new", ({ roomId: rid, message }) => {
       if (rid !== roomId) return;
       setMessages(prev => prev.some(m => m._id === message._id) ? prev : [...prev, message]);
+      if (message.type === "expense" || message.type === "settlement") {
+        fetchRoom();
+      }
     });
     socket.on("room:member:joined", ({ roomId: rid }) => { if (rid === roomId) fetchRoom(); });
     return () => socket.disconnect();
@@ -473,10 +478,18 @@ export default function TripRoom() {
           </div>
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Members / Chat toggle */}
-            <button onClick={() => setActivePanel(p => p === "chat" ? "members" : "chat")}
+            {/* Members / Chat / Expenses toggle */}
+            <button onClick={() => setActivePanel("chat")}
+              className={`p-1.5 rounded-lg transition ${activePanel === "chat" ? "bg-white/30" : "hover:bg-white/20"}`} title="Chat">
+              <MessageSquare size={16} />
+            </button>
+            <button onClick={() => setActivePanel("members")}
               className={`p-1.5 rounded-lg transition ${activePanel === "members" ? "bg-white/30" : "hover:bg-white/20"}`} title="Members">
-              {activePanel === "chat" ? <Users size={16} /> : <MessageSquare size={16} />}
+              <Users size={16} />
+            </button>
+            <button onClick={() => setActivePanel("expenses")}
+              className={`p-1.5 rounded-lg transition ${activePanel === "expenses" ? "bg-white/30" : "hover:bg-white/20"}`} title="Expenses">
+              <Receipt size={16} />
             </button>
 
             {/* Invite */}
@@ -589,6 +602,11 @@ export default function TripRoom() {
             </div>
           )}
 
+          {/* ── EXPENSES panel ────────────────────────────────────────── */}
+          {activePanel === "expenses" && (
+            <ExpensePanel room={room} myId={myId} onUpdate={fetchRoom} />
+          )}
+
           {/* ── CHAT panel ───────────────────────────────────────────── */}
           {activePanel === "chat" && (
             <div className="flex-1 flex flex-col min-h-0 bg-white">
@@ -607,6 +625,278 @@ export default function TripRoom() {
                   const isMine    = String(senderId) === String(myId);
                   const name      = msg.sender?.fullName || "Member";
                   const shared    = isShared(msg.text);
+
+                  if (msg.type === 'expense') {
+                    const expense = room.expenses?.find(e => String(e._id) === String(msg.expenseRef));
+                    if (expense) {
+                      const totalAmount = expense.amount;
+                      const payer = expense.paidBy;
+                      const payerName = payer?.fullName || "Member";
+                      const payerAvatar = payer?.avatar;
+                      const isPayerMe = String(payer?._id || payer) === String(myId);
+
+                      const splits = expense.splitWith || [];
+                      const mySplit = splits.find(s => String(s.user?._id || s.user) === String(myId));
+                      const myShare = mySplit ? mySplit.amount : 0;
+                      const splitCount = splits.length;
+
+                      const catColors = {
+                        Hotel: "bg-blue-50 text-blue-700 border-blue-100",
+                        Food: "bg-amber-50 text-amber-700 border-amber-100",
+                        Transport: "bg-purple-50 text-purple-700 border-purple-100",
+                        Activities: "bg-emerald-50 text-emerald-700 border-emerald-100",
+                        Miscellaneous: "bg-gray-50 text-gray-700 border-gray-100",
+                      };
+                      const catBadgeClass = catColors[expense.category] || catColors.Miscellaneous;
+
+                      return (
+                        <div key={msg._id || idx} className="flex justify-center my-3 w-full">
+                          <div className="bg-white border border-gray-200 rounded-2xl shadow-md overflow-hidden w-full max-w-[340px] transition-all hover:shadow-lg">
+                            {/* Card Header */}
+                            <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${catBadgeClass}`}>
+                                {expense.category}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-medium">
+                                {fmtDate(expense.date)} · {fmtTime(msg.createdAt)}
+                              </span>
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+                                  <Receipt size={16} />
+                                </div>
+                                <h4 className="text-sm font-bold text-gray-900 truncate flex-1" title={expense.description}>
+                                  {expense.description}
+                                </h4>
+                              </div>
+                              {expense.notes && (
+                                <p className="text-[11px] text-gray-400 italic mb-3 pl-10 border-l border-gray-100">
+                                  "{expense.notes}"
+                                </p>
+                              )}
+
+                              {/* Amount Display */}
+                              <div className="flex items-baseline justify-between mb-4 border-b border-gray-50 pb-3">
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Paid</p>
+                                  <p className="text-lg font-black text-gray-900">
+                                    NPR {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  {isPayerMe ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-150">
+                                      You paid
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-150">
+                                      Paid by {payerName.split(' ')[0]}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Split summary for the user */}
+                              <div className="bg-gray-50 rounded-xl p-3 mb-3 border border-gray-100 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Avatar src={payerAvatar} name={payerName} size="sm" />
+                                  <div className="min-w-0">
+                                    <p className="text-[10px] text-gray-400 leading-none">Paid by</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate mt-0.5">{payerName}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  {isPayerMe ? (
+                                    <>
+                                      <p className="text-[10px] text-gray-400 font-medium">To Receive</p>
+                                      <p className="text-xs font-bold text-emerald-600">
+                                        NPR {(totalAmount - myShare).toLocaleString()}
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p className="text-[10px] text-gray-400 font-medium">To Pay</p>
+                                      <p className={`text-xs font-bold ${mySplit ? "text-red-500" : "text-gray-500"}`}>
+                                        {mySplit ? `NPR ${myShare.toLocaleString()}` : "NPR 0"}
+                                      </p>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Detailed Split Breakdown */}
+                              {splits.length > 0 && (
+                                <div className="border-t border-gray-100 pt-3">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                    Split Shares ({splitCount} {splitCount === 1 ? "person" : "people"})
+                                  </p>
+                                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                    {splits.map((s, sIdx) => {
+                                      const u = s.user;
+                                      const uName = u?.fullName || "Member";
+                                      const isUMe = String(u?._id || u) === String(myId);
+                                      const isUPayer = String(u?._id || u) === String(payer?._id || payer);
+                                      
+                                      return (
+                                        <div key={s._id || sIdx} className="flex items-center justify-between text-xs">
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <Avatar src={u?.avatar} name={uName} size="sm" />
+                                            <span className="font-medium text-gray-700 truncate">
+                                              {isUMe ? "You" : uName}
+                                            </span>
+                                            {isUPayer && (
+                                              <span className="text-[8px] bg-amber-50 text-amber-700 border border-amber-100 px-1 rounded font-bold">
+                                                Payer
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span className="font-bold text-gray-800">
+                                            NPR {s.amount.toLocaleString()}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Card Footer Button */}
+                            <div className="bg-gray-50/30 border-t border-gray-100 px-4 py-2 flex items-center justify-between">
+                              <span className="text-[10px] text-gray-400">
+                                Logged by {isMine ? "you" : name}
+                              </span>
+                              <button 
+                                onClick={() => setActivePanel("expenses")}
+                                className="text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-0.5"
+                              >
+                                Manage Expenses <ArrowRight size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div key={msg._id || idx} className="flex justify-center my-2 w-full">
+                          <div className="bg-gray-50 border border-gray-200 rounded-2xl shadow-sm px-4 py-3 w-full max-w-[340px] flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gray-250 text-gray-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                              <Receipt size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                Expense Deleted
+                              </p>
+                              <p className="text-xs text-gray-500 truncate italic">
+                                "{msg.text}"
+                              </p>
+                            </div>
+                            <span className="text-[9px] text-gray-400 font-medium">
+                              {fmtTime(msg.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
+
+                  if (msg.type === 'settlement') {
+                    const settlement = room.settlements?.find(s => String(s._id) === String(msg.settlementRef));
+                    if (settlement) {
+                      const fromUser = settlement.from;
+                      const toUser = settlement.to;
+                      const fromName = fromUser?.fullName || "Member";
+                      const toName = toUser?.fullName || "Member";
+                      const isFromMe = String(fromUser?._id || fromUser) === String(myId);
+                      const isToMe = String(toUser?._id || toUser) === String(myId);
+
+                      return (
+                        <div key={msg._id || idx} className="flex justify-center my-3 w-full">
+                          <div className="bg-white border border-emerald-100 rounded-2xl shadow-md overflow-hidden w-full max-w-[340px] transition-all hover:shadow-lg">
+                            {/* Header */}
+                            <div className="px-4 py-2.5 bg-emerald-50/30 border-b border-emerald-50 flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+                                <CheckCircle2 size={10} className="text-emerald-600" /> Balance Settled
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-medium">
+                                {fmtDate(settlement.date)} · {fmtTime(msg.createdAt)}
+                              </span>
+                            </div>
+
+                            {/* Body */}
+                            <div className="p-4 flex flex-col items-center">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Amount Exchanged</p>
+                              <p className="text-lg font-black text-emerald-600 text-center mb-4">
+                                NPR {settlement.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+
+                              {/* Transaction Flow visual */}
+                              <div className="flex items-center gap-6 w-full justify-center py-3 bg-gray-50 rounded-xl border border-gray-100 px-4">
+                                <div className="flex flex-col items-center min-w-[70px] max-w-[90px]">
+                                  <Avatar src={fromUser?.avatar} name={fromName} size="md" />
+                                  <p className="text-[11px] font-bold text-gray-800 text-center truncate w-full mt-1.5">
+                                    {isFromMe ? "You" : fromName.split(' ')[0]}
+                                  </p>
+                                  <p className="text-[9px] text-gray-400 leading-none">Paid</p>
+                                </div>
+
+                                <div className="flex-1 flex flex-col items-center justify-center">
+                                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-200">
+                                    <ArrowRight size={14} />
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col items-center min-w-[70px] max-w-[90px]">
+                                  <Avatar src={toUser?.avatar} name={toName} size="md" />
+                                  <p className="text-[11px] font-bold text-gray-800 text-center truncate w-full mt-1.5">
+                                    {isToMe ? "You" : toName.split(' ')[0]}
+                                  </p>
+                                  <p className="text-[9px] text-gray-400 leading-none">Received</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="bg-gray-50/30 border-t border-gray-100 px-4 py-2 flex items-center justify-between">
+                              <span className="text-[10px] text-gray-400">
+                                Recorded by {isMine ? "you" : name}
+                              </span>
+                              <button 
+                                onClick={() => setActivePanel("expenses")}
+                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-0.5"
+                              >
+                                View Balances <ArrowRight size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div key={msg._id || idx} className="flex justify-center my-2 w-full">
+                          <div className="bg-gray-50 border border-gray-200 rounded-2xl shadow-sm px-4 py-3 w-full max-w-[340px] flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gray-250 text-gray-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                              <Banknote size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                Settlement Removed
+                              </p>
+                              <p className="text-xs text-gray-500 truncate italic">
+                                "{msg.text}"
+                              </p>
+                            </div>
+                            <span className="text-[9px] text-gray-400 font-medium">
+                              {fmtTime(msg.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
 
                   return (
                     <div key={msg._id || idx} className={`flex items-end gap-1.5 ${isMine ? "justify-end" : "justify-start"}`}>
