@@ -130,8 +130,10 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     catch (_) { return null; }
   })();
 
-  const [liked,             setLiked]             = useState(() => (post.likes || []).some(l => String(l) === String(myId)));
+  const [liked,             setLiked]             = useState(() => (post.likes || []).some(l => String(l._id || l) === String(myId)));
   const [likeCount,         setLikeCount]         = useState(() => post.likeCount || (post.likes || []).length || 0);
+  const [likers,            setLikers]            = useState(() => post.likes || []);
+  const [showLikersModal,   setShowLikersModal]   = useState(false);
   const [saved,             setSaved]             = useState(() => (post.saves || []).some(s => String(s) === String(myId)));
   const [commentCount,      setCommentCount]      = useState(() => post.commentCount || 0);
   const [comments,          setComments]          = useState([]);
@@ -153,9 +155,10 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   const images   = post.images || [];
 
   useEffect(() => {
-    setLiked((post.likes || []).some(l => String(l) === String(myId)));
+    setLiked((post.likes || []).some(l => String(l._id || l) === String(myId)));
     setLikeCount(post.likeCount || (post.likes || []).length || 0);
-  }, [post.likes, post.likeCount]);
+    setLikers(post.likes || []);
+  }, [post.likes, post.likeCount, myId]);
 
   useEffect(() => { setCommentCount(post.commentCount || 0); }, [post.commentCount]);
 
@@ -172,10 +175,39 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
 
   const handleLike = async () => {
     const wasLiked = liked;
-    setLiked(!wasLiked);
+    const newLiked = !wasLiked;
+    setLiked(newLiked);
     setLikeCount(c => wasLiked ? c - 1 : c + 1);
-    try { wasLiked ? await unlikePost(post._id) : await likePost(post._id); }
-    catch (_) { setLiked(wasLiked); setLikeCount(c => wasLiked ? c + 1 : c - 1); }
+
+    // Optimistic likers update
+    setLikers(prev => {
+      if (newLiked) {
+        // Add current user to likers
+        const me = {
+          _id: myId,
+          fullName: localStorage.getItem('username') || 'You',
+          avatar: localStorage.getItem('userAvatar') || ''
+        };
+        // Remove existing copy of me if any, then prepend
+        return [me, ...prev.filter(l => String(l._id || l) !== String(myId))];
+      } else {
+        // Remove current user from likers
+        return prev.filter(l => String(l._id || l) !== String(myId));
+      }
+    });
+
+    try {
+      const res = await (wasLiked ? unlikePost(post._id) : likePost(post._id));
+      if (res.data && res.data.likes) {
+        setLikers(res.data.likes);
+        setLikeCount(res.data.likeCount);
+      }
+    }
+    catch (_) {
+      setLiked(wasLiked);
+      setLikeCount(c => wasLiked ? c + 1 : c - 1);
+      setLikers(post.likes || []); // Rollback
+    }
   };
 
   const handleDoubleTap = () => {
@@ -319,7 +351,6 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
       {content && (
         <div className="px-3 pb-2">
           <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-line">
-            <span className="font-semibold text-gray-900">{authorName} </span>
             {displayContent}
           </p>
           {isLong && (
@@ -371,8 +402,58 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
       </div>
 
       {likeCount > 0 && (
-        <div className="px-3 pb-1">
-          <span className="text-[12px] font-semibold text-gray-800">{likeCount.toLocaleString()} {likeCount === 1 ? 'like' : 'likes'}</span>
+        <div className="px-3 pb-1 flex items-center gap-2">
+          {likers.length > 0 && (
+            <div className="flex -space-x-1.5 overflow-hidden">
+              {likers.slice(0, 3).map((l, i) => (
+                <div key={l._id || i} className="w-4 h-4 rounded-full border border-white overflow-hidden bg-gray-100 flex items-center justify-center">
+                  {l.avatar && avatarUrl(l.avatar) ? (
+                    <img src={avatarUrl(l.avatar)} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[6px] font-bold text-gray-400 bg-gray-100">
+                      {(l.fullName || 'T').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => setShowLikersModal(true)} className="text-[12px] font-semibold text-gray-800 hover:underline">
+            {likeCount.toLocaleString()} {likeCount === 1 ? 'like' : 'likes'}
+          </button>
+        </div>
+      )}
+
+      {showLikersModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowLikersModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-xs shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 text-sm">Likes</h3>
+              <button onClick={() => setShowLikersModal(false)} className="p-1 rounded-full hover:bg-gray-100"><X size={15} className="text-gray-400" /></button>
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {likers.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-8">No likes yet</p>
+              ) : likers.map(u => (
+                <Link key={u._id} to={`/profile/${u._id}`} onClick={() => setShowLikersModal(false)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition text-left">
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                    {u.avatar && avatarUrl(u.avatar) ? (
+                      <img src={avatarUrl(u.avatar)} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      <div className="w-full h-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+                        {(u.fullName || 'T').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{u.fullName}</p>
+                    {u.travelStyle && <p className="text-xs text-gray-400">{u.travelStyle}</p>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

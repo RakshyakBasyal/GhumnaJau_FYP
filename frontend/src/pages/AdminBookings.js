@@ -8,6 +8,7 @@ import {
 import { useToast } from '../context/ToastContext';
 import AdminNavbar from '../components/AdminNavbar';
 import { io } from 'socket.io-client';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -185,6 +186,21 @@ const RefundReviewPanel = ({ bookings, onDecision, reviewing }) => {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={Boolean(manualRefundTarget)}
+        onClose={() => setManualRefundTarget(null)}
+        onConfirm={() => {
+          if (manualRefundTarget) {
+            handleRefundDecision(manualRefundTarget.bookingId, manualRefundTarget.decision, manualRefundTarget.adminRefundNote, true);
+            setManualRefundTarget(null);
+          }
+        }}
+        title="Manual Refund"
+        message="Stripe is unreachable. Would you like to MARK AS REFUNDED manually instead? (This updates the status in our database but DOES NOT hit Stripe)."
+        confirmText="Mark as Refunded"
+        confirmColor="bg-blue-600 hover:bg-blue-700"
+      />
     </div>
   );
 };
@@ -209,6 +225,7 @@ const AdminBookings = () => {
   const [pendingSingleArchiveId, setPendingSingleArchiveId] = useState(null);
   const [showSingleUnarchiveModal, setShowSingleUnarchiveModal] = useState(false);
   const [pendingSingleUnarchiveId, setPendingSingleUnarchiveId] = useState(null);
+  const [manualRefundTarget, setManualRefundTarget] = useState(null); // { bookingId, decision, adminRefundNote }
 
   const { showToast } = useToast();
 
@@ -300,12 +317,8 @@ const AdminBookings = () => {
       if (!res.ok) {
         // If Stripe failed, backend now sends canManual: true
         if (data.canManual && decision === 'admin_approved') {
-          const proceedManual = window.confirm(
-            `${data.message}\n\nStripe is unreachable. Would you like to MARK AS REFUNDED manually instead? (This updates the status in our database but DOES NOT hit Stripe).`
-          );
-          if (proceedManual) {
-            return handleRefundDecision(bookingId, decision, adminRefundNote, true);
-          }
+          setManualRefundTarget({ bookingId, decision, adminRefundNote });
+          return;
         }
         throw new Error(data.message || 'Failed to process decision');
       }

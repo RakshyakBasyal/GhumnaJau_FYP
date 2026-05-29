@@ -41,6 +41,54 @@ const TILE_STYLE = {
   question: { bg: "from-rose-500 to-pink-600",     icon: "❓" },
 };
 
+// ── Follow list modal ──────────────────────────────────────────────────────────
+function FollowListModal({ userId, type, onClose }) {
+  const [list, setList] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/follows/${userId}/${type === 'followers' ? 'followers' : 'following'}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    })
+      .then(r => r.json())
+      .then(d => setList(type === 'followers' ? d.followers || [] : d.following || []))
+      .catch(() => {})
+      .finally(() => setBusy(false));
+  }, [userId, type]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-xs shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-900 capitalize text-sm">{type}</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100"><X size={15} className="text-gray-400" /></button>
+        </div>
+        <div className="max-h-72 overflow-y-auto">
+          {busy
+            ? <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-blue-600" /></div>
+            : list.length === 0
+            ? <p className="text-center text-sm text-gray-400 py-8">No {type} yet</p>
+            : list.map(u => (
+              <button key={u._id} onClick={() => { navigate(`/profile/${u._id}`); onClose(); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition text-left">
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                  {av(u.avatar)
+                    ? <img src={av(u.avatar)} className="w-full h-full object-cover" alt="" />
+                    : <div className="w-full h-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold text-sm">{u.fullName?.charAt(0)}</div>}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{u.fullName}</p>
+                  {u.travelStyle && <p className="text-xs text-gray-400">{u.travelStyle}</p>}
+                </div>
+              </button>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SectionHeader = ({ title, accent = "blue", action }) => {
   const accents = {
     blue:    "from-blue-500 to-blue-600",
@@ -78,6 +126,7 @@ export default function Profile() {
   const [deleteText,        setDeleteText]        = useState("");
   const [deleting,          setDeleting]          = useState(false);
   const [showPhotoView,     setShowPhotoView]     = useState(false);
+  const [followModal,       setFollowModal]       = useState(null);
   const [expandedPost,      setExpandedPost]      = useState(null);
   const [editingPost,       setEditingPost]       = useState(null);
   const [showCreate,        setShowCreate]        = useState(false);
@@ -145,7 +194,11 @@ export default function Profile() {
         completed: arr.filter(i => i.status === "completed").length,
       });
 
-      if (u.fullName) { localStorage.setItem("username", u.fullName); window.dispatchEvent(new Event("userProfileUpdated")); }
+      if (u.fullName) { 
+        localStorage.setItem("username", u.fullName); 
+        localStorage.setItem("userAvatar", u.avatar || "");
+        window.dispatchEvent(new Event("userProfileUpdated")); 
+      }
 
       setUserData({
         fullName:u.fullName||"", email:u.email||"", phone:u.phone||"",
@@ -205,7 +258,11 @@ export default function Profile() {
         preferredDestinations: updated.preferredDestinations || p.preferredDestinations,
         travelStats:           p.travelStats,
       }));
-      if (updated.fullName) { localStorage.setItem("username", updated.fullName); window.dispatchEvent(new Event("userProfileUpdated")); }
+      if (updated.fullName) { 
+        localStorage.setItem("username", updated.fullName); 
+        localStorage.setItem("userAvatar", updated.avatar || "");
+        window.dispatchEvent(new Event("userProfileUpdated")); 
+      }
       setEditingBasic(false); setEditingTravel(false); setEditingDests(false);
       showToast("Profile updated!", "success");
     } catch { showToast("Failed to update","error"); }
@@ -357,16 +414,20 @@ export default function Profile() {
           </div>
 
           {/* Stats bar */}
-          <div className="flex gap-8 py-3 border-t border-gray-100">
+          <div className="flex gap-0 py-1 border-t border-gray-100">
             {[
-              { label:"Posts",     val: postCount,                           color:"text-blue-600"   },
-              { label:"Followers", val: userData.travelStats.followersCount, color:"text-indigo-600" },
-              { label:"Following", val: userData.travelStats.followingCount, color:"text-purple-600" },
-              { label:"Connected", val: userData.travelStats.buddyCount,     color:"text-teal-600"   },
-            ].map(s => (
-              <div key={s.label} className="cursor-default">
-                <p className={`text-lg font-bold leading-none ${s.color}`}>{s.val}</p>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5 font-medium">{s.label}</p>
+              { label:"Posts",     val: postCount,                           color:"text-blue-600",   onClick: null },
+              { label:"Followers", val: userData.travelStats.followersCount, color:"text-indigo-600", onClick: () => setFollowModal('followers') },
+              { label:"Following", val: userData.travelStats.followingCount, color:"text-purple-600", onClick: () => setFollowModal('following') },
+              { label:"Connected", val: userData.travelStats.buddyCount,     color:"text-teal-600",   onClick: null },
+            ].map((s, i) => (
+              <div key={s.label} className="flex items-center">
+                {i > 0 && <div className="w-px h-6 bg-gray-200 mx-1" />}
+                <button onClick={s.onClick || undefined} disabled={!s.onClick}
+                  className={`flex flex-col items-center px-5 py-2 rounded-xl transition ${s.onClick ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default'}`}>
+                  <p className={`text-lg font-bold leading-none ${s.color}`}>{s.val}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5 font-medium">{s.label}</p>
+                </button>
               </div>
             ))}
           </div>
@@ -714,16 +775,17 @@ export default function Profile() {
               <SectionHeader title="Activity" accent="purple"/>
               <div className="grid grid-cols-2 gap-0 divide-x divide-y divide-gray-100">
                 {[
-                  { label:"Posts",     val:postCount,                           color:"text-blue-600",   bg:"bg-blue-50/50",   icon:<FileText size={14} className="text-blue-400"/> },
-                  { label:"Followers", val:userData.travelStats.followersCount, color:"text-indigo-600", bg:"bg-indigo-50/50", icon:<Users size={14} className="text-indigo-400"/> },
-                  { label:"Following", val:userData.travelStats.followingCount, color:"text-purple-600", bg:"bg-purple-50/50", icon:<Users size={14} className="text-purple-400"/> },
-                  { label:"Connected", val:userData.travelStats.buddyCount,     color:"text-teal-600",   bg:"bg-teal-50/50",   icon:<Heart size={14} className="text-teal-400"/> },
+                  { label:"Posts",     val:postCount,                           color:"text-blue-600",   bg:"bg-blue-50/50",   icon:<FileText size={14} className="text-blue-400"/>, onClick: null },
+                  { label:"Followers", val:userData.travelStats.followersCount, color:"text-indigo-600", bg:"bg-indigo-50/50", icon:<Users size={14} className="text-indigo-400"/>, onClick: () => setFollowModal('followers') },
+                  { label:"Following", val:userData.travelStats.followingCount, color:"text-purple-600", bg:"bg-purple-50/50", icon:<Users size={14} className="text-purple-400"/>, onClick: () => setFollowModal('following') },
+                  { label:"Connected", val:userData.travelStats.buddyCount,     color:"text-teal-600",   bg:"bg-teal-50/50",   icon:<Heart size={14} className="text-teal-400"/>, onClick: null },
                 ].map(s=>(
-                  <div key={s.label} className={`${s.bg} p-3 text-center`}>
+                  <button key={s.label} onClick={s.onClick || undefined} disabled={!s.onClick}
+                    className={`${s.bg} p-3 text-center transition ${s.onClick ? 'hover:bg-white cursor-pointer' : 'cursor-default'}`}>
                     <div className="flex justify-center mb-1">{s.icon}</div>
                     <p className={`text-base font-bold ${s.color}`}>{s.val}</p>
                     <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium mt-0.5">{s.label}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -784,6 +846,14 @@ export default function Profile() {
           <button className="absolute top-6 right-6 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition" onClick={()=>setShowPhotoView(false)}><X size={20}/></button>
           <img src={avatarSrc} alt="" className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" onClick={e=>e.stopPropagation()}/>
         </div>
+      )}
+
+      {followModal && (
+        <FollowListModal
+          userId={myId}
+          type={followModal}
+          onClose={() => setFollowModal(null)}
+        />
       )}
 
       {showSetupModal && (

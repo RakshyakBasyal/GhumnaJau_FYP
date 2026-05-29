@@ -31,6 +31,16 @@ io.on('connection', (socket) => {
     socket.join(`user:${String(userId)}`);
   });
 
+  socket.on('joinRoom', (roomId) => {
+    if (!roomId) return;
+    socket.join(`room_${String(roomId)}`);
+  });
+
+  socket.on('leaveRoom', (roomId) => {
+    if (!roomId) return;
+    socket.leave(`room_${String(roomId)}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });

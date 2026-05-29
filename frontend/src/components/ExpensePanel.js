@@ -1,17 +1,20 @@
 //frontend/src/components/ExpensePanel.js
 import React, { useState, useMemo } from 'react';
-import { 
-  Receipt, Plus, Banknote, Trash2, PieChart, Users, 
+import {
+  Receipt, Plus, Banknote, Trash2, PieChart, Users,
   ArrowUpRight, ArrowDownLeft, Wallet, Info, CheckCircle2, X
 } from 'lucide-react';
 import { addExpense, deleteExpense, addSettlement, deleteSettlement } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import ConfirmDialog from './ConfirmDialog';
 
 const CATEGORIES = ['Hotel', 'Food', 'Transport', 'Activities', 'Miscellaneous'];
 
 export default function ExpensePanel({ room, myId, onUpdate }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showSettle, setShowSettle] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, type }
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
@@ -122,20 +125,32 @@ export default function ExpensePanel({ room, myId, onUpdate }) {
     }
   };
 
-  const handleDeleteExpense = async (id) => {
-    if (!window.confirm('Delete this expense?')) return;
-    try {
-      await deleteExpense(room._id, id);
-      onUpdate();
-    } catch (_) { showToast('Failed to delete', 'error'); }
+  const handleDeleteExpense = (id) => {
+    setDeleteTarget({ id, type: 'expense' });
+    setShowDeleteConfirm(true);
   };
 
-  const handleDeleteSettlement = async (id) => {
-    if (!window.confirm('Delete this settlement record?')) return;
+  const handleDeleteSettlement = (id) => {
+    setDeleteTarget({ id, type: 'settlement' });
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteSettlement(room._id, id);
+      if (deleteTarget.type === 'expense') {
+        await deleteExpense(room._id, deleteTarget.id);
+      } else {
+        await deleteSettlement(room._id, deleteTarget.id);
+      }
       onUpdate();
-    } catch (_) { showToast('Failed to delete', 'error'); }
+      showToast('Deleted successfully', 'success');
+    } catch (_) { 
+      showToast('Failed to delete', 'error'); 
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+    }
   };
 
   return (
@@ -389,6 +404,13 @@ export default function ExpensePanel({ room, myId, onUpdate }) {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => { setShowDeleteConfirm(false); setDeleteTarget(null); }}
+        onConfirm={confirmDelete}
+        title={`Delete ${deleteTarget?.type === 'expense' ? 'Expense' : 'Settlement'}`}
+        message={`Are you sure you want to delete this ${deleteTarget?.type}? This will update everyone's balances.`}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ const populatePost = (q) =>
   q.populate('author',       'fullName avatar city travelStyle')
    .populate('taggedUsers',  'fullName avatar')
    .populate('destinationId','name images country')
+   .populate('likes',        'fullName avatar')
    .populate('answers.author','fullName avatar');
 
 // ── Named feeds (MUST come before /:id) ──────────────────────────────────────
@@ -243,24 +244,38 @@ router.post('/:id/like', auth, async (req, res) => {
     const post = await Post.findById(req.params.id);
     if (!post || post.isDeleted) return res.status(404).json({ msg: 'Not found' });
 
-    if (!post.likes.map(String).includes(String(req.user.id))) {
-      post.likes.push(req.user.id);
+    const userId = String(req.user.id);
+
+    // 1. Fetch fresh actor data from DB to ensure we have the latest name/avatar
+    const actor = await User.findById(userId).select('fullName avatar');
+    const actorName = actor?.fullName || 'Traveler';
+
+    if (!post.likes.map(String).includes(userId)) {
+      post.likes.push(userId);
       post.likeCount = post.likes.length;
       await post.save();
 
-      if (String(post.author) !== String(req.user.id)) {
+      // Notify owner
+      if (String(post.author) !== userId) {
         req.app.get('io')?.to(`user:${String(post.author)}`).emit('post:liked:owner', {
-          postId: String(post._id), actorId: String(req.user.id), actorName: req.user.fullName || 'Someone',
+          postId:    String(post._id),
+          actorId:   userId,
+          actorName: actorName,
+          actorAvatar: actor?.avatar || '',
         });
       }
     }
 
+    // 2. Populate likes with latest data from DB before emitting
+    const populatedPost = await Post.findById(post._id).populate('likes', 'fullName avatar');
+
     req.app.get('io')?.emit('postLiked', {
       postId:    String(post._id),
-      likes:     post.likes.map(id => id.toString()),
-      likeCount: post.likes.length,
+      likes:     populatedPost.likes,
+      likeCount: populatedPost.likes.length,
     });
-    res.json({ likes: post.likes, likeCount: post.likes.length });
+
+    res.json({ likes: populatedPost.likes, likeCount: populatedPost.likes.length });
   } catch (err) { res.status(500).json({ msg: 'Server error' }); }
 });
 
@@ -274,12 +289,15 @@ router.post('/:id/unlike', auth, async (req, res) => {
     post.likeCount = post.likes.length;
     await post.save();
 
+    // Populate likes before emitting to ensure UI shows correct names/avatars
+    const populatedPost = await Post.findById(post._id).populate('likes', 'fullName avatar');
+
     req.app.get('io')?.emit('postLiked', {
       postId:    String(post._id),
-      likes:     post.likes.map(id => id.toString()),
-      likeCount: post.likes.length,
+      likes:     populatedPost.likes,
+      likeCount: populatedPost.likes.length,
     });
-    res.json({ likes: post.likes, likeCount: post.likes.length });
+    res.json({ likes: populatedPost.likes, likeCount: populatedPost.likes.length });
   } catch (err) { res.status(500).json({ msg: 'Server error' }); }
 });
 
@@ -342,8 +360,9 @@ router.post('/:id/comments', auth, async (req, res) => {
     const populated = await comment.populate('author', 'fullName avatar');
 
     if (String(post.author) !== String(req.user.id)) {
+      const actor = await User.findById(req.user.id).select('fullName');
       req.app.get('io')?.to(`user:${String(post.author)}`).emit('post:commented:owner', {
-        postId: String(post._id), actorId: String(req.user.id), actorName: req.user.fullName || 'Someone',
+        postId: String(post._id), actorId: String(req.user.id), actorName: actor?.fullName || 'Someone',
       });
     }
     req.app.get('io')?.emit('commentAdded', {

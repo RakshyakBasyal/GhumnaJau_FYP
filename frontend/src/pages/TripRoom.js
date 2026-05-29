@@ -12,9 +12,10 @@ import { io } from "socket.io-client";
 import { useToast } from "../context/ToastContext";
 import {
   getTripRoomById, sendRoomMessage, respondToRoomRequest,
-  inviteBuddyToRoom, getConnections, getMyTripRooms,
+  inviteBuddyToRoom, getConnections, getMyTripRooms, deleteTripRoom,
 } from "../services/api";
 import ExpensePanel from "../components/ExpensePanel";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const tok = () => localStorage.getItem("token");
@@ -335,6 +336,7 @@ export default function TripRoom() {
   const [connections, setConnections] = useState([]);
   const [showInvite,  setShowInvite]  = useState(false);
   const [showShare,   setShowShare]   = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activePanel, setActivePanel] = useState("chat"); // chat | members | expenses
 
   const chatRef  = useRef(null);
@@ -372,7 +374,10 @@ export default function TripRoom() {
   useEffect(() => {
     if (!myId || !roomId) return;
     const socket = io(BASE_URL, { withCredentials: true });
-    socket.on("connect", () => socket.emit("registerUser", myId));
+    socket.on("connect", () => {
+      socket.emit("registerUser", myId);
+      socket.emit("joinRoom", roomId);
+    });
     socket.on("room:message:new", ({ roomId: rid, message }) => {
       if (rid !== roomId) return;
       setMessages(prev => prev.some(m => m._id === message._id) ? prev : [...prev, message]);
@@ -381,7 +386,10 @@ export default function TripRoom() {
       }
     });
     socket.on("room:member:joined", ({ roomId: rid }) => { if (rid === roomId) fetchRoom(); });
-    return () => socket.disconnect();
+    return () => {
+      socket.emit("leaveRoom", roomId);
+      socket.disconnect();
+    };
   }, [myId, roomId, fetchRoom]);
 
   // Auto-scroll — only the chat div scrolls
@@ -419,6 +427,18 @@ export default function TripRoom() {
       showToast("Invited!", "success");
       setShowInvite(false);
     } catch (err) { showToast(err?.response?.data?.msg || "Failed", "error"); }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteTripRoom(roomId);
+      showToast("Group deleted successfully", "success");
+      navigate("/community/buddies?tab=groups");
+    } catch (_) {
+      showToast("Failed to delete group", "error");
+    } finally {
+      setShowDeleteConfirm(false);
+    }
   };
 
   if (loading) {
@@ -522,6 +542,13 @@ export default function TripRoom() {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Delete */}
+            {isOwner && (
+              <button onClick={() => setShowDeleteConfirm(true)} className="p-1.5 hover:bg-red-500/20 text-red-100 hover:text-white rounded-lg transition" title="Delete Group">
+                <Trash2 size={16} />
+              </button>
             )}
           </div>
         </div>
@@ -961,6 +988,14 @@ export default function TripRoom() {
           destination={room.destination}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+        title="Delete Trip Group"
+        message={`Are you sure you want to delete the group for "${room?.destination}"? This will permanently remove all chat history and expenses for all members.`}
+      />
     </div>
   );
 }

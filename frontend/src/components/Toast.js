@@ -11,8 +11,8 @@ const Toast = ({ message, type = 'success', onClose }) => {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bgColor = type === 'success' ? 'bg-green-600' : 'bg-red-600';
-  const Icon = type === 'success' ? CheckCircle : AlertCircle;
+  const bgColor = type === 'success' ? 'bg-green-600' : type === 'info' ? 'bg-blue-600' : 'bg-red-600';
+  const Icon = type === 'success' ? CheckCircle : type === 'info' ? CheckCircle : AlertCircle;
 
   return (
     <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl text-white ${bgColor} animate-slide-in`}>

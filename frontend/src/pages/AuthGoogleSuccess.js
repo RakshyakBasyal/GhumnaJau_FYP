@@ -37,6 +37,7 @@ const AuthGoogleSuccess = () => {
         localStorage.setItem('username', user.fullName || 'User');
         localStorage.setItem('userRole', user.role || 'USER');
         localStorage.setItem('userEmail', user.email);
+        localStorage.setItem('userAvatar', user.avatar || '');
 
         // Optional: clear any intended path
         localStorage.removeItem('intendedPath');
