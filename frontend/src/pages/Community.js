@@ -4,18 +4,23 @@ import { useLocation, useNavigate, useSearchParams, Link } from 'react-router-do
 import {
   Bell, Heart, LayoutDashboard, MessageCircle, MessageSquare, Users, X, Sparkles, Loader2,
   MapPin, Calendar, Share2, Plane, Hotel, ClipboardList, Search, UserPlus, Crown,
-  Check, ExternalLink, Receipt, ArrowRight, CheckCircle2, Banknote
+  Check, ExternalLink, Receipt, ArrowRight, CheckCircle2, Banknote, Trash2
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { 
   getConnections, getBuddyMessages, getMe, sendBuddyMessage, 
-  createTripFromChat, getTripRoomById 
+  createTripFromChat, getTripRoomById, getMyTripRooms,
+  respondToRoomRequest, acceptRoomInvite, deleteTripRoom 
 } from '../services/api';
+import { getPost } from '../services/feedApi';
 import { useToast } from '../context/ToastContext';
 import Feed from './Feed';
 import FindBuddy from './FindBuddy';
 import CreateTripModal from '../components/CreateTripModal';
 import ExpensePanel from '../components/ExpensePanel';
+import Modal from '../components/Modal';
+import PostCard from '../components/feed/PostCard';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -55,6 +60,10 @@ const Community = () => {
   const [chatText,             setChatText]             = useState('');
   const [sendingChat,          setSendingChat]          = useState(false);
   const [showPlanModal,        setShowPlanModal]        = useState(false);
+  const [viewPostId,           setViewPostId]           = useState(null);
+  const [viewPostData,         setViewPostData]         = useState(null);
+  const [loadingPost,          setLoadingPost]          = useState(false);
+  const [showDeleteConfirm,    setShowDeleteConfirm]    = useState(false);
 
   // Group chat state
   const [myRooms,        setMyRooms]        = useState([]);
@@ -101,6 +110,10 @@ const Community = () => {
   // Close notification panel on outside click
   useEffect(() => {
     if (!showNotifications) return;
+    
+    // Mark all as read when opened
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+
     const handle = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false); };
     const timer = setTimeout(() => document.addEventListener('mousedown', handle), 50);
     return () => { clearTimeout(timer); document.removeEventListener('mousedown', handle); };
@@ -173,6 +186,20 @@ const Community = () => {
       setRoomMessages(res.data.messages || []);
     } catch (_) {}
   }, [activeRoom]);
+
+  const handleDeleteRoom = async () => {
+    if (!activeRoom) return;
+    try {
+      await deleteTripRoom(activeRoom._id);
+      showToast('Group deleted successfully', 'success');
+      setActiveRoom(null);
+      loadMyRooms();
+    } catch (_) {
+      showToast('Failed to delete group', 'error');
+    } finally {
+      setShowDeleteConfirm(false);
+    }
+  };
 
   const sendRoomMsg = async () => {
     if (!activeRoom || !roomText.trim() || sendingRoom) return;
@@ -253,7 +280,13 @@ const Community = () => {
     checkProfile();
 
     const socket = io(BASE_URL, { withCredentials: true });
-    socket.on('connect', () => socket.emit('registerUser', myId));
+    socket.on('connect', () => {
+      socket.emit('registerUser', myId);
+      // Join all my trip rooms to receive live updates
+      getMyTripRooms().then(res => {
+        (res.data || []).forEach(room => socket.emit('joinRoom', room._id));
+      }).catch(() => {});
+    });
 
     // Messages
     socket.on('buddy:message:new', ({ conversationKey, message }) => {
@@ -268,21 +301,107 @@ const Community = () => {
       });
       const isCurrentChat = activeChatBuddy && conversationKey === [String(myId), String(activeChatBuddy._id)].sort().join('_');
       if (!isCurrentChat) {
-        pushNotif({ id: `msg-${message._id || Date.now()}`, type: 'message', text: `New message from ${message.sender?.fullName || 'Someone'}`, read: false, createdAt: message.createdAt || new Date().toISOString() });
+        pushNotif({ 
+          id: `msg-${message._id || Date.now()}`, 
+          type: 'message', 
+          text: `New message from ${message.sender?.fullName || 'Someone'}`, 
+          read: false, 
+          createdAt: message.createdAt || new Date().toISOString(),
+          data: { userId: message.sender?._id }
+        });
         showToast(`New message from ${message.sender?.fullName || 'Someone'}`, 'info');
       }
     });
 
     // Follow / like / comment
-    socket.on('follow:new',          p => { pushNotif({ id: `follow-${Date.now()}`,  type: 'follow',  text: `${p?.followerName || 'Someone'} started following you`, read: false, createdAt: new Date().toISOString() }); });
-    socket.on('post:liked:owner',    p => { pushNotif({ id: `like-${Date.now()}`,    type: 'like',    text: `${p?.actorName   || 'Someone'} liked your post`,          read: false, createdAt: new Date().toISOString() }); });
-    socket.on('post:commented:owner',p => { pushNotif({ id: `comment-${Date.now()}`, type: 'comment', text: `${p?.actorName   || 'Someone'} commented on your post`,   read: false, createdAt: new Date().toISOString() }); });
+    socket.on('follow:new',          p => { pushNotif({ id: `follow-${p.followerId}`,  type: 'follow',  text: `${p?.followerName || 'Someone'} started following you`, read: false, createdAt: new Date().toISOString(), data: { userId: p.followerId } }); });
+    socket.on('post:liked:owner',    p => { pushNotif({ id: `like-${p.postId}-${p.actorId}`,    type: 'like',    text: `${p?.actorName   || 'Someone'} liked your post`,          read: false, createdAt: new Date().toISOString(), data: { postId: p.postId, actorId: p.actorId } }); });
+    socket.on('post:commented:owner',p => { pushNotif({ id: `comment-${p.postId}-${p.actorId}`, type: 'comment', text: `${p?.actorName   || 'Someone'} commented on your post`,   read: false, createdAt: new Date().toISOString(), data: { postId: p.postId, actorId: p.actorId } }); });
 
     // Trip room notifications
-    socket.on('room:request:new',    ({ roomDestination, userName })  => { pushNotif({ id: `room-req-${Date.now()}`,  type: 'room', text: `${userName} wants to join your trip to ${roomDestination}`,    read: false, createdAt: new Date().toISOString() }); showToast(`${userName} wants to join your trip to ${roomDestination}!`, 'info'); });
-    socket.on('room:invite:new',     ({ roomDestination, inviterName }) => { pushNotif({ id: `room-inv-${Date.now()}`,  type: 'room', text: `${inviterName} invited you to a trip to ${roomDestination}`, read: false, createdAt: new Date().toISOString() }); showToast(`You've been invited to ${roomDestination}!`, 'info'); });
-    socket.on('room:request:updated',({ roomDestination, status })    => { pushNotif({ id: `room-upd-${Date.now()}`,  type: 'room', text: `Your request to join ${roomDestination} was ${status}`,       read: false, createdAt: new Date().toISOString() }); showToast(`Join request for ${roomDestination}: ${status}`, status === 'accepted' ? 'success' : 'info'); });
-    socket.on('room:member:joined',  ({ roomDestination, userName })  => { pushNotif({ id: `room-join-${Date.now()}`, type: 'room', text: `${userName} joined your trip to ${roomDestination}`,          read: false, createdAt: new Date().toISOString() }); showToast(`${userName} joined your group!`, 'success'); });
+    socket.on('room:request:new',    ({ roomId, roomDestination, userName, userId })  => { 
+      pushNotif({ 
+        id: `room-req-${roomId}-${userId}`,  
+        type: 'room-request', 
+        text: `${userName} wants to join your trip to ${roomDestination}`,    
+        read: false, 
+        createdAt: new Date().toISOString(),
+        data: { roomId, userId, userName, roomDestination }
+      }); 
+      showToast(`${userName} wants to join your trip to ${roomDestination}!`, 'info'); 
+      loadMyRooms();
+    });
+    socket.on('room:invite:new',     ({ roomId, roomDestination, inviterName }) => { 
+      pushNotif({ 
+        id: `room-inv-${roomId}`,  
+        type: 'room-invite', 
+        text: `${inviterName} invited you to a trip to ${roomDestination}`, 
+        read: false, 
+        createdAt: new Date().toISOString(),
+        data: { roomId, roomDestination }
+      }); 
+      showToast(`You've been invited to ${roomDestination}!`, 'info'); 
+    });
+    socket.on('room:request:updated',({ roomId, roomDestination, status })    => { 
+      pushNotif({ 
+        id: `room-upd-${roomId}-${status}`,  
+        type: 'room', 
+        text: `Your request to join ${roomDestination} was ${status}`,       
+        read: false, 
+        createdAt: new Date().toISOString(),
+        data: { roomId, roomDestination }
+      }); 
+      showToast(`Join request for ${roomDestination}: ${status}`, status === 'accepted' ? 'success' : 'info'); 
+      if (status === 'accepted') loadMyRooms();
+    });
+    socket.on('room:member:joined',  ({ roomId, roomDestination, userName, userId })  => { 
+      // Update existing request notification if it exists, otherwise add new join notification
+      setNotifications(prev => {
+        const requestId = `room-req-${roomId}-${userId}`;
+        const hasRequest = prev.some(n => n.id === requestId);
+        
+        if (hasRequest) {
+          // Transform the request into a join notification
+          return prev.map(n => n.id === requestId ? {
+            ...n,
+            id: `room-join-${roomId}-${userId}`,
+            type: 'room',
+            text: `${userName} joined your trip to ${roomDestination}`,
+            read: false,
+            createdAt: new Date().toISOString()
+          } : n);
+        } else {
+          // Just add a new join notification
+          const newNotif = {
+            id: `room-join-${roomId}-${userId}`,
+            type: 'room',
+            text: `${userName} joined your trip to ${roomDestination}`,
+            read: false,
+            createdAt: new Date().toISOString(),
+            data: { roomId, roomDestination }
+          };
+          if (prev.some(n => n.id === newNotif.id)) return prev;
+          return [newNotif, ...prev];
+        }
+      });
+      
+      showToast(`${userName} joined your group!`, 'success'); 
+      
+      // Refresh the group list and current room details
+      loadMyRooms();
+      // If we are currently in this room, refresh its data
+      setActiveRoom(prev => {
+        if (prev && String(prev._id) === String(roomId)) {
+          getTripRoomById(roomId).then(res => {
+            if (res.data) {
+              setActiveRoom(res.data);
+              setRoomMessages(res.data.messages || []);
+            }
+          });
+        }
+        return prev;
+      });
+    });
 
     // Live group chat
     socket.on('room:message:new', ({ roomId, message }) => {
@@ -308,7 +427,7 @@ const Community = () => {
 
     socket.on('trip:group:created', ({ destination }) => {
       showToast(`You've been added to a trip group for ${destination}!`, 'success');
-      if (activeTab === 'groups') loadMyRooms();
+      loadMyRooms();
     });
 
     return () => socket.disconnect();
@@ -349,8 +468,94 @@ const Community = () => {
     { id: 'groups',   path: '/community/groups',       label: 'My Groups',    icon: Users },
   ];
 
-  const notifIcon  = (type) => { if (type === 'like') return <Heart size={14} className="fill-current" />; if (type === 'room') return <Users size={14} />; return <MessageCircle size={14} />; };
-  const notifColor = (type) => { if (type === 'like') return 'bg-red-50 text-red-500'; if (type === 'follow') return 'bg-blue-50 text-blue-500'; if (type === 'room') return 'bg-emerald-50 text-emerald-500'; return 'bg-green-50 text-green-500'; };
+  const notifIcon  = (type) => { 
+    if (type === 'like') return <Heart size={14} className="fill-current" />; 
+    if (type === 'room' || type === 'room-request' || type === 'room-invite') return <Users size={14} />; 
+    return <MessageCircle size={14} />; 
+  };
+  const notifColor = (type) => { 
+    if (type === 'like') return 'bg-red-50 text-red-500'; 
+    if (type === 'follow') return 'bg-blue-50 text-blue-500'; 
+    if (type === 'room' || type === 'room-request' || type === 'room-invite') return 'bg-emerald-50 text-emerald-500'; 
+    return 'bg-green-50 text-green-500'; 
+  };
+
+  const handleNotifAction = async (notif, action) => {
+    // Mark as read immediately
+    setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+
+    if (notif.type === 'like' || notif.type === 'comment') {
+      if (action === 'view' && notif.data?.postId) {
+        setLoadingPost(true);
+        try {
+          const res = await getPost(notif.data.postId);
+          setViewPostData(res.data);
+          setShowNotifications(false);
+        } catch (_) {
+          showToast('Failed to load post', 'error');
+        } finally {
+          setLoadingPost(false);
+        }
+      }
+    } else if (notif.type === 'room-request') {
+      if (action === 'view') {
+        navigate('/community/buddies?tab=groups');
+        setShowNotifications(false);
+      } else if (action === 'accept' || action === 'reject') {
+        try {
+          await respondToRoomRequest({ roomId: notif.data.roomId, userId: notif.data.userId, action });
+          showToast(`Request ${action}ed`, 'success');
+          
+          // Update notification to reflect the action and remove buttons
+          setNotifications(prev => prev.map(n => n.id === notif.id ? { 
+            ...n, 
+            id: action === 'accept' ? `room-join-${notif.data.roomId}-${notif.data.userId}` : n.id,
+            text: action === 'accept' 
+              ? `${notif.data.userName} joined your trip to ${notif.data.roomDestination}`
+              : `You rejected ${notif.data.userName}'s request to join ${notif.data.roomDestination}`, 
+            type: 'room',
+            read: true 
+          } : n));
+          
+          if (action === 'accept') {
+            loadMyRooms();
+            if (activeRoom && String(activeRoom._id) === String(notif.data.roomId)) {
+              refreshActiveRoom();
+            }
+          }
+        } catch (_) {
+          showToast(`Failed to ${action} request`, 'error');
+        }
+      }
+    } else if (notif.type === 'room-invite') {
+      if (action === 'view') {
+        navigate('/community/buddies?tab=groups');
+        setShowNotifications(false);
+      } else if (action === 'accept') {
+        try {
+          await acceptRoomInvite(notif.data.roomId);
+          showToast('Invitation accepted', 'success');
+          setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, text: `You joined the group for ${notif.data.roomDestination}`, type: 'room' } : n));
+          loadMyRooms();
+        } catch (_) {
+          showToast('Failed to accept invitation', 'error');
+        }
+      }
+    } else if (notif.type === 'follow') {
+      if (action === 'view' && notif.data?.userId) {
+        navigate(`/profile/${notif.data.userId}`);
+        setShowNotifications(false);
+      }
+    } else if (notif.type === 'message') {
+      if (action === 'view' && notif.data?.userId) {
+        // Switch to messages tab and try to find the buddy in connections
+        navigate('/community/messages');
+        const buddy = connections.find(c => String(c._id) === String(notif.data.userId));
+        if (buddy) openChat(buddy);
+        setShowNotifications(false);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -389,21 +594,49 @@ const Community = () => {
                     <div className="absolute left-0 top-full mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[100] overflow-hidden">
                       <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                         <p className="font-bold text-gray-900">Activity</p>
-                        <div className="flex items-center gap-3">
-                          <button onClick={markAllRead} className="text-xs text-blue-600 font-bold hover:underline">Mark all read</button>
-                          <button onClick={() => setShowNotifications(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={14} /></button>
-                        </div>
+                        <button onClick={() => setShowNotifications(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400"><X size={14} /></button>
                       </div>
                       <div className="max-h-[500px] overflow-y-auto">
                         {notifications.length === 0 ? (
                           <div className="py-12 px-4 text-center"><Bell className="mx-auto text-gray-200 mb-2" size={32} /><p className="text-sm text-gray-500 font-medium">No notifications yet.</p></div>
                         ) : notifications.map(n => (
-                          <div key={n.id} className={`px-4 py-4 border-b border-gray-50 hover:bg-gray-50 ${n.read ? 'bg-white' : 'bg-blue-50/40'}`}>
+                          <div key={n.id} 
+                            onClick={() => !n.read && setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, read: true } : notif))}
+                            className={`px-4 py-4 border-b border-gray-50 hover:bg-gray-50 transition cursor-pointer ${n.read ? 'bg-white' : 'bg-blue-50/40'}`}>
                             <div className="flex items-start gap-3">
                               <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${notifColor(n.type)}`}>{notifIcon(n.type)}</div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm text-gray-800 leading-snug">{n.text}</p>
-                                <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-tight">
+                                
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-2 mt-2">
+                                  {(n.type === 'like' || n.type === 'comment' || n.type === 'follow' || n.type === 'message' || n.type === 'room-request' || n.type === 'room-invite') && (
+                                    <button onClick={(e) => { e.stopPropagation(); handleNotifAction(n, 'view'); }}
+                                      className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition">
+                                      View
+                                    </button>
+                                  )}
+                                  {n.type === 'room-request' && (
+                                    <>
+                                      <button onClick={(e) => { e.stopPropagation(); handleNotifAction(n, 'accept'); }}
+                                        className="text-[10px] font-bold text-white bg-emerald-500 px-2 py-1 rounded-lg hover:bg-emerald-600 transition">
+                                        Accept
+                                      </button>
+                                      <button onClick={(e) => { e.stopPropagation(); handleNotifAction(n, 'reject'); }}
+                                        className="text-[10px] font-bold text-white bg-red-500 px-2 py-1 rounded-lg hover:bg-red-600 transition">
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
+                                  {n.type === 'room-invite' && (
+                                    <button onClick={(e) => { e.stopPropagation(); handleNotifAction(n, 'accept'); }}
+                                      className="text-[10px] font-bold text-white bg-emerald-500 px-2 py-1 rounded-lg hover:bg-emerald-600 transition">
+                                      Accept
+                                    </button>
+                                  )}
+                                </div>
+
+                                <p className="text-[10px] text-gray-400 font-bold mt-2 uppercase tracking-tight">
                                   {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
@@ -584,6 +817,11 @@ const Community = () => {
                               <button onClick={() => openShareModal('hotel')} className={`p-2 rounded-xl transition ${showRoomShare ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`} title="Share"><Share2 size={16} /></button>
                               <button onClick={() => setShowRoomInvite(v => !v)} className={`p-2 rounded-xl transition ${showRoomInvite ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`} title="Invite"><UserPlus size={16} /></button>
                               <button onClick={() => setShowRoomMembers(v => !v)} className={`p-2 rounded-xl transition ${showRoomMembers ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`} title="Members"><Users size={16} /></button>
+                              {String(activeRoom.createdBy?._id || activeRoom.createdBy) === String(myId) && (
+                                <button onClick={() => setShowDeleteConfirm(true)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition" title="Delete Group">
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
                             </div>
                           </div>
 
@@ -1064,6 +1302,31 @@ const Community = () => {
           }}
         />
       )}
+
+      {/* View Post Modal */}
+      {viewPostData && (
+        <Modal isOpen={true} onClose={() => setViewPostData(null)} title="Post Detail" size="md">
+          <PostCard post={viewPostData} onUpdated={() => {}} onDeleted={() => setViewPostData(null)} />
+        </Modal>
+      )}
+
+      {/* Loading Post Overlay */}
+      {loadingPost && (
+        <div className="fixed inset-0 z-[110] bg-black/20 backdrop-blur-[2px] flex items-center justify-center">
+          <div className="bg-white p-4 rounded-2xl shadow-xl flex items-center gap-3">
+            <Loader2 className="animate-spin text-blue-600" size={20} />
+            <span className="text-sm font-bold text-gray-700">Loading post...</span>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteRoom}
+        title="Delete Trip Group"
+        message={`Are you sure you want to delete the group for "${activeRoom?.destination}"? This will permanently remove all chat history and expenses for all members.`}
+      />
     </div>
   );
 };

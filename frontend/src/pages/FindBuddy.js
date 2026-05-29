@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Loader2, MapPin, Search, Calendar, Users, Plus, X,
-  CheckCircle2, MessageSquare, Check, UserCheck,
+  CheckCircle2, MessageSquare, Check, UserCheck, Trash2
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useToast } from '../context/ToastContext';
@@ -11,9 +11,10 @@ import {
   connectUser, getConnections, getGeneralDiscoveryTrips,
   getDiscoverTrips, getTripRooms, getMyTripRooms, joinTripRoom,
   respondToRoomRequest, inviteBuddyToRoom, acceptRoomInvite,
-  getMe, getImageUrl,
+  getMe, getImageUrl, deleteTripRoom,
 } from '../services/api';
 import CreateTripModal from '../components/CreateTripModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -35,7 +36,7 @@ function BuddyCard({ user, connectionStatus, onConnect, onMessage, onView }) {
     <div className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col" onClick={onView}>
       <div className="relative h-52 overflow-hidden">
         {av
-          ? <img src={av} alt={user.fullName} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+          ? <img src={av} alt={user.fullName} className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-110" />
           : <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-5xl font-bold">{user.fullName && user.fullName.charAt(0).toUpperCase()}</div>}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
         {user.compatibilityScore > 0 && (
@@ -95,7 +96,7 @@ function BuddyCard({ user, connectionStatus, onConnect, onMessage, onView }) {
 }
 
 // ── Group Card ────────────────────────────────────────────────────────────────
-function GroupCard({ room, myId, connections, onJoin, onAcceptInvite, onRespondRequest, onInviteBuddy, onEnter }) {
+function GroupCard({ room, myId, connections, onJoin, onAcceptInvite, onRespondRequest, onInviteBuddy, onEnter, onDelete }) {
   var isMember     = (room.members     || []).some(function (m) { return (m._id || m).toString() === myId; });
   var isOwner      = ((room.createdBy && (room.createdBy._id || room.createdBy)) || '').toString() === myId;
   var isCoOwner    = (room.coOwners    || []).some(function (m) { return m.toString() === myId; });
@@ -106,11 +107,17 @@ function GroupCard({ room, myId, connections, onJoin, onAcceptInvite, onRespondR
   var [showInvite, setShowInvite] = useState(false);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col relative group/card">
+      {isOwner && (
+        <button onClick={function(e) { e.stopPropagation(); onDelete(room._id); }} 
+          className="absolute top-3 right-3 z-10 p-1.5 bg-black/10 hover:bg-red-500 text-white rounded-lg transition-colors backdrop-blur-sm opacity-0 group-hover/card:opacity-100" title="Delete Group">
+          <Trash2 size={12} />
+        </button>
+      )}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-5 text-white">
         <div className="flex items-start justify-between">
-          <div>
-            <h3 className="font-bold text-lg leading-tight">{room.destination}</h3>
+          <div className="pr-10">
+            <h3 className="font-bold text-lg leading-tight truncate max-w-[180px]">{room.destination}</h3>
             <p className="text-blue-100 text-sm mt-0.5 flex items-center gap-1.5">
               <Calendar size={12} />
               {fmtDate(room.startDate)}{room.endDate && room.startDate !== room.endDate ? ' \u2192 ' + fmtDate(room.endDate) : ''}
@@ -242,6 +249,8 @@ export default function FindBuddy() {
   var [connections,  setConnections]  = useState([]);
   var [connectionIds, setConnectionIds] = useState(new Set());
   var [showCreateModal, setShowCreateModal] = useState(false);
+  var [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  var [deleteId,         setDeleteId]         = useState(null);
 
   var getLocalDate = function() {
     var d = new Date();
@@ -284,12 +293,22 @@ export default function FindBuddy() {
   useEffect(function () {
     if (!myId) return;
     var socket = io(BASE_URL, { withCredentials: true });
-    socket.on('connect', function () { socket.emit('registerUser', myId); });
+    socket.on('connect', function () { 
+      socket.emit('registerUser', myId); 
+      // Join all my trip rooms to receive live updates (like member count)
+      getMyTripRooms().then(res => {
+        (res.data || []).forEach(room => socket.emit('joinRoom', room._id));
+      }).catch(() => {});
+    });
     socket.on('buddy:connected', function () { loadConnections(); });
     socket.on('trip:group:created', function (data) {
       showToast('Trip group for ' + data.destination + ' created!', 'success');
-      if (tab === 'groups') fetchData();
+      fetchData();
     });
+    socket.on('room:member:joined', function () { fetchData(); });
+    socket.on('room:request:new', function () { fetchData(); });
+    socket.on('room:request:updated', function (data) { if (data.status === 'accepted') fetchData(); });
+    socket.on('trip:group:deleted', function () { fetchData(); });
     return function () { socket.disconnect(); };
   }, [myId, tab]);
 
@@ -418,6 +437,19 @@ export default function FindBuddy() {
     catch (err) { showToast((err.response && err.response.data && err.response.data.msg) || 'Failed', 'error'); }
   }
   function handleEnterRoom(roomId) { navigate('/community/groups?room=' + roomId); }
+
+  async function handleDeleteGroup(rid) {
+    try {
+      await deleteTripRoom(rid);
+      showToast('Group deleted', 'success');
+      fetchData();
+    } catch (_) {
+      showToast('Failed to delete group', 'error');
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteId(null);
+    }
+  }
 
   // Check if a room is one I belong to (for "Open Chat" vs "Join")
   function amMemberOf(roomId) {
@@ -576,7 +608,8 @@ export default function FindBuddy() {
                             onAcceptInvite={function () { handleAcceptInvite(room._id); }}
                             onRespondRequest={function (uid, action) { handleRoomAction(room._id, uid, action); }}
                             onInviteBuddy={function (cid) { handleInvite(room._id, cid); }}
-                            onEnter={handleEnterRoom} />
+                            onEnter={handleEnterRoom}
+                            onDelete={function(rid) { setDeleteId(rid); setShowDeleteConfirm(true); }} />
                         );
                       })}
                     </div>
@@ -680,7 +713,8 @@ export default function FindBuddy() {
                               onAcceptInvite={function () { handleAcceptInvite(room._id); }}
                               onRespondRequest={function (uid, action) { handleRoomAction(room._id, uid, action); }}
                               onInviteBuddy={function (cid) { handleInvite(room._id, cid); }}
-                              onEnter={handleEnterRoom} />
+                              onEnter={handleEnterRoom}
+                              onDelete={function(rid) { setDeleteId(rid); setShowDeleteConfirm(true); }} />
                           );
                         })}
                       </div>
@@ -704,7 +738,8 @@ export default function FindBuddy() {
                               onAcceptInvite={function () { handleAcceptInvite(room._id); }}
                               onRespondRequest={function (uid, action) { handleRoomAction(room._id, uid, action); }}
                               onInviteBuddy={function (cid) { handleInvite(room._id, cid); }}
-                              onEnter={handleEnterRoom} />
+                              onEnter={handleEnterRoom}
+                              onDelete={function(rid) { setDeleteId(rid); setShowDeleteConfirm(true); }} />
                           );
                         })}
                       </div>
@@ -724,6 +759,16 @@ export default function FindBuddy() {
           defaultDestination={hasSearched ? tripSearch.destination : ''}
         />
       )}
+
+      {showDeleteConfirm && (
+         <ConfirmDialog
+           isOpen={showDeleteConfirm}
+           title="Delete Group"
+           message="Are you sure you want to delete this trip group? This action cannot be undone."
+           onConfirm={function () { handleDeleteGroup(deleteId); }}
+           onClose={function () { setShowDeleteConfirm(false); setDeleteId(null); }}
+         />
+       )}
     </div>
   );
 }

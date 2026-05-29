@@ -3,12 +3,17 @@ import { useEffect, useState } from "react";
 import { Search, Trash2 } from "lucide-react";
 import AdminNavbar from "../components/AdminNavbar";
 import { getUsers, deleteUser } from "../services/api";
+import { useToast } from "../context/ToastContext";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const ManageUsers = () => {
+  const { showToast } = useToast();
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -44,21 +49,25 @@ const ManageUsers = () => {
     }
   }, [searchQuery, users]);
 
-  const handleDeleteUser = async (user) => {
-    const label = user.email || user.fullName || "this user";
-    if (!window.confirm(`Delete ${label} permanently?`)) return;
+  const handleDelete = (user) => {
+    setUserToDelete(user);
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!userToDelete) return;
     try {
-      await deleteUser(user._id);
+      await deleteUser(userToDelete._id);
+      setUsers((prev) => prev.filter((u) => u._id !== userToDelete._id));
+      setFilteredUsers((prev) => prev.filter((u) => u._id !== userToDelete._id));
 
-      
-      setUsers((prev) => prev.filter((u) => u._id !== user._id));
-      setFilteredUsers((prev) => prev.filter((u) => u._id !== user._id));
-
-      alert("User deleted successfully!");
+      showToast("User deleted successfully!");
     } catch (err) {
       console.error("Delete user error:", err.response || err);
-      alert(err.response?.data?.msg || "Failed to delete user");
+      showToast(err.response?.data?.msg || "Failed to delete user", "error");
+    } finally {
+      setShowDeleteConfirm(false);
+      setUserToDelete(null);
     }
   };
 
@@ -150,7 +159,7 @@ const ManageUsers = () => {
 
                         <td className="px-6 py-4 text-sm">
                           <button
-                            onClick={() => handleDeleteUser(user)}
+                            onClick={() => handleDelete(user)}
                             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -166,6 +175,14 @@ const ManageUsers = () => {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => { setShowDeleteConfirm(false); setUserToDelete(null); }}
+        onConfirm={confirmDelete}
+        title="Delete User"
+        message={`Are you sure you want to delete ${userToDelete?.fullName || userToDelete?.email}? This action will permanently remove the user and all their associated data.`}
+      />
     </div>
   );
 };

@@ -1299,17 +1299,24 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
     });
-    if (!res.ok) { alert('Failed to add plan'); return; }
+    if (!res.ok) { showToast('Failed to add plan', 'error'); return; }
     const newPlan = await res.json();
     setPlans(prev => [...prev, newPlan]);
+    showToast('Plan added');
   };
 
   const handleDeletePlan = async () => {
-    const plan = deletePlan;
-    await fetch(`${BASE_URL}/api/itineraries/plans/${plan._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    setPlans(prev => prev.filter(p => p._id !== plan._id));
-    setItems(prev => prev.filter(i => i.planId !== plan._id));
-    setDeletePlan(null);
+    try {
+      const plan = deletePlan;
+      const res = await fetch(`${BASE_URL}/api/itineraries/plans/${plan._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      setPlans(prev => prev.filter(p => p._id !== plan._id));
+      setItems(prev => prev.filter(i => i.planId !== plan._id));
+      setDeletePlan(null);
+      showToast('Plan deleted');
+    } catch (_) {
+      showToast('Failed to delete plan', 'error');
+    }
   };
 
   const handleAddItemToPlan = async (planId, itemData) => {
@@ -1317,9 +1324,10 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(itemData),
     });
-    if (!res.ok) { alert('Failed to add item'); return; }
+    if (!res.ok) { showToast('Failed to add item', 'error'); return; }
     const newItem = await res.json();
     setItems(prev => [...prev, newItem]);
+    showToast('Item added to plan');
   };
 
   const handleAddItem = async (itemData) => {
@@ -1327,16 +1335,23 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(itemData),
     });
-    if (!res.ok) { alert('Failed to add item'); return; }
+    if (!res.ok) { showToast('Failed to add item', 'error'); return; }
     const newItem = await res.json();
     setItems(prev => [...prev, newItem]);
     setUnschedModal(null);
+    showToast('Item added');
   };
 
   const handleRemoveItem = async () => {
-    await fetch(`${BASE_URL}/api/itineraries/items/${deleteItem._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    setItems(prev => prev.filter(i => i._id !== deleteItem._id));
-    setDeleteItem(null);
+    try {
+      const res = await fetch(`${BASE_URL}/api/itineraries/items/${deleteItem._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      setItems(prev => prev.filter(i => i._id !== deleteItem._id));
+      setDeleteItem(null);
+      showToast('Item removed');
+    } catch (_) {
+      showToast('Failed to remove item', 'error');
+    }
   };
 
   const handleMarkDone = async ({ isDone, actualCost }) => {
@@ -1344,10 +1359,11 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ isDone, actualCost }),
     });
-    if (!res.ok) { alert('Failed'); return; }
+    if (!res.ok) { showToast('Failed to update status', 'error'); return; }
     const updated = await res.json();
     setItems(prev => prev.map(i => i._id === updated._id ? updated : i));
     setMarkItem(null);
+    showToast(isDone ? 'Item completed' : 'Item marked as pending');
   };
 
   const handleUndone = async (item) => {
@@ -1355,7 +1371,7 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ isDone: false }),
     });
-    if (!res.ok) return;
+    if (!res.ok) { showToast('Failed to update status', 'error'); return; }
     const updated = await res.json();
     setItems(prev => prev.map(i => i._id === updated._id ? updated : i));
   };
@@ -1365,10 +1381,11 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ actualCost }),
     });
-    if (!res.ok) return;
+    if (!res.ok) { showToast('Failed to update cost', 'error'); return; }
     const updated = await res.json();
     setItems(prev => prev.map(i => i._id === updated._id ? updated : i));
     setEditCost(null);
+    showToast('Cost updated');
   };
 
   const handleEditSave = async (data) => {
@@ -1376,10 +1393,11 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
     });
-    if (!res.ok) { alert('Failed'); return; }
+    if (!res.ok) { showToast('Failed to update trip', 'error'); return; }
     const updated = await res.json();
     setItin(prev => ({ ...prev, ...updated }));
     setEditTrip(false);
+    showToast('Trip details updated');
   };
 
   const handleStatusChange = async (_, newStatus) => {
@@ -1387,14 +1405,21 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ status: newStatus }),
     });
-    if (!res.ok) { alert('Failed'); return; }
+    if (!res.ok) { showToast('Failed to update status', 'error'); return; }
     const updated = await res.json();
     setItin(prev => ({ ...prev, status: updated.status }));
+    showToast(`Trip ${newStatus}`);
   };
 
   const handleDeleteTrip = async () => {
-    await fetch(`${BASE_URL}/api/itineraries/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    navigate('/itinerary');
+    try {
+      const res = await fetch(`${BASE_URL}/api/itineraries/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      showToast('Trip deleted successfully');
+      navigate('/itinerary');
+    } catch (_) {
+      showToast('Failed to delete trip', 'error');
+    }
   };
 
   const handleSetBudget = async (amount) => {
@@ -1402,10 +1427,11 @@ const ItineraryDetail = ({ publicView = false }) => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ budget: amount }),
     });
-    if (!res.ok) { alert('Failed'); return; }
+    if (!res.ok) { showToast('Failed to set budget', 'error'); return; }
     const updated = await res.json();
     setItin(prev => ({ ...prev, budget: updated.budget }));
     setShowBudget(false);
+    showToast('Budget updated');
   };
 
   const days    = itin ? getDays(itin) : [];

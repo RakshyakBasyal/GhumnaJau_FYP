@@ -86,6 +86,7 @@ export const getTripRooms         = (params = {}) => API.get('/trips/rooms', { p
 export const getMyTripRooms       = ()             => API.get('/trips/rooms/mine');
 export const createTripRoom       = (data)         => API.post('/trips/rooms', data);
 export const getTripRoomById      = (id)            => API.get(`/trips/rooms/${id}`);
+export const deleteTripRoom       = (id)            => API.delete(`/trips/rooms/${id}`);
 export const joinTripRoom         = (id)            => API.post(`/trips/rooms/${id}/join`);
 export const leaveTripRoom        = (id)            => API.post(`/trips/rooms/${id}/leave`);
 export const sendRoomMessage      = (id, text)      => API.post(`/trips/rooms/${id}/messages`, { text });

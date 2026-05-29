@@ -5,6 +5,7 @@ const auth    = require('../middleware/auth');
 const {
   createTrip, getTrips, deleteTrip, getDiscoverTrips, getGeneralDiscovery,
   getTripRooms, getMyRooms, createTripRoom, getTripRoomById, joinTripRoom, leaveTripRoom,
+  deleteTripRoom,
   addRoomMessage, updateRoomItinerary, updateRoomNotes,
   respondToJoinRequest, inviteBuddyToRoom, acceptRoomInvite,
   planTripTogether, createTripFromChat,
@@ -30,6 +31,7 @@ router.post('/rooms',              auth, createTripRoom);
 router.post('/rooms/respond-request', auth, respondToJoinRequest);  // before /:id
 router.post('/rooms/invite',       auth, inviteBuddyToRoom);        // before /:id
 router.get('/rooms/:id',           auth, getTripRoomById);
+router.delete('/rooms/:id',        auth, deleteTripRoom);
 router.post('/rooms/:id/join',     auth, joinTripRoom);
 router.post('/rooms/:id/leave',    auth, leaveTripRoom);
 router.post('/rooms/:id/messages', auth, addRoomMessage);

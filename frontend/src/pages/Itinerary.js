@@ -303,10 +303,11 @@ const Itinerary = () => {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
     });
-    if (!res.ok) { alert('Failed to create'); return; }
+    if (!res.ok) { showToast('Failed to create trip', 'error'); return; }
     const created = await res.json();
     setItineraries(prev => [{ ...created, itemCount: 0, doneCount: 0 }, ...prev]);
     setShowCreate(false);
+    showToast('Trip created successfully');
     navigate(`/itinerary/${created._id}`);
   };
 
@@ -315,16 +316,25 @@ const Itinerary = () => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
     });
-    if (!res.ok) { alert('Failed to update'); return; }
+    if (!res.ok) { showToast('Failed to update trip', 'error'); return; }
     const updated = await res.json();
     setItineraries(prev => prev.map(i => i._id === updated._id ? { ...i, ...updated } : i));
     setEditTarget(null);
+    showToast('Trip updated');
   };
 
   const handleDelete = async () => {
-    await fetch(`${BASE_URL}/api/itineraries/${deleteTarget._id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    setItineraries(prev => prev.filter(i => i._id !== deleteTarget._id));
-    setDeleteTarget(null);
+    try {
+      const res = await fetch(`${BASE_URL}/api/itineraries/${deleteTarget._id}`, { 
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` } 
+      });
+      if (!res.ok) throw new Error();
+      setItineraries(prev => prev.filter(i => i._id !== deleteTarget._id));
+      setDeleteTarget(null);
+      showToast('Trip deleted');
+    } catch (_) {
+      showToast('Failed to delete trip', 'error');
+    }
   };
 
   const handleStatusChange = async (id, newStatus) => {
@@ -332,9 +342,10 @@ const Itinerary = () => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ status: newStatus }),
     });
-    if (!res.ok) { alert('Failed'); return; }
+    if (!res.ok) { showToast('Failed to update status', 'error'); return; }
     const updated = await res.json();
     setItineraries(prev => prev.map(i => i._id === updated._id ? { ...i, status: updated.status } : i));
+    showToast(`Trip ${newStatus}`);
   };
 
   const filtered = itineraries.filter(i => filter === 'all' || (i.status || 'planning') === filter);

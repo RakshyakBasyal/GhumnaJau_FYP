@@ -296,16 +296,24 @@ exports.joinTripRoom = async (req, res) => {
       return res.status(400).json({ msg: 'Already a member' });
     if (room.pendingRequests.map(m => m.toString()).includes(req.user.id))
       return res.status(400).json({ msg: 'Join request already pending' });
+    if (room.members.map(m => m.toString()).includes(req.user.id)) {
+      room.invitedBuddies = room.invitedBuddies.filter(id => id.toString() !== req.user.id);
+      await room.save();
+      return res.status(400).json({ msg: 'Already a member' });
+    }
     if (room.members.length >= room.maxMembers)
       return res.status(400).json({ msg: 'Room is full' });
 
     room.pendingRequests.push(req.user.id);
     await room.save();
 
-    const requester = await User.findById(req.user.id).select('fullName avatar');
+    const actor = await User.findById(req.user.id).select('fullName avatar');
     req.app.get('io')?.to(`user:${String(room.createdBy)}`).emit('room:request:new', {
-      roomId: room._id, roomDestination: room.destination,
-      userId: req.user.id, userName: requester?.fullName || 'Someone', userAvatar: requester?.avatar || '',
+      roomId: room._id, 
+      roomDestination: room.destination,
+      userId: req.user.id, 
+      userName: actor?.fullName || 'Someone', 
+      userAvatar: actor?.avatar || '',
     });
     res.json({ msg: 'Join request sent to group owner' });
   } catch (err) {
@@ -325,7 +333,39 @@ exports.respondToJoinRequest = async (req, res) => {
 
     if (action === 'accept') {
       if (room.members.length >= room.maxMembers) return res.status(400).json({ msg: 'Room is full' });
+      if (room.members.map(m => m.toString()).includes(userId)) {
+        room.pendingRequests = room.pendingRequests.filter(id => id.toString() !== userId);
+        await room.save();
+        return res.status(400).json({ msg: 'User is already a member' });
+      }
       room.members.push(userId);
+
+      const user = await User.findById(userId).select('fullName avatar');
+      const io = req.app.get('io');
+      if (io && user) {
+        // Notify the entire room channel
+        io.to(`room_${roomId}`).emit('room:member:joined', { 
+          roomId, 
+          roomDestination: room.destination, 
+          userName: user.fullName, 
+          userId: user._id 
+        });
+
+        // Notify the joined user individually
+        io.to(`user:${userId.toString()}`).emit('room:request:updated', { 
+          roomId, 
+          roomDestination: room.destination, 
+          status: 'accepted' 
+        });
+
+        // Also notify the owner/co-owner who is likely waiting for the UI to update
+        io.to(`user:${req.user.id}`).emit('room:member:joined', { 
+          roomId, 
+          roomDestination: room.destination, 
+          userName: user.fullName, 
+          userId: user._id 
+        });
+      }
     }
     room.pendingRequests = room.pendingRequests.filter(id => id.toString() !== userId);
     await room.save();
@@ -372,6 +412,11 @@ exports.acceptRoomInvite = async (req, res) => {
     if (!room) return res.status(404).json({ msg: 'Room not found' });
     if (!room.invitedBuddies.map(m => m.toString()).includes(req.user.id))
       return res.status(400).json({ msg: 'No invitation found' });
+    if (room.members.map(m => m.toString()).includes(req.user.id)) {
+      room.invitedBuddies = room.invitedBuddies.filter(id => id.toString() !== req.user.id);
+      await room.save();
+      return res.status(400).json({ msg: 'Already a member' });
+    }
     if (room.members.length >= room.maxMembers)
       return res.status(400).json({ msg: 'Room is full' });
 
@@ -419,6 +464,22 @@ exports.addRoomMessage = async (req, res) => {
 
     req.app.get('io')?.emit('room:message:new', { roomId: req.params.id, message: msg });
     res.json(msg);
+  } catch (err) {
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+exports.deleteTripRoom = async (req, res) => {
+  try {
+    const room = await TripRoom.findById(req.params.id);
+    if (!room) return res.status(404).json({ msg: 'Room not found' });
+
+    const isOwner = room.createdBy.toString() === req.user.id;
+    if (!isOwner) return res.status(401).json({ msg: 'Not authorized' });
+
+    await TripRoom.findByIdAndDelete(req.params.id);
+    req.app.get('io')?.emit('trip:group:deleted', { roomId: req.params.id });
+    res.json({ msg: 'Room deleted' });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }

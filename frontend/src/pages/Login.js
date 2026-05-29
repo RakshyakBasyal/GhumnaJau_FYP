@@ -291,6 +291,7 @@ const Login = () => {
       localStorage.setItem('username', res.data.fullName || 'User');
       localStorage.setItem('userRole', res.data.role);
       localStorage.setItem('userEmail', res.data.email);
+      localStorage.setItem('userAvatar', res.data.avatar || '');
 
       // Check if user has completed their profile: must have city and travelStyle (bio is optional)
       const isProfileIncomplete = !res.data.city || !res.data.travelStyle;
