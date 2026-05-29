@@ -42,7 +42,13 @@ const statusBadge = (status) => {
 };
 
 // ── Refund Review Panel ───────────────────────────────────────────────────────
-const RefundReviewPanel = ({ bookings, onDecision, reviewing }) => {
+const RefundReviewPanel = ({ 
+  bookings, 
+  onDecision, 
+  reviewing,
+  manualRefundTarget,
+  setManualRefundTarget
+}) => {
   const [expanded, setExpanded] = useState(true);
   const [notes, setNotes] = useState({}); // bookingId → note string
 
@@ -192,7 +198,7 @@ const RefundReviewPanel = ({ bookings, onDecision, reviewing }) => {
         onClose={() => setManualRefundTarget(null)}
         onConfirm={() => {
           if (manualRefundTarget) {
-            handleRefundDecision(manualRefundTarget.bookingId, manualRefundTarget.decision, manualRefundTarget.adminRefundNote, true);
+            onDecision(manualRefundTarget.bookingId, manualRefundTarget.decision, manualRefundTarget.adminRefundNote, true);
             setManualRefundTarget(null);
           }
         }}
@@ -538,6 +544,8 @@ const AdminBookings = () => {
             bookings={refundQueue}
             onDecision={handleRefundDecision}
             reviewing={reviewing}
+            manualRefundTarget={manualRefundTarget}
+            setManualRefundTarget={setManualRefundTarget}
           />
         )}
 

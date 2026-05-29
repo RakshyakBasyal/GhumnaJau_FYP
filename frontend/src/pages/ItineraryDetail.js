@@ -1,6 +1,7 @@
 // frontend/src/pages/ItineraryDetail.jsx
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 import {
   Plus, Calendar, MapPin, Hotel, Plane, UtensilsCrossed, Zap,
   Trash2, Edit2, X, Loader2, Search, ChevronRight, Star,
@@ -1256,7 +1257,8 @@ const AddPlanForNoDateSection = ({ onAdd }) => {
 
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 const ItineraryDetail = ({ publicView = false }) => {
-  const { id }   = useParams();
+  const { showToast } = useToast();
+  const { id } = useParams();
   const navigate = useNavigate();
   const token    = tok();
 
