@@ -24,7 +24,7 @@ router.get(
 router.get(
   '/google/callback',
   passport.authenticate('google', {
-    failureRedirect: 'http://localhost:3000/login?error=google_failed',
+    failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_failed`,
     session: false,
   }),
   (req, res) => {
@@ -39,7 +39,7 @@ router.get(
       { expiresIn: '7d' }
     );
 
-    res.redirect(`http://localhost:3000/auth/google/success?token=${token}`);
+    res.redirect(`${process.env.FRONTEND_URL}/auth/google/success?token=${token}`);
   }
 );
 
