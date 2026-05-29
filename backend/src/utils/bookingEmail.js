@@ -202,15 +202,23 @@ async function sendBookingConfirmationEmail({ booking, source }) {
 }
 
 async function sendRefundConfirmationEmail({ booking }) {
-  if (!booking?.user?.email) return;
-  const typeLabel = getTypeLabel(booking);
+  try {
+    if (!booking?.user?.email) {
+      console.warn('Cannot send refund email: user email missing', booking?._id);
+      return;
+    }
+    const typeLabel = getTypeLabel(booking);
+    const recipientName = booking.user.fullName || 'Traveler';
 
-  await transporter.sendMail({
-    from:    '"Ghumna Jau" <' + process.env.GMAIL_USER + '>',
-    to:      booking.user.email,
-    subject: 'Refund Processed: ' + typeLabel + ' - ' + booking._id,
-    html:    buildHtml({ booking, recipientName: booking.user.fullName, isRefund: true }),
-  });
+    await transporter.sendMail({
+      from:    '"Ghumna Jau" <' + process.env.GMAIL_USER + '>',
+      to:      booking.user.email,
+      subject: 'Refund Processed: ' + typeLabel + ' - ' + booking._id,
+      html:    buildHtml({ booking, recipientName, isRefund: true }),
+    });
+  } catch (err) {
+    console.error('sendRefundConfirmationEmail error:', err.message);
+  }
 }
 
 module.exports = {

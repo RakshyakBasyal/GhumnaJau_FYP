@@ -1,6 +1,7 @@
 // frontend/src/pages/Itinerary.jsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 import { getImageUrl } from '../services/api';
 import {
   Plus, Calendar, Loader2, Edit2, Trash2, X, Check,
@@ -281,6 +282,7 @@ const TripCard = ({ itin, onOpen, onEdit, onDelete, onStatusChange }) => {
 };
 
 const Itinerary = () => {
+  const { showToast } = useToast();
   const [itineraries,  setItineraries]  = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);

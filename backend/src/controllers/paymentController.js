@@ -31,7 +31,14 @@ const fullPopulate = (bookingId) =>
     .populate({
       path: 'flight',
       select: 'airline flightNumber from to departureTime arrivalTime departureDate class',
-    });
+    })
+    .populate({ path: 'restaurant', select: 'name cuisine images' })
+    .populate({ path: 'activity',   select: 'name category duration images' })
+    .populate({ path: 'tripPlanDestination',      select: 'name country images' })
+    .populate({ path: 'tripPlanItems.hotel',      select: 'name images country' })
+    .populate({ path: 'tripPlanItems.flight',     select: 'airline flightNumber from to departureTime arrivalTime departureDate class' })
+    .populate({ path: 'tripPlanItems.restaurant', select: 'name cuisine images' })
+    .populate({ path: 'tripPlanItems.activity',   select: 'name category duration images' });
 
 // ── Create Stripe Checkout Session ────────────────────────────────────────────
 exports.createStripeCheckoutSession = async (req, res) => {
@@ -137,7 +144,9 @@ exports.refundBookingPayment = async (req, res) => {
     const { bookingId } = req.params;
     const { cancellationReason = '', cancellationNote = '' } = req.body || {};
 
-    const booking = await Booking.findById(bookingId).populate('flight', 'departureDate');
+    const booking = await Booking.findById(bookingId)
+      .populate('flight', 'departureDate')
+      .populate('tripPlanItems.flight', 'departureDate');
     if (!booking)
       return res.status(404).json({ msg: 'Booking not found' });
     if (booking.user.toString() !== req.user.id)
@@ -233,6 +242,13 @@ exports.refundBookingPayment = async (req, res) => {
 
         const populated = await fullPopulate(booking._id);
         req.app.get('io')?.emit('bookingCancelled', populated);
+        await emitAdminStats(req.app.get('io'));
+
+        try {
+          await sendRefundConfirmationEmail({ booking: populated });
+        } catch (mailErr) {
+          console.error('Refund confirmation email failed (auto-zero):', mailErr.message);
+        }
 
         return res.json({
           success: true,

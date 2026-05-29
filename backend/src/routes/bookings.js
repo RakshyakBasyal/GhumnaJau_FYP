@@ -36,7 +36,11 @@ function populateAll(query) {
     .populate(flightPop)
     .populate(restaurantPop)
     .populate(activityPop)
-    .populate(tripDestPop);
+    .populate(tripDestPop)
+    .populate({ path: 'tripPlanItems.hotel',      select: 'name images country' })
+    .populate({ path: 'tripPlanItems.flight',     select: 'airline flightNumber from to departureTime arrivalTime departureDate class' })
+    .populate({ path: 'tripPlanItems.restaurant', select: 'name cuisine images' })
+    .populate({ path: 'tripPlanItems.activity',   select: 'name category duration images' });
 }
 
 // ── GET /api/bookings  — admin all bookings ───────────────────────────────────
@@ -309,12 +313,16 @@ router.patch('/:id/refund-review', auth, admin, async (req, res) => {
     req.app.get('io')?.emit('bookingRefundReviewed', updated);
     await emitAdminStats(req.app.get('io'));
 
-    if (decision === 'admin_approved') {
-      try { await sendRefundConfirmationEmail({ booking: updated }); }
-      catch (e) { console.error('Refund email failed:', e.message); }
+    // 5. Notify user via email
+    if (decision === 'admin_approved' || decision === 'admin_rejected') {
+      try {
+        await sendRefundConfirmationEmail({ booking: updated });
+      } catch (e) {
+        console.error('Refund review email failed:', e.message);
+      }
     }
 
-    res.json({ message: decision === 'admin_approved' ? 'Refund approved' : 'Refund rejected', booking: updated });
+    res.json({ message: `Refund ${decision.replace('admin_', '')}`, booking: updated });
   } catch (err) {
     res.status(500).json({ message: 'Failed to process refund review' });
   }

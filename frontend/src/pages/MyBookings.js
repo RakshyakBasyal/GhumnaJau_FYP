@@ -31,6 +31,20 @@ const getTravelDate = (booking) => {
   if (booking.type === 'hotel'  && booking.checkIn)              return new Date(booking.checkIn);
   if (booking.type === 'flight' && booking.flight?.departureDate) return new Date(booking.flight.departureDate);
   if (booking.type === 'activity' && booking.activityDate)        return new Date(booking.activityDate);
+  
+  // Trip plan — use earliest date across all items
+  if (booking.type === 'trip_plan' && booking.tripPlanItems?.length > 0) {
+    const dates = booking.tripPlanItems
+      .map(item => {
+        if (item.type === 'hotel'  && item.checkIn)      return new Date(item.checkIn);
+        if (item.type === 'flight' && item.flight?.departureDate) return new Date(item.flight.departureDate);
+        if (item.type === 'activity' && item.activityDate) return new Date(item.activityDate);
+        return null;
+      })
+      .filter(d => d && !isNaN(d.getTime()));
+    if (dates.length > 0) return new Date(Math.min(...dates.map(d => d.getTime())));
+  }
+  
   return null;
 };
 
