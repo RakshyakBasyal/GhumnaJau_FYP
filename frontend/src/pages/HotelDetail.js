@@ -369,7 +369,7 @@ const HotelDetail = () => {
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100">
                       {reviews[0].author?.avatar
-                        ? <img src={BASE_URL + reviews[0].author.avatar} alt={reviews[0].author.fullName} className="w-full h-full object-cover" />
+                        ? <img src={getImageUrl(reviews[0].author.avatar)} alt={reviews[0].author.fullName} className="w-full h-full object-cover" />
                         : <div className="w-full h-full flex items-center justify-center bg-blue-100"><User size={13} className="text-blue-600" /></div>}
                     </div>
                     <div>
@@ -386,7 +386,7 @@ const HotelDetail = () => {
                 {reviews[0].images?.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto pb-1 mt-3">
                     {reviews[0].images.map((img, idx) => (
-                      <img key={idx} src={img?.startsWith('http') ? img : BASE_URL + img} alt="Review" className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer hover:opacity-80 transition"
+                      <img key={idx} src={getImageUrl(img)} alt="Review" className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer hover:opacity-80 transition"
                         onClick={() => { setCurrentPhotoIndex(idx); setShowPhotos(true); }} />
                     ))}
                   </div>
@@ -430,7 +430,7 @@ const HotelDetail = () => {
                   {review.images?.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {review.images.map((img, idx) => (
-                        <img key={idx} src={img?.startsWith('http') ? img : BASE_URL + img} alt="Review" className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer hover:opacity-80 transition"
+                        <img key={idx} src={getImageUrl(img)} alt="Review" className="h-20 w-20 object-cover rounded-lg flex-shrink-0 cursor-pointer hover:opacity-80 transition"
                           onClick={() => { setCurrentPhotoIndex(idx); setShowPhotos(true); }} />
                       ))}
                     </div>
